@@ -1,2 +1,2 @@
 # kmisc
-Kage Misc Tools
+Kage's Misc Functions
