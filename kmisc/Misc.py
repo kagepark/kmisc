@@ -9,16 +9,14 @@ import tempfile
 from os import close, remove
 import random
 import hashlib
-from klib.MODULE import MODULE
-MODULE().Import('from klib.Type import Type')
-MODULE().Import('from klib.CONVERT import CONVERT')
-MODULE().Import('from klib.GET import GET')
-MODULE().Import('from klib.STR import STR')
-MODULE().Import('from klib.OutFormat import OutFormat')
-MODULE().Import('from klib.Abs import Abs')
-MODULE().Import('from klib.Crc import Crc')
-MODULE().Import('from klib.FILE import FILE')
-#MODULE().Import('from klib.Get import Get')
+from kmisc.Import import *
+Import('from kmisc.Type import Type')
+#Import('from kmisc.CONVERT import CONVERT')
+#Import('from kmisc.GET import GET')
+Import('from kmisc.OutFormat import OutFormat')
+Import('from kmisc.Abs import Abs')
+Import('from kmisc.Crc import Crc')
+#Import('from kmisc.FILE import FILE')
 
 ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')

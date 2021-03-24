@@ -1,6 +1,6 @@
 # Kage Park
-from klib.MODULE import *
-MODULE().Import('from klib.Get import Get')
+from kmisc.Import import *
+Import('from kmisc.Get import Get')
 
 def Crc(rt,chk='_',rc={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'},1],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error',{'ERR'},-1],'WARN':['Warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}]},rt_true=True,rt_false=False):
     def Trans(irt):

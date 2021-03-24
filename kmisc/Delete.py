@@ -1,5 +1,5 @@
 #Kage Park
-from klib.Abs import *
+from kmisc.Abs import *
 
 def Delete(*inps,**opts):
     if len(inps) >= 2:

@@ -1,6 +1,6 @@
 # Kage Park
 #
-from klib.OutFormat import OutFormat
+from kmisc.OutFormat import OutFormat
 
 def Abs(*inps,**opts):
     default=opts.get('default',None)

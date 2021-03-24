@@ -7,16 +7,30 @@ import sys
 import re
 import ast
 from pprint import pprint
-from klib.MODULE import MODULE
-MODULE().Import('from klib.Type import Type')
-MODULE().Import('from klib.COLOR import COLOR')
-MODULE().Import('from klib.Tap import Tap')
+from kmisc.Import import *
+Import('from kmisc.Type import Type')
+Import('from kmisc.Tap import Tap')
 
 def Print(*msg,**opts):
     ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
     color_db=opts.get('color_db',{'blue': 34, 'grey': 30, 'yellow': 33, 'green': 32, 'cyan': 36, 'magenta': 35, 'white': 37, 'red': 31})
     bg_color_db=opts.get('bg_color_db',{'cyan': 46, 'white': 47, 'grey': 40, 'yellow': 43, 'blue': 44, 'magenta': 45, 'red': 41, 'green': 42})
     attr_db=opts.get('attr_db',{'reverse': 7, 'blink': 5,'concealed': 8, 'underline': 4, 'bold': 1})
+    def color_string(color,msg,bg=False,attr=False):
+           if bg:
+               color_code=bg_color_db.get(color,None)
+           elif attr:
+               color_code=attr_db.get(color,None)
+           else:
+               color_code=color_db.get(color,None)
+           if color_code is None:
+               return msg
+           if os.getenv('ANSI_COLORS_DISABLED') is None:
+               reset='''\033[0m'''
+               fmt_msg='''\033[%dm%s'''
+               msg=fmt_msg % (color_code,msg)
+               return msg+reset
+
     dsp=opts.get('dsp','s')
     limit=opts.get('limit',None)
     if isinstance(limit,int):
@@ -56,12 +70,12 @@ def Print(*msg,**opts):
         new_msg_str=[]
         if len(length) == 1:
             for mm in range(0,len(msg_str)):
-                new_msg_str=new_msg_str+STR(msg_str[mm]).Cut(head_len=length[0])
+                new_msg_str=new_msg_str+Cut(msg_str[mm],head_len=length[0])
         elif  len(length) == 2 and len(msg_str):
-            new_msg_str=new_msg_str+STR(msg_str[0]).Cut(head_len=length[0],body_len=length[1])
+            new_msg_str=new_msg_str+Cut(msg_str[0],head_len=length[0],body_len=length[1])
             if len(msg_str) > 1:
                 for mm in range(1,len(msg_str)):
-                    new_msg_str=new_msg_str+STR(msg_str[mm]).Cut(head_len=length[1])
+                    new_msg_str=new_msg_str+Cut(msg_str[mm],head_len=length[1])
         msg_str=new_msg_str
     # wrap each line
     if isinstance(wrap,int):
@@ -80,9 +94,9 @@ def Print(*msg,**opts):
         if color_mode == 'shell':
             msg_str=ansi_escape.sub('',msg_str)
     elif color:
-        msg_str=COLOR().String(msg_str,color,mode=color_mode)
+        msg_str=color_string(color,msg_str,bg=False,attr=False,mode=color_mode)
     elif bgcolor:
-        msg_str=COLOR().String(msg_str,bgcolor,bg=True,mode=color_mode)
+        msg_str=color_string(color,msg_str,bg=True,mode=color_mode)
     # return msg
     if 'f' in dsp:
         if isinstance(filename,(str,list,tuple)):
@@ -154,10 +168,10 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
                rc_str=format_print(ii,num=num,bstr=rc_str,rc=True)
            else:
                if chk == None:
-                  rc_str='%s%s'%(rc_str,STR(str_format_print(ii,rc=True)).Tap())
+                  rc_str='%s%s'%(rc_str,Wrap(str_format_print(ii,rc=True)))
                   chk='a'
                else:
-                  rc_str='%s,\n%s'%(rc_str,STR(str_format_print(ii,rc=True)).Tap(space=bspace+' '))
+                  rc_str='%s,\n%s'%(rc_str,Wrap(str_format_print(ii,rc=True),space=Tap(space=bspace+' ')))
     elif string_type is dict:
        for ii in string.keys():
            ii_type=type(string[ii])
@@ -170,10 +184,10 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
                rc_str="%s,\n%s %s:%s"%(rc_str,bspace,str_format_print(ii,rc=True),tmp)
            else:
                if chk == None:
-                  rc_str='%s%s'%(rc_str,STR("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True))).Tap())
+                  rc_str='%s%s'%(rc_str,Wrap("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True)),space=Tap()))
                   chk='a'
                else:
-                  rc_str='%s,\n%s'%(rc_str,STR("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True))).Tap(space=bspace+' '))
+                  rc_str='%s,\n%s'%(rc_str,Wrap("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True)),space=Tap(space=bspace+' ')))
 
     # End symbol
     if string_type is tuple:

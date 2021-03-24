@@ -1,6 +1,6 @@
 # Kage Park
-from klib.MODULE import *
-MODULE().Import('klib.Tap import Tap')
+from kmisc.Import import *
+Import('kmisc.Tap import Tap')
 
 def Wrap(src,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
     if not isinstance(src,(str,list,tuple)): return default

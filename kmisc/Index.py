@@ -1,7 +1,7 @@
 # Kage Park
-from klib.MODULE import *
-MODULE().Import('klib.Find import Find')
-MODULE().Import('klib.Type import Type')
+from kmisc.Import import *
+Import('kmisc.Find import Find')
+Import('kmisc.Type import Type')
 
 def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
     rt=[]

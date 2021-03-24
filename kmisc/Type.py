@@ -4,8 +4,8 @@ Based on Python2.7 and Python3.x's types module
 Inhance for make sure
 """
 import sys,os
-from klib.MODULE import *
-MODULE().Import('magic')
+from kmisc.Import import *
+Import('magic')
 
 def ObjName(obj,default=None):
     if isinstance(obj,str):
