@@ -4,6 +4,8 @@ import setuptools
 from sys import version_info
 import subprocess
 
+# require package: pip install wheel
+
 def lib_ver():
     gver=subprocess.check_output('''git describe --tags >/dev/null && (git describe --tags | sed "s/^v//g" | sed "s/^V//g") || (git tag V1.0; sleep 1; git describe --tags | sed "s/^v//g" | sed "s/^V//g")''',stderr=subprocess.STDOUT,shell=True)
     if gver:
