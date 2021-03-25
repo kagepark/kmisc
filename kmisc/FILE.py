@@ -54,52 +54,89 @@ class FILE:
                         rt=rt[ii]
         return rt
 
+    def MkInfo(self,rt,filename=None,**opts):
+        if isinstance(rt,dict):
+            if ' i ' not in rt: rt[' i ']={}
+            if filename:
+                state=os.stat(filename)
+                rt[' i ']['exist']=True
+                rt[' i ']['size']=state.st_size
+                rt[' i ']['mode']=oct(state.st_mode)[-4:]
+                rt[' i ']['atime']=state.st_atime
+                rt[' i ']['mtime']=state.st_mtime
+                rt[' i ']['ctime']=state.st_ctime
+                rt[' i ']['gid']=state.st_gid
+                rt[' i ']['uid']=state.st_uid
+            if opts:
+                rt[' i '].update(opts)
+
+    def GetInfo(self,data,*inps):
+        if isinstance(data,dict):
+            rt=[]
+            for ii in inps:
+                if ii == 'data' and ii in data: rt.append(data[ii])
+                if ' i ' in data and ii in data[' i ']: rt.append(data[' i '][ii])
+            return rt
+
     def Get(self,filename,default={},data=False,md5sum=False,sub_dir=False):
         if isinstance(filename,str):
             rt=self.PathDir(filename)
             tfilename=os.path.join(self.root_path,filename)
             if os.path.exists(tfilename):
                 self.info['root_path']=self.root_path
-                if os.path.islink(tfilename): # it is Link File
+                if os.path.isdir(tfilename):
+                    self.MkInfo(rt,tfilename,type='dir')
+                elif os.path.islink(tfilename): # it is Link File
                     file_name=os.path.basename(tfilename)
                     rt[file_name]={}
                     rt=rt[file_name]
-                    rt['exist']=True
-                    rt['type']='link'
-                    rt['dest']=os.path.realpath(tfilename)
+                    self.MkInfo(rt,filename=tfilename,type='link',dest=os.path.realpath(tfilename))
+#                    rt['exist']=True
+#                    rt['type']='link'
+#                    rt['dest']=os.path.realpath(tfilename)
                 elif os.path.isfile(filename): # it is File
                     file_name=os.path.basename(tfilename)
                     rt[file_name]={}
                     rt=rt[file_name]
-                    rt['exist']=True
+#                    rt['exist']=True
                     filename_info=file_name.split('.')
                     if 'tar' in filename_info:
                         idx=filename_info.index('tar')
                     else:
                         idx=-1
-                    rt['name']='.'.join(filename_info[:idx])
-                    rt['ext']='.'.join(filename_info[idx:])
+#                    rt['name']='.'.join(filename_info[:idx])
+#                    rt['ext']='.'.join(filename_info[idx:])
                     aa=magic.from_buffer(open(tfilename,'rb').read(2048))
                     if aa:
-                        rt['type']=aa.split()[0].lower()
+                        _type=aa.split()[0].lower()
+#                        rt['type']=aa.split()[0].lower()
                     else:
-                        rt['type']='unknown'
-                    state=os.stat(tfilename)
-                    rt['size']=state.st_size
-                    rt['mode']=oct(state.st_mode)[-4:]
-#                    rt['mode']=state.st_mode
-                    rt['atime']=state.st_atime
-                    rt['mtime']=state.st_mtime
-                    rt['ctime']=state.st_ctime
-                    rt['gid']=state.st_gid
-                    rt['uid']=state.st_uid
+                        _type='unknown'
+#                        rt['type']='unknown'
+#                   state=os.stat(tfilename)
+#                   rt['size']=state.st_size
+#                   rt['mode']=oct(state.st_mode)[-4:]
+#                   #rt['mode']=state.st_mode
+#                   rt['atime']=state.st_atime
+#                   rt['mtime']=state.st_mtime
+#                   rt['ctime']=state.st_ctime
+#                   rt['gid']=state.st_gid
+#                   rt['uid']=state.st_uid
+                    _md5=None
                     if data or md5sum:
                         filedata=self.Rw(tfilename)
                         if filedata[0]:
+                            #if data: rt['data']=filedata[1]
+                            #if md5sum: rt['md5']=md5(filedata[1])
                             if data: rt['data']=filedata[1]
-                            if md5sum: rt['md5']=md5(filedata[1])
+                            if md5sum: _md5=md5(filedata[1])
+                    if _md5:
+                        self.MkInfo(rt,filename=tfilename,type=_type,name='.'.join(filename_info[:idx]),ext='.'.join(filename_info[idx:]),md5=_md5)
+                    else:
+                        self.MkInfo(rt,filename=tfilename,type=_type,name='.'.join(filename_info[:idx]),ext='.'.join(filename_info[idx:]))
             else:
-                rt['exist']=False
+                self.MkInfo(rt,exist=False)
+#                rt[' i ']['exist']=False
 
     def GetInfoFile(self,name): #get file info dict from Filename path
         if isinstance(name,str):
