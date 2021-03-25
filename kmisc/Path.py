@@ -3,7 +3,6 @@ import os
 
 def Path(*inp,**opts):
     sym=opts.get('sym','/')
-    default=opts.get('default','')
     out=opts.get('out','str')
     if inp:
         full_path=[]
@@ -29,5 +28,4 @@ def Path(*inp,**opts):
         if full_path:
             if out in [str,'str']:return sym.join(full_path)
             return full_path
-    return default
-
+    return os.path.dirname(os.path.abspath(__file__)) # Not input then get current path
