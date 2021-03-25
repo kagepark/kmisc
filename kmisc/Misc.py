@@ -11,12 +11,9 @@ import random
 import hashlib
 from kmisc.Import import *
 Import('from kmisc.Type import Type')
-#Import('from kmisc.CONVERT import CONVERT')
-#Import('from kmisc.GET import GET')
 Import('from kmisc.OutFormat import OutFormat')
 Import('from kmisc.Abs import Abs')
 Import('from kmisc.Crc import Crc')
-#Import('from kmisc.FILE import FILE')
 
 ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
