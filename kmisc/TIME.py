@@ -73,3 +73,6 @@ class TIME:
 
     def Time(self):
         return time.time()
+
+    def Datetime(self):
+        return datetime()
