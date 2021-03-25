@@ -2,11 +2,11 @@
 from distutils.spawn import find_executable
 import os
 import fnmatch
-from klib.MODULE import *
-MODULE().Import('from klib.CONVERT import CONVERT')
-MODULE().Import('import magic')
-MODULE().Import('import tarfile')
-MODULE().Import('import zipfile')
+from kmisc.Import import *
+Import('from kmisc.CONVERT import CONVERT')
+Import('import magic')
+Import('import tarfile')
+Import('import zipfile')
 
 class FILE:
     def __init__(self,*inp,**opts):
