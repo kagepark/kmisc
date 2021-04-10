@@ -46,17 +46,21 @@ def Print(*msg,**opts):
     wrap=opts.get('wrap',None)
     length=opts.get('length',None)
     form=opts.get('form',False)
+    if opts.get('stderr',False):
+        if isinstance(dsp,str) and 'e' not in dsp: dsp=dsp+'e'
 
     if opts.get('direct',False):
         new_line=''
+        start_new_line=''
     else:
+        start_new_line=opts.get('start_new_line','')
         new_line=opts.get('new_line','\n')
     filename=opts.get('filename',None)
 
     msg_str=''
     for ii in msg:
         if msg_str:
-            msg_str='''{}{}'''.format(msg_str,ii)
+            msg_str='''{}{}{}'''.format(msg_str,new_line,ii)
         else:
             msg_str='''{}'''.format(ii)
 
@@ -104,7 +108,7 @@ def Print(*msg,**opts):
              for ff in filename:
                  if GET(ff).Dirname():
                      with open(ff,filemode) as f:
-                         f.write(msg_str+new_line)
+                         f.write(start_new_line+msg_str+new_line)
         else:
             dsp=dsp+'s' # if nothing filename then display it on screen
     if 's' in dsp or 'a' in dsp:
@@ -113,99 +117,21 @@ def Print(*msg,**opts):
                  msg_str=ast.literal_eval(msg_str)
                  pprint(msg_str)
              except:
-                 sys.stdout.write(msg_str+new_line)
+                 sys.stdout.write(start_new_line+msg_str+new_line)
                  sys.stdout.flush()
          else:
-             sys.stdout.write(msg_str+new_line)
+             sys.stdout.write(start_new_line+msg_str+new_line)
              sys.stdout.flush()
+    if 'e' in dsp:
+         sys.stderr.write(start_new_line+msg_str+new_line)
+         sys.stderr.flush()
     if 'r' in dsp:
          if form:
              try:
                  return ast.literal_eval(msg_str)
              except:
-                 return msg_str
+                 return start_new_line+msg_str+new_line
          else:
-             return msg_str
+             return start_new_line+msg_str+new_line
 
-
-def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
-    string_type=type(string)
-    rc_str=''
-    chk=None
-    bspace=Tap(num)
-
-    # Start Symbol
-    if string_type is tuple:
-        if bstr is None:
-            if NFLT:
-                rc_str='%s('%(rc_str)
-            else:
-                rc_str='%s%s('%(bspace,rc_str)
-        else:
-            rc_str='%s,\n%s%s('%(bstr,bspace,rc_str)
-    elif string_type is list:
-        if bstr is None:
-            if NFLT:
-                rc_str='%s['%(rc_str)
-            else:
-                rc_str='%s%s['%(bspace,rc_str)
-        else:
-            rc_str='%s,\n%s%s['%(bstr,bspace,rc_str)
-    elif string_type is dict:
-        if bstr is None:
-            rc_str='%s{'%(rc_str)
-        else:
-            rc_str='%s,\n%s %s{'%(bstr,bspace,rc_str)
-    rc_str='%s\n%s '%(rc_str,bspace)
-
-    # Print string
-    if string_type is list or string_type is tuple:
-       for ii in list(string):
-           ii_type=type(ii)
-           if ii_type is tuple or ii_type is list or ii_type is dict:
-               if not ii_type is dict:
-                  num=num+1
-               rc_str=format_print(ii,num=num,bstr=rc_str,rc=True)
-           else:
-               if chk == None:
-                  rc_str='%s%s'%(rc_str,Wrap(str_format_print(ii,rc=True)))
-                  chk='a'
-               else:
-                  rc_str='%s,\n%s'%(rc_str,Wrap(str_format_print(ii,rc=True),space=Tap(space=bspace+' ')))
-    elif string_type is dict:
-       for ii in string.keys():
-           ii_type=type(string[ii])
-           if ii_type is dict or ii_type is tuple or ii_type is list:
-               num=num+1
-               if ii_type is dict:
-                   tmp=format_print(string[ii],num=num,rc=True)
-               else:
-                   tmp=format_print(string[ii],num=num,rc=True,NFLT=True)
-               rc_str="%s,\n%s %s:%s"%(rc_str,bspace,str_format_print(ii,rc=True),tmp)
-           else:
-               if chk == None:
-                  rc_str='%s%s'%(rc_str,Wrap("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True)),space=Tap()))
-                  chk='a'
-               else:
-                  rc_str='%s,\n%s'%(rc_str,Wrap("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True)),space=Tap(space=bspace+' ')))
-
-    # End symbol
-    if string_type is tuple:
-        rc_str='%s\n%s)'%(rc_str,bspace)
-    elif string_type is list:
-        rc_str='%s\n%s]'%(rc_str,bspace)
-    elif string_type is dict:
-        if bstr is None:
-            rc_str='%s\n%s}'%(rc_str,bspace)
-        else:
-            rc_str='%s\n%s }'%(rc_str,bspace)
-
-    else:
-       rc_str=string
-
-    # Output
-    if rc:
-       return rc_str
-    else:
-       print(rc_str)
 

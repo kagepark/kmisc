@@ -2,60 +2,126 @@
 from distutils.spawn import find_executable
 import os
 import fnmatch
+import stat
 from kmisc.Import import *
 Import('from kmisc.CONVERT import CONVERT')
+Import('from kmisc.Misc import *')
+Import('from kmisc.Path import Path')
 Import('import magic')
 Import('import tarfile')
 Import('import zipfile')
+Import('import bz2')
+Import('import pickle')
 
 class FILE:
+    '''
+    sub_dir  : True (Get files in recuring directory)
+    data     : True (Get File Data)
+    md5sum   : True (Get File's MD5 SUM)
+    link2file: True (Make a real file instead sym-link file)
+    '''
     def __init__(self,*inp,**opts):
         self.root_path=opts.get('root_path',None)
         if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
-        self.info={}
-        sub_dir=opts.get('sub_dir',False)
-        data=opts.get('data',False)
-        md5sum=opts.get('md5sum',False)
-        self.filelist=[]
-        for filename in inp:
-            self.filelist=self.filelist+self.FileList(filename,sub_dir=sub_dir)
-        for ff in self.filelist:
-            self.Get(ff,data=data,md5sum=md5sum)
+        info=opts.get('info',None)
+        if isinstance(info,dict):
+            self.info=info
+        else:
+            self.info={}
+            sub_dir=opts.get('sub_dir',False)
+            data=opts.get('data',False)
+            md5sum=opts.get('md5sum',False)
+            link2file=opts.get('link2file',False) # If True then copy file-data of sym-link file, so get it real file instead of sym-link file
+            self.filelist={}
+            for filename in inp:
+                root,flist=self.FileList(filename,sub_dir=sub_dir,dirname=True)
+                if root not in self.filelist: self.filelist[root]=[]
+                self.filelist[root]=self.filelist[root]+flist
+            for ff in self.filelist:
+                self.info.update(self.Get(ff,*self.filelist[ff],data=data,md5sum=md5sum,link2file=link2file))
 
-    def FileList(self,name,sub_dir=False,default=[]):
+    def FileList(self,name,sub_dir=False,dirname=False,default=[]):
         if isinstance(name,str):
-            if name[0] == '/': self.root_path='/'
-            if os.path.isfile('{}/{}'.format(self.root_path,name)): return [name]
-            if os.path.isdir('{}/{}'.format(self.root_path,name)):
-                if sub_dir:
-                    rt = []
-                    pwd=os.getcwd()
-                    os.chdir(self.root_path)
-                    for base, dirs, files in os.walk(name):
-                        rt.extend(os.path.join(base, f) for f in files)
-                    os.chdir(pwd)
-                    return rt
-                else:
-                    return [os.path.join(name,f) for f in os.listdir('{}/{}'.format(self.root_path,name))]
+            if name[0] == '/':  # Start from root path
+                if os.path.isfile(name) or os.path.islink(name): return os.path.dirname(name),[os.path.basename(name)]
+                if os.path.isdir(name):
+                    if sub_dir:
+                        rt = []
+                        pwd=os.getcwd()
+                        os.chdir(name)
+                        for base, dirs, files in os.walk('.'): 
+                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
+                            rt.extend(os.path.join(base[2:], f) for f in files)
+                        os.chdir(pwd)
+                        return Path(name),rt
+                    else:
+                        return Path(name),[f for f in os.listdir(name)]
+            elif self.root_path: # start from defined root path
+                #chk_path=os.path.join(self.root_path,name)
+                chk_path=Path(self.root_path,name)
+                if os.path.isfile(chk_path) or os.path.islink(chk_path): return Path(self.root_path),[name]
+                if os.path.isdir(chk_path):
+                    if sub_dir:
+                        rt = []
+                        pwd=os.getcwd()
+                        os.chdir(self.root_path) # Going to defined root path
+                        # Get recuring file list of the name (when current dir then '.')
+                        for base, dirs, files in os.walk(name):
+                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
+                            rt.extend(os.path.join(base[2:], f) for f in files)
+                        os.chdir(pwd) # recover to the original path
+                        return Path(self.root_path),rt 
+                    else:
+                        if name == '.': name=''
+                        return Path(self.root_path),[os.path.join(name,f) for f in os.listdir('{}/{}'.format(self.root_path,name))]
         return default
 
-    def PathDir(self,path):
-        rt=self.info
-        if isinstance(path,str) and path[0] == '/':
-            cur_path='/'
-        else:
-            cur_path='{}'.format(self.root_path)
-        if '/' in path:
-            for ii in os.path.dirname(path).split('/'):
-                if ii:
-                    cur_path=os.path.join(cur_path,ii)
-                    if os.path.isdir(cur_path):
-                        if ii not in rt: rt[ii]={}
-                        rt=rt[ii]
+    def CdPath(self,base,path):
+        rt=base
+        for ii in path.split('/'):
+            if ii not in rt: return False
+            rt=rt[ii]
         return rt
+            
+    def FileName(self,filename):
+        if isinstance(filename,str):
+            filename_info=os.path.basename(filename).split('.')
+            if 'tar' in filename_info:
+                idx=filename_info.index('tar')
+            else:
+                idx=-1
+            return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+        return None,None
 
-    def MkInfo(self,rt,filename=None,**opts):
-        if isinstance(rt,dict):
+    def FileType(self,filename,default=False):
+        if not isinstance(filename,str) or not os.path.isfile(filename): return default
+        aa=magic.from_buffer(open(filename,'rb').read(2048))
+        if aa: return aa.split()[0].lower()
+        return 'unknown'
+
+    def GetInfo(self,path=None,*inps):
+        if isinstance(path,str):
+            if not self.info and os.path.exists(path):
+                data={}
+                self.MkInfo(data,path)
+            else:
+                data=self.CdPath(path)
+            if isinstance(data,dict):
+                if not inps and ' i ' in data: return data[' i ']
+                rt=[]
+                for ii in inps:
+                    if ii == 'data' and ii in data: rt.append(data[ii])
+                    if ' i ' in data and ii in data[' i ']: rt.append(data[' i '][ii])
+                return rt
+
+    def Get(self,root_path,*filenames,**opts):
+        data=opts.get('data',False)
+        md5sum=opts.get('md5sum',False)
+        link2file=opts.get('link2file',False)
+        base={}
+
+        def MkInfo(rt,filename=None,**opts):
+            #if not isinstance(rt,dict) or not isinstance(filename,str): return default
             if ' i ' not in rt: rt[' i ']={}
             if filename:
                 state=os.stat(filename)
@@ -67,93 +133,87 @@ class FILE:
                 rt[' i ']['ctime']=state.st_ctime
                 rt[' i ']['gid']=state.st_gid
                 rt[' i ']['uid']=state.st_uid
-            if opts:
-                rt[' i '].update(opts)
+            if opts: rt[' i '].update(opts)
 
-    def GetInfo(self,data,*inps):
-        if isinstance(data,dict):
-            rt=[]
-            for ii in inps:
-                if ii == 'data' and ii in data: rt.append(data[ii])
-                if ' i ' in data and ii in data[' i ']: rt.append(data[' i '][ii])
+        def MkPath(base,path,root_path):
+            rt=base
+            chk_dir='{}'.format(root_path)
+            for ii in path.split('/'):
+                if ii:
+                    chk_dir=Path(chk_dir,ii)
+                    if ii not in rt:
+                        rt[ii]={}
+                        if os.path.isdir(chk_dir): MkInfo(rt[ii],chk_dir,type='dir')
+                    rt=rt[ii]
             return rt
 
-    def Get(self,filename,default={},data=False,md5sum=False,sub_dir=False):
-        if isinstance(filename,str):
-            rt=self.PathDir(filename)
-            tfilename=os.path.join(self.root_path,filename)
+        for filename in filenames:
+            tfilename=Path(root_path,filename)
             if os.path.exists(tfilename):
-                self.info['root_path']=self.root_path
-                if os.path.isdir(tfilename):
-                    self.MkInfo(rt,tfilename,type='dir')
-                elif os.path.islink(tfilename): # it is Link File
-                    file_name=os.path.basename(tfilename)
-                    rt[file_name]={}
-                    rt=rt[file_name]
-                    self.MkInfo(rt,filename=tfilename,type='link',dest=os.path.realpath(tfilename))
-#                    rt['exist']=True
-#                    rt['type']='link'
-#                    rt['dest']=os.path.realpath(tfilename)
-                elif os.path.isfile(filename): # it is File
-                    file_name=os.path.basename(tfilename)
-                    rt[file_name]={}
-                    rt=rt[file_name]
-#                    rt['exist']=True
-                    filename_info=file_name.split('.')
-                    if 'tar' in filename_info:
-                        idx=filename_info.index('tar')
+                rt=MkPath(base,filename,root_path)
+                if os.path.islink(tfilename): # it is a Link File
+                    if os.path.isfile(filename): # it is a File
+                        if link2file:
+                            name,ext=self.FileName(tfilename)
+                            _md5=None
+                            if data or md5sum: # MD5SUM or Data
+                                filedata=self.Rw(tfilename,out='byte')
+                                if filedata[0]:
+                                    if data: rt['data']=filedata[1]
+                                    if md5sum: _md5=md5(filedata[1])
+                            MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
                     else:
-                        idx=-1
-#                    rt['name']='.'.join(filename_info[:idx])
-#                    rt['ext']='.'.join(filename_info[idx:])
-                    aa=magic.from_buffer(open(tfilename,'rb').read(2048))
-                    if aa:
-                        _type=aa.split()[0].lower()
-#                        rt['type']=aa.split()[0].lower()
-                    else:
-                        _type='unknown'
-#                        rt['type']='unknown'
-#                   state=os.stat(tfilename)
-#                   rt['size']=state.st_size
-#                   rt['mode']=oct(state.st_mode)[-4:]
-#                   #rt['mode']=state.st_mode
-#                   rt['atime']=state.st_atime
-#                   rt['mtime']=state.st_mtime
-#                   rt['ctime']=state.st_ctime
-#                   rt['gid']=state.st_gid
-#                   rt['uid']=state.st_uid
+                        MkInfo(rt,filename=tfilename,type='link',dest=os.readlink(tfilename))
+                elif os.path.isdir(tfilename): # it is a directory
+                    MkInfo(rt,tfilename,type='dir')
+                elif os.path.isfile(filename): # it is a File
+                    name,ext=self.FileName(tfilename)
                     _md5=None
-                    if data or md5sum:
-                        filedata=self.Rw(tfilename)
+                    if data or md5sum: # MD5SUM or Data
+                        filedata=self.Rw(tfilename,out='byte')
                         if filedata[0]:
-                            #if data: rt['data']=filedata[1]
-                            #if md5sum: rt['md5']=md5(filedata[1])
                             if data: rt['data']=filedata[1]
                             if md5sum: _md5=md5(filedata[1])
-                    if _md5:
-                        self.MkInfo(rt,filename=tfilename,type=_type,name='.'.join(filename_info[:idx]),ext='.'.join(filename_info[idx:]),md5=_md5)
-                    else:
-                        self.MkInfo(rt,filename=tfilename,type=_type,name='.'.join(filename_info[:idx]),ext='.'.join(filename_info[idx:]))
+                    MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
             else:
-                self.MkInfo(rt,exist=False)
-#                rt[' i ']['exist']=False
+                MkInfo(rt,filename,exist=False)
+        if base:
+            return {root_path:base}
+        return {}
 
-    def GetInfoFile(self,name): #get file info dict from Filename path
+    def GetInfoFile(self,root,name): #get file info dict from Filename path
         if isinstance(name,str):
-            rt=self.info
+            rt=self.info.get(root,{})
             for ii in name.split('/'):
                 if ii not in rt: return False
                 rt=rt[ii]
-            if rt.get('exist',False): return rt
+            return rt.get(' i ',{})
         return False
 
-    def GetFilename(self): #Get filename path from info dict
-        filename=[]
-        for ii in self.info:
-            filename.append(ii)
-            if ii.get('exist',False): break
-        return '/'.join(filename)
-    
+    def GetList(self,root,name=None): #get file info dict from Filename path
+        if isinstance(root,str):
+            rt=self.info.get(root,{})
+            if name:
+                rt=self.CdPath(rt,name)
+            for ii in rt:
+                if ii == ' i ': continue
+                if rt[ii].get(' i ',{}).get('type') == 'dir':
+                    print(ii+'/')
+                else:
+                    print(ii)
+        return False
+
+    def GetFileList(self,root,name=None): #get file info dict from Filename path
+        if isinstance(root,str):
+            rt=self.info.get(root,{})
+            if name:
+                rt=self.CdPath(rt,name)
+            for ii in rt:
+                if ii == ' i ': continue
+                if rt[ii].get(' i ',{}).get('type') == 'dir': continue
+                print(ii)
+        return False
+
     def ExecFile(self,filename,bin_name=None,default=None,work_path='/tmp'):
         # check the filename is excutable in the system bin file then return the file name
         # if compressed file then extract the file and find bin_name file in the extracted directory
@@ -201,7 +261,7 @@ class FILE:
             return rt
         return default
  
-    def Extract(self,filename,work_path='/tmp',info={},del_org_file=False):
+    def Decompress(self,filename,work_path='/tmp',info={},del_org_file=False):
         if not info and isinstance(filename,str) and os.path.isfile(filename): info=self.Get(filename)
         filetype=info.get('type',None)
         fileext=info.get('ext',None)
@@ -218,7 +278,10 @@ class FILE:
             return True
         return False
 
-    def Rw(self,name,data=None,out='string',append=False,read=None,overwrite=True):
+    def Compress(self):
+        pass
+
+    def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={}):
         if isinstance(name,str):
             if data is None: # Read from file
                 if os.path.isfile(name):
@@ -229,13 +292,12 @@ class FILE:
                         else:
                             with open(name,'rb') as f:
                                 data=f.read()
-                    except:
-                        pass
-                    if data is not None:
                         if out in ['string','str']:
                             return True,CONVERT(data).Str()
                         else:
                             return True,data
+                    except:
+                        pass
                 return False,'File({}) not found'.format(name)
             else: # Write to file
                 file_path=os.path.dirname(name)
@@ -247,22 +309,218 @@ class FILE:
                         else:
                             with open(name,'wb') as f:
                                 f.write(CONVERT(data).Bytes())
+                            #mode=self.Mode(mode)
+                            #if mode: os.chmod(name,int(mode,base=8))
+                            #if uid and gid: os.chown(name,uid,gid)
+                            #if mtime and atime: os.utime(name,(atime,mtime))# Time update must be at last order
+                            self.SetIdentity(name,**finfo)
                         return True,None
                     except:
                         pass
                 return False,'Directory({}) not found'.format(file_path)
         return False,'Unknown type({}) filename'.format(name)
 
-
-    def Mode(self,val):
+    def Mode(self,val,default=False):
         if isinstance(val,int):
-            if val > 511:
+            if val >= 32768:  # stat
                 return oct(val)[-4:]
-            elif val > 63:
+            elif val > 63:    # mask
                 return oct(val)
         elif isinstance(val,str):
-            cnt=len(val)
-            num=int(val)
-            if cnt >=3 and cnt <=4 and num >= 100 and num <= 777:
-                return int(val,8)
+            try:
+                val=int(val)
+                if val >= 100 and val <= 777: # string type of permission number 
+                    return '%04d'%(val)
+            except:           # permission string
+                if len(val) != 9: return 'Bad permission length'
+                if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]): return 'Bad permission format (read-write)'
+                if not all(val[k] in 'xs-' for k in [2,5]): return 'Bad permission format (execute)'
+                if val[8] not in 'xt-': return 'Bad permission format (execute other)'
+
+                m = 0
+
+                if val[0] == 'r': m |= stat.S_IRUSR
+                if val[1] == 'w': m |= stat.S_IWUSR
+                if val[2] == 'x': m |= stat.S_IXUSR
+                if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
+
+                if val[3] == 'r': m |= stat.S_IRGRP
+                if val[4] == 'w': m |= stat.S_IWGRP
+                if val[5] == 'x': m |= stat.S_IXGRP
+                if val[5] == 's': m |= stat.S_IXGRP | stat.S_ISGID
+
+                if val[6] == 'r': m |= stat.S_IROTH
+                if val[7] == 'w': m |= stat.S_IWOTH
+                if val[8] == 'x': m |= stat.S_IXOTH
+                if val[8] == 't': m |= stat.S_IXOTH | stat.S_ISVTX
+                return oct(m)
+        return default
+
+    # Find filename's root path and filename according to the db
+    def FindRF(self,filename=None,default=None):
+        if isinstance(filename,str) and self.info:
+            info_keys=list(self.info.keys())
+            info_num=len(info_keys)
+            if filename[0] != '/': 
+                if info_num == 1: return info_keys[0]
+                return self.root_path
+            aa='/'
+            filename_a=filename.split('/')
+            for ii in range(1,len(filename_a)):
+                aa=Path(aa,filename_a[ii]) 
+                if aa in info_keys:
+                    remain_path='/'.join(filename_a[ii+1:])
+                    if info_num == 1: return aa,remain_path
+                    # if info has multi root path then check filename in the db of each root_path
+                    if self.GetInfoFile(aa,remain_path): return aa,remain_path
+        elif self.info:
+            return list(self.info.keys())
+        return default
+            
+    def ExtractRoot(self,**opts):
+        root_path=opts.get('root_path',[])
+        dirpath=opts.get('dirpath')
+        sub_dir=opts.get('sub_dir',False)
+        if isinstance(root_path,str):
+            root_path=[root_path]
+        #if not os.path.isdir(opts.get('dest')): os.makedirs(opts.get('dest'))
+        if self.Mkdir(opts.get('dest'),force=True) is False: return False
+        for rp in root_path:
+            new_dest=opts.get('dest')
+            if dirpath:
+                rt=self.CdPath(self.info[rp],dirpath)
+                if rt is False: 
+                    print('{} not found'.format(dirpath))
+                    return
+            else:
+                dirpath=''
+                rt=self.info[rp]
+
+            rinfo=rt.get(' i ',{})
+            rtype=rinfo.get('type')
+            #dir:directory,None:root directory
+            if rtype not in ['dir',None]: # File / Link
+                mydest=os.path.dirname(dirpath)
+                myname=os.path.basename(dirpath)
+                if mydest:
+                    mydest=os.path.join(new_dest,mydest)
+                else:
+                    mydest=new_dest
+                #if not os.path.isdir(mydest): os.makedirs(mydest)
+                if self.Mkdir(mydest,force=True) is False: return False
+                if rtype == 'link':
+                    os.symlink(rinfo['dest'],os.path.join(mydest,myname))
+                    self.SetIdentity(os.path.join(mydest,myname),**rinfo)
+                else: # File
+                    if 'data' in rt: self.Rw(Path(mydest,myname),data=rt['data'],finfo=rinfo)
+                    else: print('{} file have no data'.format(dirpath))
+                self.SetIdentity(os.path.join(mydest,myname),**rinfo)
+            else: # directory or root DB
+                for ii in rt:
+                    if ii == ' i ': continue
+                    finfo=rt[ii].get(' i ',{})
+                    ftype=finfo.get('type')
+                    if ftype == 'dir': 
+                        mydir=os.path.join(new_dest,ii)
+                        self.Mkdir(mydir,force=True)
+                        # Sub directory
+                        if sub_dir: self.ExtractRoot(dirpath=os.path.join(dirpath,ii),root_path=rp,dest=os.path.join(new_dest,ii),sub_dir=sub_dir)
+                        #if dmtime and datime: os.utime(mydir,(datime,dmtime)) # Time update must be at last order
+                        self.SetIdentity(mydir,**finfo)
+                    elif ftype == 'link':
+                        iimm=os.path.join(new_dest,ii)
+                        if not os.path.exists(iimm):
+                            os.symlink(finfo['dest'],iimm)
+                            self.SetIdentity(iimm,**finfo)
+                    else: # File
+                        if 'data' in rt[ii]: self.Rw(os.path.join(new_dest,ii),data=rt[ii]['data'],finfo=finfo)
+                        else: print('{} file have no data'.format(ii))
+
+    def Mkdir(self,path,force=False):
+        if not isinstance(path,str): return None
+        if os.path.exists(path): return None
+        if force:
+            try:
+                os.makedirs(path)
+            except:
+                return False
+        else:
+            try:
+                os.mkdir(path)
+            except:
+                return False
+        return True
+
+    def SetIdentity(self,path,**opts):
+        if os.path.exists(path):
+            chmod=self.Mode(opts.get('mode',None))
+            uid=opts.get('uid',None)
+            gid=opts.get('gid',None)
+            atime=opts.get('atime',None)
+            mtime=opts.get('mtime',None)
+            try:
+                if chmod: os.chmod(path,int(chmod,base=8))
+                if uid and gid: os.chown(path,uid,gid)
+                if mtime and atime: os.utime(path,(atime,mtime)) # Time update must be at last order
+            except:
+                pass
+
+    def Extract(self,*path,**opts):
+        dest=opts.get('dest',None)
+        root_path=opts.get('root_path',None)
+        sub_dir=opts.get('sub_dir',False)
+        if dest is None: return False
+        if not path: 
+            self.ExtractRoot(root_path=self.FindRF(),dest=dest,sub_dir=sub_dir)
+        else:
+            for filepath in path:
+                fileRF=self.FindRF(filepath)
+                if isinstance(fileRF,tuple):
+                    root_path=[fileRF[0]]
+                    filename=fileRF[1]
+                    self.ExtractRoot(root_path=root_path,dirpath=filename,dest=dest,sub_dir=sub_dir)
+                elif isinstance(fileRF,list):
+                    self.ExtractRoot(root_path=fileRF,dest=dest,sub_dir=sub_dir)
+
+    def Save(self,filename):
+        self.Rw(filename,data=bz2.compress(pickle.dumps(self.info,protocol=2)))
+
+    def Open(self,filename):
+        if not os.path.isfile(filename):
+            print('{} not found'.format(filename))
+            return False
+        data=self.Rw(filename)
+        if data[0]:
+            try:
+                self.info=pickle.loads(bz2.BZ2Decompressor().decompress(data[1]))
+            except:
+                print('This is not KFILE format')
+                return False
+        else:
+            print('Can not read {}'.format(filename))
+            return False
+
+
+if __name__ == "__main__":
+    from pprint import pprint
+    f=FILE
+    #data=f('/tmp/test') # Read File information from directory
+    #data=f('/tmp/test',sub_dir=True,md5sum=True,data=True) # Read file data and recuring directory
+    #data=f('/tmp/test',sub_dir=True,md5sum=True,data=True,link2file=True) #make a real file instead sym-link file
+    #pprint(data.__dict__) # print FILE class data structure
+    #print(f().FileList('/tmp/test')) # Get File List from the directory
+    #print(f(root_path='/tmp/test').FileList('../test2')) # Get File List from the root_path directory
+
+    #print(data.FindRoot('/tmp/test/a/b/README.md')) # Find root_path for the filename
+    #print(data.FindRoot('/tmp/test/a/b'))           # Find root_path for the directory
+    #print(data.GetInfoFile('/tmp/test','a/b/README.md'))  # Get File Information
+    #data.Extract('/tmp/test/a/b/README.md',dest='/tmp/d') # Extract single file at /tmp/a
+    #data.Extract('/tmp/test/a/b',dest='/tmp/d')           # Extract sub directory at /tmp/a
+    #data.Extract('/tmp/test',dest='/tmp/d',sub_dir=True)  # Extract whole directory of /tmp/test at /tmp/d
+    #data.Save('/tmp/a.kf') # Save /tmp/test directory at /tmp/a.kf file
+
+    # Extract /tmp/a.kf file to /tmp/d directory for all of them
+    data=f()
+    data.Open('/tmp/a.kf')
+    data.Extract(dest='/tmp/d',sub_dir=True) 
 
