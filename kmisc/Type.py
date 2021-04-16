@@ -5,7 +5,7 @@ Inhance for make sure
 """
 import sys,os
 from kmisc.Import import *
-Import('magic')
+Import('import magic')
 
 def ObjName(obj,default=None):
     if isinstance(obj,str):
@@ -56,6 +56,8 @@ def TypeFixer(obj,default='unknown'):
     if name in ['long']:
         if sys.version_info[0] < 3: return name
         return 'int'
+    if not isinstance(obj,str) and name == 'type':
+        return obj.__name__.lower()
     # return original name
     return name
 
@@ -119,6 +121,7 @@ if __name__ == "__main__":
     print(" Type(1,'int'):", Type(1,'int'))
     print(" Type(1.1,'int'):", Type(1.1,'int'))
     print(" Type('1','int'):", Type('1','int'))
+    print(" Type(1,int):", Type(1,int))
     if sys.version_info[0] < 3:
         print('* long:',TypeFixer(long),type(long))
         print(" Type(100000000000000,'long'):", Type(100000000000000,'long'))
@@ -136,6 +139,7 @@ if __name__ == "__main__":
     print('* str:',TypeFixer(str),type(str))
     print(" Type('1','str'):", Type('1','str'))
     print(" Type('a','str'):", Type('a','str'))
+    print(" Type('a',str):", Type('a',str))
     print(" Type(1,'str'):", Type(1,'str'))
     if sys.version_info[0] < 3:
         print('* unicode:',TypeFixer(unicode),type(unicode))
@@ -152,12 +156,15 @@ if __name__ == "__main__":
         print(" Type(3,'bytes'):", Type(3,'bytes'))
     print('* tuple:',TypeFixer(tuple),type(tuple))
     print(" Type((1,2,3),'tuple'):", Type((1,2,3),'tuple'))
+    print(" Type((1,2,3),tuple):", Type((1,2,3),tuple))
     print(" Type([1,2,3],'tuple'):", Type([1,2,3],'tuple'))
     print('* list:',TypeFixer(list),type(list))
     print(" Type([1,2,3],'list'):", Type([1,2,3],'list'))
+    print(" Type([1,2,3],list):", Type([1,2,3],list))
     print(" Type((1,2,3),'list'):", Type((1,2,3),'list'))
     print('* dict:',TypeFixer(dict),type(dict))
     print(" Type({1:2},'dict'):", Type({1:2},'dict'))
+    print(" Type({1:2},dict):", Type({1:2},dict))
     print(" Type({1},'dict'):", Type({1},'dict'))
     print('* set:',TypeFixer(set),type(set))
     print(" Type({1},'set'):", Type({1},'set'))

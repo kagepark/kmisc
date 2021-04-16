@@ -19,7 +19,7 @@ class CONVERT:
         return default
 
     def Bytes(self,encode='utf-8'):
-        if Py3:
+        if PyVer(3):
             if isinstance(self.src,bytes):
                 return self.src
             else:
@@ -27,7 +27,7 @@ class CONVERT:
         return bytes(self.src) # if change to decode then network packet broken
 
     def Str(self,encode='latin1'): # or windows-1252
-        if Py3 and isinstance(self.src,bytes):
+        if PyVer(3) and isinstance(self.src,bytes):
             return self.src.decode(encode)
         elif isinstance(self.src,unicode):
             return self.src.encode(encode)

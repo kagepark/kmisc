@@ -3,15 +3,15 @@ from distutils.spawn import find_executable
 import os
 import fnmatch
 import stat
+import pickle
+import tarfile
+import zipfile
 from kmisc.Import import *
 Import('from kmisc.CONVERT import CONVERT')
 Import('from kmisc.Misc import *')
 Import('from kmisc.Path import Path')
+Import('from kmisc.Compress import *')
 Import('import magic')
-Import('import tarfile')
-Import('import zipfile')
-Import('import bz2')
-Import('import pickle')
 
 class FILE:
     '''
@@ -261,25 +261,22 @@ class FILE:
             return rt
         return default
  
-    def Decompress(self,filename,work_path='/tmp',info={},del_org_file=False):
-        if not info and isinstance(filename,str) and os.path.isfile(filename): info=self.Get(filename)
-        filetype=info.get('type',None)
-        fileext=info.get('ext',None)
-        if filetype and fileext:
-            # Tar stuff
-            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
-                tf=tarfile.open(filename)
-                tf.extractall(work_path)
-                tf.close()
-            elif fileext in ['zip'] and filetype in ['compress']:
-                with zipfile.ZipFile(filename,'r') as zf:
-                    zf.extractall(work_path)
-            if del_org_file: os.unline(filename)
-            return True
-        return False
-
-    def Compress(self):
-        pass
+#    def Decompress(self,filename,work_path='/tmp',info={},del_org_file=False):
+#        if not info and isinstance(filename,str) and os.path.isfile(filename): info=self.Get(filename)
+#        filetype=info.get('type',None)
+#        fileext=info.get('ext',None)
+#        if filetype and fileext:
+#            # Tar stuff
+#            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
+#                tf=tarfile.open(filename)
+#                tf.extractall(work_path)
+#                tf.close()
+#            elif fileext in ['zip'] and filetype in ['compress']:
+#                with zipfile.ZipFile(filename,'r') as zf:
+#                    zf.extractall(work_path)
+#            if del_org_file: os.unline(filename)
+#            return True
+#        return False
 
     def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={}):
         if isinstance(name,str):
@@ -483,7 +480,10 @@ class FILE:
                     self.ExtractRoot(root_path=fileRF,dest=dest,sub_dir=sub_dir)
 
     def Save(self,filename):
-        self.Rw(filename,data=bz2.compress(pickle.dumps(self.info,protocol=2)))
+        pv=b'3'
+        if PyVer(2): pv=b'2'
+        #self.Rw(filename,data=pv+bz2.compress(pickle.dumps(self.info,protocol=2)))
+        self.Rw(filename,data=pv+Compress(pickle.dumps(self.info,protocol=2),mode='lz4'))
 
     def Open(self,filename):
         if not os.path.isfile(filename):
@@ -491,11 +491,25 @@ class FILE:
             return False
         data=self.Rw(filename)
         if data[0]:
+            pv=data[1][0]
+            if pv == '3' and PyVer(2):
+                print('The data version is not matched. Please use Python3')
+                return False
+            # decompress data
             try:
-                self.info=pickle.loads(bz2.BZ2Decompressor().decompress(data[1]))
+                #dcdata=bz2.BZ2Decompressor().decompress(data[1][1:])
+                dcdata=Decompress(data[1][1:],mode='lz4')
             except:
                 print('This is not KFILE format')
                 return False
+            try:
+                self.info=pickle.loads(dcdata) # Load data
+            except:
+                try:
+                    self.info=pickle.loads(dcdata,encoding='latin1') # Convert 2 to 3 format
+                except:
+                    print('This is not KFILE format')
+                    return False
         else:
             print('Can not read {}'.format(filename))
             return False

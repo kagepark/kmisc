@@ -131,8 +131,13 @@ Content-Type: text/html
     cmd='''echo "{0}" | sendmail -t'''.format(email_msg)
     return rshell(cmd)
 
-def md5(string):
-    return hashlib.md5(CONVERT(string).Bytes()).hexdigest()
+def md5(string,encode='utf-8'):
+    if PyVer(3):
+        if isinstance(string,bytes):
+            return hashlib.md5(string).hexdigest()
+        else:
+            return hashlib.md5(bytes(string,encode)).hexdigest()
+    return hashlib.md5(bytes(string)).hexdigest()
 
 def cat(filename,no_end_newline=False):
     tmp=FILE(filename).Rw()

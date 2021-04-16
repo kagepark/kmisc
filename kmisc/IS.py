@@ -17,13 +17,11 @@ class IS:
         self.rtd=opts.get('rtd',{'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error',{'ERR'}],'WARN':['Warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}]})
 
     def Py2(self):
-        if py_version[0] < 3:
-            return True
+        if PyVer(2): return True
         return False
 
     def Py3(self):
-        if py_version[0] >= 3:
-            return True
+        if PyVer(3): return True
         return False
 
     def Int(self):
