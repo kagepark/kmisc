@@ -1,14 +1,12 @@
 #Kage Park
 
 def Cut(src,head_len=None,body_len=None,new_line='\n',out=str):
-    if not isinstance(src,str):
-       src='''{}'''.format(src)
-
+    if not isinstance(src,str): return False
+#    if not isinstance(src,str):
+#       src='''{}'''.format(src)
     source=src.split(new_line)
-
     if len(source) == 1 and not head_len or head_len >= len(src):
        return [src]
-
     rt=[]
     for src_idx in range(0,len(source)):
         str_len=len(source[src_idx])
