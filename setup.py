@@ -10,13 +10,21 @@ import subprocess
 #python -m pip install twine --user
 
 def lib_ver():
-    gver=subprocess.check_output('''git describe --tags >/dev/null && (git describe --tags | sed "s/^v//g" | sed "s/^V//g") || (git tag V1.0; sleep 1; git describe --tags | sed "s/^v//g" | sed "s/^V//g")''',stderr=subprocess.STDOUT,shell=True)
-    if gver:
-        if version_info[0] >= 3 and isinstance(gver,bytes):
-            return '.'.join(gver.decode('latin1').split('\n')[0].split('-')[:-1])
-        elif isinstance(gver,unicode):
-            return '.'.join(gver.encode('latin1').split('\n')[0].split('-')[:-1])
-    return '2.0'
+    my_dir=os.path.dirname(os.path.abspath(__file__))
+    if os.path.isdir(os.path.join(my_dir,'.git')):
+        gver=subprocess.check_output('''git describe --tags >/dev/null && (git describe --tags | sed "s/^v//g" | sed "s/^V//g") || (git tag V1.0; sleep 1; git describe --tags | sed "s/^v//g" | sed "s/^V//g")''',stderr=subprocess.STDOUT,shell=True)
+        if gver:
+            if version_info[0] >= 3:
+                if isinstance(gver,bytes): gver=gver.decode('latin1')
+            else:
+                if isinstance(gver,unicode): gver=gver.encode('latin1')
+            return '.'.join(gver.split('\n')[0].split('-')[:-1])
+    else:
+        my_ver=os.path.basename(my_dir)
+        ver_a=my_ver.split('-')
+        if len(ver_a) == 2:
+            return ver_a[1]
+    return 1.0
 
 pkg_name='kmisc'
 pkg_desc='Enginering useful function'

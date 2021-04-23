@@ -5,8 +5,9 @@
 #######################################
 import os
 from kmisc.Import import *
-for ii in os.listdir(os.path.dirname(__file__)):
-    if ii in ['__init__.py','MODULE.py','test.py','setup.py']: continue
-    ii_a=ii.split('.')
+for iii in os.listdir(os.path.dirname(__file__)):
+    ii_a=iii.split('.')
     if len(ii_a) == 2 and ii_a[-1] == 'py':
-        Import('kmisc.{} import *'.format(ii_a[0]))
+        if ii_a[0] in ['__init__','MODULE','test','setup','kmisc']: continue
+        Import('from kmisc.{0} import {0}'.format(ii_a[0]))
+
