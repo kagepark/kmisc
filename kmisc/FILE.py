@@ -181,37 +181,46 @@ class FILE:
             return {root_path:base}
         return {}
 
-    def GetInfoFile(self,root,name): #get file info dict from Filename path
+    def GetInfoFile(self,name,roots=None): #get file info dict from Filename path
+        if roots is None: roots=self.FindRP()
         if isinstance(name,str):
-            rt=self.info.get(root,{})
-            for ii in name.split('/'):
-                if ii not in rt: return False
-                rt=rt[ii]
-            return rt.get(' i ',{})
+            for root in roots:
+                rt=self.info.get(root,{})
+                for ii in name.split('/'):
+                    if ii not in rt: break
+                    rt=rt[ii]
+                fileinfo=rt.get(' i ',{})
+                if fileinfo: return fileinfo
         return False
 
-    def GetList(self,root,name=None): #get file info dict from Filename path
-        if isinstance(root,str):
-            rt=self.info.get(root,{})
-            if name:
-                rt=self.CdPath(rt,name)
-            for ii in rt:
-                if ii == ' i ': continue
-                if rt[ii].get(' i ',{}).get('type') == 'dir':
-                    print(ii+'/')
-                else:
-                    print(ii)
+    def GetList(self,name=None,roots=None): #get file info dict from Filename path
+        if roots is None: roots=self.FindRP()
+        for root in roots:
+            if isinstance(root,str):
+                rt=self.info.get(root,{})
+                if name != root:
+                    rt=self.CdPath(rt,name)
+                if isinstance(rt,dict):
+                    for ii in rt:
+                        if ii == ' i ': continue
+                        if rt[ii].get(' i ',{}).get('type') == 'dir':
+                            print(ii+'/')
+                        else:
+                            print(ii)
         return False
 
-    def GetFileList(self,root,name=None): #get file info dict from Filename path
-        if isinstance(root,str):
-            rt=self.info.get(root,{})
-            if name:
-                rt=self.CdPath(rt,name)
-            for ii in rt:
-                if ii == ' i ': continue
-                if rt[ii].get(' i ',{}).get('type') == 'dir': continue
-                print(ii)
+    def GetFileList(self,name=None,roots=None): #get file info dict from Filename path
+        if roots is None: roots=self.FindRP()
+        for root in roots:
+            if isinstance(root,str):
+                rt=self.info.get(root,{})
+                if name != root:
+                    rt=self.CdPath(rt,name)
+                if isinstance(rt,dict):
+                    for ii in rt:
+                        if ii == ' i ': continue
+                        if rt[ii].get(' i ',{}).get('type') == 'dir': continue
+                        print(ii)
         return False
 
     def ExecFile(self,filename,bin_name=None,default=None,work_path='/tmp'):
@@ -354,7 +363,7 @@ class FILE:
         return default
 
     # Find filename's root path and filename according to the db
-    def FindRF(self,filename=None,default=None):
+    def FindRP(self,filename=None,default=None):
         if isinstance(filename,str) and self.info:
             info_keys=list(self.info.keys())
             info_num=len(info_keys)
@@ -369,7 +378,7 @@ class FILE:
                     remain_path='/'.join(filename_a[ii+1:])
                     if info_num == 1: return aa,remain_path
                     # if info has multi root path then check filename in the db of each root_path
-                    if self.GetInfoFile(aa,remain_path): return aa,remain_path
+                    if self.GetInfoFile(remain_path,aa): return aa,remain_path
         elif self.info:
             return list(self.info.keys())
         return default
@@ -468,10 +477,10 @@ class FILE:
         sub_dir=opts.get('sub_dir',False)
         if dest is None: return False
         if not path: 
-            self.ExtractRoot(root_path=self.FindRF(),dest=dest,sub_dir=sub_dir)
+            self.ExtractRoot(root_path=self.FindRP(),dest=dest,sub_dir=sub_dir)
         else:
             for filepath in path:
-                fileRF=self.FindRF(filepath)
+                fileRF=self.FindRP(filepath)
                 if isinstance(fileRF,tuple):
                     root_path=[fileRF[0]]
                     filename=fileRF[1]
@@ -527,7 +536,7 @@ if __name__ == "__main__":
 
     #print(data.FindRoot('/tmp/test/a/b/README.md')) # Find root_path for the filename
     #print(data.FindRoot('/tmp/test/a/b'))           # Find root_path for the directory
-    #print(data.GetInfoFile('/tmp/test','a/b/README.md'))  # Get File Information
+    #print(data.GetInfoFile('a/b/README.md','/tmp/test'))  # Get File Information
     #data.Extract('/tmp/test/a/b/README.md',dest='/tmp/d') # Extract single file at /tmp/a
     #data.Extract('/tmp/test/a/b',dest='/tmp/d')           # Extract sub directory at /tmp/a
     #data.Extract('/tmp/test',dest='/tmp/d',sub_dir=True)  # Extract whole directory of /tmp/test at /tmp/d
