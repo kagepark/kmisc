@@ -6,9 +6,7 @@
 #python -m kmisc upload dist/*
 
 # Test upload
-#twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 python3 -m twine upload --repository testpypi dist/*
 
 # Real upload
-#twine upload dist/*
-#python3 -m twine upload --repository legacy dist/*
+#python3 -m twine upload --repository-url https://test.pypi.org/legacy/ --repository legacy dist/*

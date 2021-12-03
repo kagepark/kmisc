@@ -1,6 +1,6 @@
 [ -d build ] && rm -fr build
 [ -d dist ] && rm -fr dist
-[ -d kmisc.egg-info ] && rm -fr kmisc.egg-info
+[ -d SysArg.egg-info ] && rm -fr SysArg.egg-info
 python3 setup.py sdist bdist_wheel
 echo "Test"
 sleep 1
