@@ -1,10 +1,15 @@
 #Kage park
+import re
 from kmisc.Import import *
-Import('from kmisc.Type import Type')
+Import('requests')
+Import('kmisc.Misc import *')
 
 class WEB:
-    def __init__(self,requests):
-        self.requests=requests
+    def __init__(self,request=None):
+        if request:
+            self.requests=request
+        else:
+            self.requests=requests
 
     def Session(self):
         return self.requests.session._get_or_create_session_key()
@@ -38,6 +43,7 @@ class WEB:
         log=opts.get('log',None)
         log_level=opts.get('log_level',8)
         logfile=opts.get('logfile',None)
+        ping=opts.get('ping',False)
         if https:
             verify=False
         if auth is None and user and passwd:
@@ -48,7 +54,6 @@ class WEB:
         if auth and type(auth) is not tuple:
             printf("auth=('<user>','<pass>') : format(tuple)",dsp='e',log=log,log_level=log_level,logfile=logfile)
             return False,"auth=('<user>','<pass>') : format(tuple)"
-
         data=opts.get('data',None) # dictionary format
         if data and type(data) is not dict:
             printf("data={'<key>':'<val>',...} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
@@ -62,9 +67,12 @@ class WEB:
             printf("files = { '<file parameter name>': (<filename>, open(<filename>,'rb'))} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
             return False,"files = { '<file parameter name>': (<filename>, open(<filename>,'rb'))} : format(dict)"
         if type(host_url) is str:
+            chk_dest=re.compile('http[s]://([a-zA-Z0-9.]*)[:/]').findall(host_url)
+            if len(chk_dest): chk_dest=chk_dest[0]
             if host_url.find('https://') == 0:
                 verify=False
         elif ip:
+            chk_dest='{}'.format(ip)
             if verify:
                 host_url='http://{}'.format(ip)
             else:
@@ -75,21 +83,30 @@ class WEB:
                 host_url='{}/{}'.format(host_url,request_url)
         else:
             return False,'host_url or ip not found'
+        if ping and chk_dest:
+            if not ping(chk_dest,timeout_sec=3):
+                return False,'Can not access to destination({})'.format(chk_dest)
         ss = self.requests.Session()
         for j in range(0,max_try):
-            try:
-                if mode == 'post':
+            if mode == 'post':
+                try:
                     r =ss.post(host_url,verify=verify,auth=auth,data=data,files=files,timeout=timeout,json=json_data)
-                else:
+                    return True,r
+                except:
+                    pass
+            else:
+                try:
                     r =ss.get(host_url,verify=verify,auth=auth,data=data,files=files,timeout=timeout,json=json_data)
-                return True,r
-            except self.requests.exceptions.RequestException as e:
-                host_url_a=host_url.split('/')[2]
-                server_a=host_url_a.split(':')
-                if len(server_a) == 1:
-                    printf("Server({}) has no response (wait {}/{} (10s))".format(server_a[0],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
-                else:
-                    printf("Server({}:{}) has no response (wait {}/{} (10s))".format(server_a[0],server_a[1],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
+                    return True,r
+                except:
+                    pass
+            #except requests.exceptions.RequestException as e:
+            host_url_a=host_url.split('/')[2]
+            server_a=host_url_a.split(':')
+            if len(server_a) == 1:
+                printf("Server({}) has no response (wait {}/{} (10s))".format(server_a[0],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
+            else:
+                printf("Server({}:{}) has no response (wait {}/{} (10s))".format(server_a[0],server_a[1],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
             time.sleep(10)
         return False,'TimeOut'
 

@@ -4,6 +4,7 @@ import re
 from kmisc.Import import *
 Import('kmisc.OutFormat import OutFormat')
 Import('kmisc.Random import Random')
+Import('kmisc.FIND import FIND')
 
 class STR(str):
     def __init__(self,src):
@@ -93,18 +94,19 @@ class STR(str):
 
     def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=False,word=False):
         if src is None: src=self.src
-        if isinstance(src,str):
-            if word:
-                find_re=re.compile(r'\b({0})\b'.format(find),flags=re.IGNORECASE)
-            else:
-                find_re=re.compile(find,flags=re.IGNORECASE)
-            if findall:
-                match=find_re.findall(src)
-                if match: return OutFormat(match,out=out)
-            else:
-                match=find_re.search(src)
-                if match: return OutFormat([match.group()],out=out)
-        return OutFormat(default,out=out)
+        return FIND().Find(src,find,prs=prs,sym=sym,pattern=pattern,default=default,out=out,findall=findall,word=word,mode='value')
+#        if isinstance(src,str):
+#            if word:
+#                find_re=re.compile(r'\b({0})\b'.format(find),flags=re.IGNORECASE)
+#            else:
+#                find_re=re.compile(find,flags=re.IGNORECASE)
+#            if findall:
+#                match=find_re.findall(src)
+#                if match: return OutFormat(match,out=out)
+#            else:
+#                match=find_re.search(src)
+#                if match: return OutFormat([match.group()],out=out)
+#        return OutFormat(default,out=out)
 
     def Index(self,find,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
         if not isinstance(self.src,str): return default

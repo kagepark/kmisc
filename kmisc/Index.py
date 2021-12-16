@@ -1,6 +1,6 @@
 # Kage Park
 from kmisc.Import import Import
-Import('kmisc.Find import Find')
+Import('kmisc.FIND import FIND')
 Import('kmisc.Type import Type')
 
 def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
@@ -9,7 +9,7 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
         if isinstance(src,str): src=src.split(sym)
         
         for row in range(0,len(src)):
-            for ff in Find(find,src=src[row],pattern=pattern,word=word,findall=findall,default=[],out=list):
+            for ff in FIND().Find(find,src=src[row],pattern=pattern,word=word,findall=findall,default=[],out=list):
                 if findall:
                     rt=rt+[(row,[m.start() for m in re.finditer(ff,src[row])])]
                 else:
