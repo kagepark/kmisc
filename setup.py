@@ -18,7 +18,11 @@ def lib_ver():
                 if isinstance(gver,bytes): gver=gver.decode('latin1')
             else:
                 if isinstance(gver,unicode): gver=gver.encode('latin1')
-            return '.'.join(gver.split('\n')[0].split('-')[:-1])
+            gver_a=gver.split('\n')[0].split('-')
+            if len(gver_a) == 1:
+                return gver_a[0]
+            else:
+                return '.'.join(gver_a[:-1])
     else:
         my_ver=os.path.basename(my_dir)
         ver_a=my_ver.split('-')
@@ -27,7 +31,7 @@ def lib_ver():
     return 1.0
 
 pkg_name='kmisc'
-pkg_desc='Enginering useful function'
+pkg_desc='Enginering useful library'
 pkg_git="https://github.com/kagepark/kmisc"
 long_description=''
 if os.path.isfile('README.md'):
@@ -37,7 +41,6 @@ if os.path.isfile('README.md'):
 setuptools.setup(
     name=pkg_name,
     version='{}'.format(lib_ver()),
-#    scripts=['klib'],
     author='Kage Park',
     autor_email='kagepark1@gmail.com',
     license="MIT",
@@ -53,5 +56,5 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     include_package_data=True,
-#    install_requires=["feedparser", "html2text"],
+#    install_requires=["ast"],
 )

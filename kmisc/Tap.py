@@ -1,4 +1,6 @@
 # Kage Park
+from klib.Import import *
+Import('from kmisc.Misc import *')
 
 def Tap(num=1,space='',base=4,mode='space'):
     tap=''

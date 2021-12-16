@@ -2,7 +2,7 @@
 import socket
 import struct
 from distutils.spawn import find_executable
-from klib.Import import *
+from kmisc.Import import Import
 Import('from kmisc.Type import Type')
 Import('from kmisc.TIME import TIME')
 Import('from kmisc.SHELL import SHELL')

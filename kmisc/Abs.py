@@ -1,6 +1,7 @@
 # Kage Park
 #
-from kmisc.OutFormat import OutFormat
+from kmisc.Import import Import
+Import('from kmisc.OutFormat import OutFormat')
 
 def Abs(*inps,**opts):
     default=opts.get('default',None)

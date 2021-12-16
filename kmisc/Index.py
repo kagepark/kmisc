@@ -1,5 +1,5 @@
 # Kage Park
-from kmisc.Import import *
+from kmisc.Import import Import
 Import('kmisc.Find import Find')
 Import('kmisc.Type import Type')
 

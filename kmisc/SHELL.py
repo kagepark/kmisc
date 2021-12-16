@@ -2,8 +2,8 @@
 import sys
 import subprocess
 from threading import Thread
-from klib.Import import *
-Import('from klib.TIME import TIME')
+from kmisc.Import import *
+Import('from kmisc.TIME import TIME')
 
 class SHELL:
     def __init__(self):

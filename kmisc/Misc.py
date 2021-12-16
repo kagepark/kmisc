@@ -386,6 +386,12 @@ def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[]
             return data.get(key,default)
     return default
 
+def space(space_num=0,_space_='   '):
+    space_str=''
+    for ii in range(space_num):
+        space_str='{0}{1}'.format(space_str,_space_)
+    return space_str
+
 if __name__ == "__main__":
     class ABC:
         uu=3

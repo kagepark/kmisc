@@ -1,5 +1,4 @@
 #Kage Park
-from kmisc.Import import *
 
 def Copy(src):
     if isinstance(src,(list,tuple)): return src.root[:]

@@ -6,7 +6,7 @@ from sys import modules
 from distutils.spawn import find_executable
 from kmisc.Import import *
 Import('from kmisc.IP import IP')
-Import('from kmisc.Misc import *') # import kmisc(file)'s each function to local module's function
+Import('from kmisc.Misc import *') # import klib(file)'s each function to local module's function
 Import('from kmisc.Type import Type')
 Import('from kmisc.MAC import MAC')
 Import('from kmisc.GET import GET')

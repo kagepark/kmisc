@@ -3,7 +3,7 @@ Open Kage's useful tools and class to public.
 But, this is develope version.
 So, suddenly it will be big change when I got some more good idea.
 I re-groupped to library.
-and change name to kmisc
+and change name to klib
 
 # Custom Dictionary Class
 
@@ -11,24 +11,38 @@ Convert Dictionary to Object style Dictionary
 ## Contents
 1. Create tree type items 
 1. Added New commands
-   1. PUT()    : Put value at a item
-   1. GET()    : Get value of item
-   1. DEL()    : Delete item
-   1. UPDATE() : Update value at item
-   1. PRINT()  : Print dictionary 
-   1. DIFF()   : Compare two dictionary
-   1. CHECK()  : Check put the value is same as the item(key)'s value
-   1. LIST()   : Return list of keys value 
-   1. PROPER() : Show/Set/Update property at the item.
-   1. FIND()   : Find data in the dictionary
-   1. LOAD()   : Load saved data from file
-   1. SAVE()   : dictionary save to file
+   1. Put()    : Put value at a item
+   1. Get()    : Get value of item
+   1. Del()    : Delete item
+   1. Update() : Update value at item
+   1. Print()  : Print dictionary 
+   1. Diff()   : Compare two dictionary
+   1. Check()  : Check put the value is same as the item(key)'s value
+   1. List()   : Return list of keys value 
+   1. Proper() : Show/Set/Update property at the item.
+   1. Find()   : Find data in the dictionary
+   1. Load()   : Load saved data from file
+   1. Save()   : dictionary save to file
+   1. Sort()   : Sort dictionary
+   1. FirstKey(): Get first Key 
 1. Added property at each key
 
 - Initialize dictionary 
 
 
 ```javascript
+from DICT import DICT
+root=DICT()
+```
+or
+```javascript
+import DICT
+root=DICT.DICT()
+```
+
+
+```javascript
+from DICT import DICT
 >>> test={
       'a':123,
       'b':{
@@ -36,13 +50,14 @@ Convert Dictionary to Object style Dictionary
          'e':{}
       }
     }
-root=kDict(test)
+root=DICT(test)
 ```
 
 or 
 
 ```javascript
->>> root=kDict()
+from DICT import DICT
+>>> root=DICT()
 ```
 
 - Add new data
@@ -53,7 +68,7 @@ or
 or
 
 ```javascript
->>> root.tree.apple.PUT('color','red')
+>>> root.tree.apple.Put('color','red')
 ```
 or
 ```javascript
@@ -61,39 +76,39 @@ or
 ```
 - Get data
 ```javascript
->>> root.tree.apple.color.GET()
+>>> root.tree.apple.color.Get()
 ```
 or
 ```javascript
->>> root.tree.apple.GET('color')
+>>> root.tree.apple.Get('color')
 ```
 - Print dictionary
 ```javascript
->>> root.PRINT()
->>> root.tree.PRINT()
+>>> root.Print()
+>>> root.tree.Print()
 ```
 - Set property at Apple's color
 
   - Set readonly
 ```javascript
->>> root.tree.apple.color.PROPER('readonly',True)
+>>> root.tree.apple.color.Proper('readonly',True)
 ```
   - Try change data
 ```javascript
->>> root.tree.apple.PUT('color','white')
+>>> root.tree.apple.Put('color','white')
 item is readonly
 
->>> root.tree.PRINT()
+>>> root.tree.Print()
 {'color': {'._d': 'red', '._p': {'readonly': True}}}
 ```
   - Unset readonly
 ```javascript
->>> root.tree.apple.color.PROPER('readonly',False)
+>>> root.tree.apple.color.Proper('readonly',False)
 ```
   - Try change data
 ```javascript
->>> root.tree.apple.PUT('color','white')
->>> root.tree.PRINT()
+>>> root.tree.apple.Put('color','white')
+>>> root.tree.Print()
 {'color': {'._d': 'red', '._p': {'readonly': True}}}
 ```
 Sample Dictionary:
@@ -108,79 +123,52 @@ Sample Dictionary:
 ```
   - Find readonly property item path
 ```javascript
->>> root.FIND('readonly',property=True)
+>>> root.Find('readonly',property=True)
 ['tree/banana/color']
 ```
   - Find apple key path
 ```javascript
->>> root.FIND('apple',mode='key')
+>>> root.Find('apple',mode='key')
 ['tree/apple']
 ```
   - Find white color data path
 ```javascript
->>> root.FIND('white')
+>>> root.Find('white')
 ['tree/apple/color', 'tree/yellow/monkey', 'tree/banana/banana2']
 ```
   - Find 123 data path
 ```javascript
->>> root.FIND('white')
+>>> root.Find('white')
 ['a', 'b/z']
 ```
   - Find white color data path in key and value
 ```javascript
->>> root.FIND('yellow',mode='all')
+>>> root.Find('yellow',mode='all')
 ['tree/yellow', 'tree/banana/color', 'tree/banana/banana3']
 ```
   - Save Data (always use root if not then save partial data)
 ```javascript
->>> kDict.kDict._dfile_='<dict file name>'
->>> root.SAVE()
+>>> from DICT import DICT
+>>> DICT._dfile_='<dict file name>'
+>>> root.Save()
+```
+or
+```javascript
+>>> import DICT
+>>> DICT.DICT._dfile_='<dict file name>'
+>>> root.Save()
 ```
   - Load Data (always use root if not then load at key)
 ```javascript
->>> kDict.kDict._dfile_='<dict file name>'
->>> root.LOAD()
+>>> from DICT import DICT
+>>> DICT._dfile_='<dict file name>'
+>>> root.Load()
 ```
-
-# Bmc handle Class
-Added SMCIPMITool.jar command information
-Default is IPMITOOL command
-Require kDict and kmisc module
-
-## Contents
-1. Added New commands
-   1. bmc_cmd() : command converter between SMCIPMITool and IPMITOOL
-   1. find_user_pass() : Find BMC Password and User name from defined lists
-   1. recover_user_pass() : Recover BMC User/Password to original defined 
-   1. reset() : Reset BMC
-   1. get_mac() : Get BMC Mac address
-   1. get_eth_mac() : Get Ethernet Mac address
-   1. ping(): ping to BMC IP
-   1. info(): Print BMC Information
-   1. is_up() : Node is UP?
-   1. is_down() : Node is Down?
-   1. power_handle() : Node power handle
-
-Example)
+or
 ```javascript
-root=kDict.kDict()
-def log(msg,**opts):
-    log_level=opts.get('log_level',8)
-    direct=opts.get('direct',False)
-    import sys
-    if log_level < 6:
-        if direct:
-            sys.stdout.write(msg)
-        else:
-            sys.stdout.write(msg+'\n')
-        sys.stdout.flush()
-bmc=kBmc.BMC(root,'192.168.1.100',ipmi_user='ADMIN',ipmi_pass='ADMIN',tool_path='/usr/local/bin',log=log)
-print(bmc.info())
-print(bmc.power_handle('status'))
-print(bmc.power_handle('off_on'))
-print(bmc.power_handle('status'))
-print(bmc.power_handle('off',verify=False))
-print(bmc.power_handle('status'))
+>>> import DICT
+>>> DICT.DICT._dfile_='<dict file name>'
+>>> root.Load()
 ```
 
 # MISC functions
