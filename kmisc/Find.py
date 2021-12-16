@@ -1,8 +1,8 @@
 #Kage Park
 import re
 from kmisc.Import import *
-Import('kwmisc.OutFormat import OutFormat')
-Import('kwmisc.Type import Type')
+Import('kmisc.OutFormat import OutFormat')
+Import('kmisc.Type import Type')
 
 def Find(src,find,prs=None,sym='\n',pattern=True,default=[],out=None,findall=False,word=False,mode='value'):
     #if Type(src,'instance','classobj'):

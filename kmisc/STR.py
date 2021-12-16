@@ -3,24 +3,26 @@ import random
 import re
 from kmisc.Import import *
 Import('kmisc.OutFormat import OutFormat')
+Import('kmisc.Random import Random')
 
 class STR(str):
     def __init__(self,src):
         self.src=src
 
     def Rand(self,length=8,strs=None,mode='*'):
-        if not isinstance(strs,str):
-            if mode in ['all','*','alphanumchar']:
-                strs='0aA-1b+2Bc=C3d_D,4.eE?5"fF6g7G!h8H@i9#Ij$JkK%lLmMn^N&oO*p(Pq)Q/r\Rs:St;TuUv{V<wW}x[Xy>Y]z|Z'
-            elif mode in ['alphanum']:
-                strs='aA1b2BcC3dD4eE5fF6g7Gh8Hi9IjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
-            else:
-                strs='aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
-        new=''
-        strn=len(strs)-1
-        for i in range(0,length):
-            new='{0}{1}'.format(new,strs[random.randint(0,strn)])
-        return new
+        return Random(length=length,strs=strs,mode=mode)
+        #if not isinstance(strs,str):
+        #    if mode in ['all','*','alphanumchar']:
+        #        strs='0aA-1b+2Bc=C3d_D,4.eE?5"fF6g7G!h8H@i9#Ij$JkK%lLmMn^N&oO*p(Pq)Q/r\Rs:St;TuUv{V<wW}x[Xy>Y]z|Z'
+        #    elif mode in ['alphanum']:
+        #        strs='aA1b2BcC3dD4eE5fF6g7Gh8Hi9IjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
+        #    else:
+        #        strs='aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
+        #new=''
+        #strn=len(strs)-1
+        #for i in range(0,length):
+        #    new='{0}{1}'.format(new,strs[random.randint(0,strn)])
+        #return new
 
     def Cut(self,head_len=None,body_len=None,new_line='\n',out=str):
         if not isinstance(self.src,str):

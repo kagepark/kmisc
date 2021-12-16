@@ -14,6 +14,7 @@ Import('from kmisc.Type import Type')
 Import('from kmisc.OutFormat import OutFormat')
 Import('from kmisc.Abs import Abs')
 Import('from kmisc.Crc import Crc')
+Import('from kmisc.Random import Random')
 
 ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
@@ -230,7 +231,7 @@ def is_tempfile(filepath,tmp_dir='/tmp'):
 
 def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
    if filename is None:
-       filename=os.path.join(base_dir,random_str(length=len(suffix)-1,mode='str'))
+       filename=os.path.join(base_dir,Random(length=len(suffix)-1,mode='str'))
    dir_name=os.path.dirname(filename)
    file_name=os.path.basename(filename)
    name, ext = os.path.splitext(file_name)
@@ -265,7 +266,7 @@ def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
                    else:
                        new_file=new_name(name,ext,num_type%i)
                elif 'x' in suffix or 'X' in suffix:
-                   rnd_str='.{}'.format(random_str(length=len(suffix)-1,mode='str'))
+                   rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
                    if suffix[-1] not in ['X','x']:
                        new_file=new_name(name,rnd_str,ext)
                    else:
