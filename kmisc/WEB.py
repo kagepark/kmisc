@@ -93,3 +93,8 @@ class WEB:
             time.sleep(10)
         return False,'TimeOut'
 
+    def str2url(self,string):
+        if string is None: return ''
+        if type(string) is str:
+            return string.replace('+','%2B').replace('?','%3F').replace('/','%2F').replace(':','%3A').replace('=','%3D').replace(' ','+')
+        return string

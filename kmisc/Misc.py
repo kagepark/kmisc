@@ -15,6 +15,7 @@ Import('from kmisc.OutFormat import OutFormat')
 Import('from kmisc.Abs import Abs')
 Import('from kmisc.Crc import Crc')
 Import('from kmisc.Random import Random')
+Import('from kmisc.Web import Web')
 
 ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
@@ -392,6 +393,9 @@ def space(space_num=0,_space_='   '):
     for ii in range(space_num):
         space_str='{0}{1}'.format(space_str,_space_)
     return space_str
+
+def str2url(string):
+    return WEB().str2url(string)
 
 if __name__ == "__main__":
     class ABC:
