@@ -57,7 +57,7 @@ class GET:
         rt=[]
         src_name=type(self.src).__name__
         if len(find) == 0:
-            if src_name in ['kDict','kList']: return self.src.Get()
+            if src_name in ['kDict','kList','DICT']: return self.src.Get()
             if Type(self.src,('instance','classobj')):
                 def method_in_class(class_name):
                     ret=dir(class_name)
@@ -76,7 +76,7 @@ class GET:
                     else:
                         rt.append(self.src[ff])
             elif Type(self.src,dict):
-                if src_name in ['kDict']: self.src=self.src.Get()
+                if src_name in ['kDict','DICT']: self.src=self.src.Get()
                 for ff in find:
                     gval=self.src.get(ff,default)
                     if gval == default:

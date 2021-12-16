@@ -17,36 +17,26 @@ def is_cancel(func):
     return False
 
 class IP:
-    def __init__(self,src):
-        self.src=src
-#        if isinstance(src,str):
-#            self.src=src.strip()
-#        elif isinstance(src,int):
-#            self.src=src
-#        elif isinstance(src,hex):
-#            self.src=src
+    def __init__(self,ip=None):
+        self.ip=ip
 
     def IsV4(self,ip=None):
-        if ip is not None:
-            self.src=ip
-        if self.V4(default=False) is False: return False
+        if not ip: ip=self.ip
+        if self.V4(ip,default=False) is False: return False
         return True
-#        if ip is None:
-#            ip=self.src
-#        if isinstance(ip,str):
-#            ipa = ip.strip().split(".")
-#            if len(ipa) != 4: return False
-#            for ipn in ipa:
-#                if not ipn.isdigit() or not 0 <= int(ipn) <= 255: return False
-#            return True
-#        return False
 
-    def WithPort(self,port,**opts):
+    def IsOpenPort(self,port,**opts):
+        '''
+        It connectionable port(?) like as ssh, ftp, telnet, web, ...
+        '''
         default=opts.get('default',False)
+        ip=opts.get('ip')
+        if not ip:
+            ip=self.ip
         tcp_sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         tcp_sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         tcp_sk.settimeout(1)
-        if self.IsV4(self.src) is False or not isinstance(port,(str,int,list,tuple)):
+        if self.IsV4(ip) is False or not isinstance(port,(str,int,list,tuple)):
             return default
         if isinstance(port,(str,int)):
             try:
@@ -55,38 +45,46 @@ class IP:
                 return default
         for pt in port:
             try:
-                tcp_sk.connect((self.src,pt))
+                tcp_sk.connect((ip,pt))
                 return True
             except:
                 pass
         return False
 
+    def IsUsedPort(self,port,ip=None):
+        if ip is None:
+            ip=self.ip
+        if ip in ['localhost','local',None]:
+            ip='127.0.0.1'
+        '''
+        The IP used the port, it just checkup used port. (open port or dedicated port)
+        '''
+        soc=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        location=(ip,int(port))
+        rc=soc.connect_ex(location)
+        soc.close()
+        if rc== 0:
+            return True
+        return False
+
     def Ip2Num(self,ip=None,default=False):
-        if ip is not None:
-            self.src=ip
-        return self.V4(out=int,default=default)
-#        if ip is None:
-#            ip=self.src
-#        if isinstance(ip,int):
-#            return ip
-#        if self.IsV4(ip):
-#            return struct.unpack("!L", socket.inet_aton(ip))[0]
-#        return default
+        if not ip: ip=self.ip
+        return self.V4(ip,out=int,default=default)
 
     def Ip2Str(self,ip=None,default=False):
-        if ip is not None:
-            self.src=ip
-        return self.V4(out=str,default=default)
+        if not ip:ip=self.ip
+        return self.V4(ip,out=str,default=default)
 
     def Ip2hex(self,ip=None,default=False):
-        if ip is not None:
-            self.src=ip
-        return self.V4(out=hex,default=default)
+        if not ip: ip=self.ip
+        return self.V4(ip,out=hex,default=default)
 
     def InRange(self,start_ip,end_ip,**opts):
+        ip=opts.get('ip')
+        if not ip: ip=self.ip
         default=opts.get('default',False)
         startip=self.Ip2Num(start_ip)
-        myip=self.Ip2Num(self.src)
+        myip=self.Ip2Num(ip)
         endip=self.Ip2Num(end_ip)
         if isinstance(startip,int) and isinstance(myip,int) and isinstance(endip,int):
             if startip <= myip <= endip: return True
@@ -94,6 +92,8 @@ class IP:
         return default
 
     def LostNetwork(self,**opts):
+        ip=opts.get('ip')
+        if not ip: ip=self.ip
         default=opts.get('default',False)
         timeout_sec=opts.get('timeout',1800)
         interval=opts.get('interval',2)
@@ -101,17 +101,18 @@ class IP:
         cancel_func=opts.get('cancel_func',None)
         log=opts.get('log',None)
         init_time=None
-        if self.IsV4():
-            if not self.Ping(self.src,count=3):
-                if not self.Ping(self.src,count=0,timeout=timeout_sec,keep_good=keep_good,interval=interval,cancel_func=cancel_func,log=log):
+        if self.IsV4(ip):
+            if not self.Ping(ip,count=3):
+                if not self.Ping(ip,count=0,timeout=timeout_sec,keep_good=keep_good,interval=interval,cancel_func=cancel_func,log=log):
                     return True
             return False
         return default
 
-    def V4(self,out='str',default=False):
+    def V4(self,ip=None,out='str',default=False):
+        if ip is None: ip=self.ip
         ip_int=None
-        if isinstance(self.src,str):
-            ipstr=self.src.strip()
+        if isinstance(ip,str):
+            ipstr=ip.strip()
             if '0x' in ipstr:
                 ip_int=int(ipstr,16)
             elif ipstr.isdigit():
@@ -121,14 +122,14 @@ class IP:
                     ip_int=struct.unpack("!I", socket.inet_aton(ipstr))[0] # convert Int IP
                 except:
                     return default
-        elif isinstance(self.src,int):
+        elif isinstance(ip,int):
             try:
                 socket.inet_ntoa(struct.pack("!I", ipaddr)) # check int is IP or not
-                ip_int=self.src
+                ip_int=ip
             except:
                 return default
-        elif isinstance(self.src,type(hex)):
-            ip_int=int(self.src,16)
+        elif isinstance(ip,type(hex)):
+            ip_int=int(ip,16)
 
         if ip_int is not None:
             if out in ['str',str]:
@@ -140,6 +141,8 @@ class IP:
         return default
 
     def Online(self,**opts):
+        ip=opts.get('ip')
+        if not ip: ip=self.ip
         default=opts.get('default',False)
         timeout_sec=opts.get('timeout',1800)
         interval=opts.get('interval',3)
@@ -148,7 +151,7 @@ class IP:
         log=opts.get('log',None)
         time=TIME()
         run_time=time.Int()
-        if self.IsV4(self.src):
+        if self.IsV4(ip):
             if log:
                 log('[',direct=True,log_level=1)
             while True:
@@ -160,7 +163,7 @@ class IP:
                     if log:
                         log(']\n',direct=True,log_level=1)
                     return True,'Stopped monitor by Custom'
-                if self.Ping(self.src,cancel_func=cancel_func):
+                if self.Ping(ip,cancel_func=cancel_func):
                     if (time.Int() - run_time) > keep:
                         if log:
                             log(']\n',direct=True,log_level=1)
@@ -178,7 +181,7 @@ class IP:
         return default,'IP format error'
 
     def Ping(self,host=None,count=3,interval=1,keep_good=0, timeout=60,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
-        if host is None: host=self.src
+        if host is None: host=self.ip
         ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
         ICMP_CODE = socket.getprotobyname('icmp')
         ERROR_DESCR = {

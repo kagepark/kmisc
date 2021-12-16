@@ -9,7 +9,7 @@ Import('from kmisc.IP import IP')
 Import('from kmisc.Misc import *') # import klib(file)'s each function to local module's function
 Import('from kmisc.Type import Type')
 Import('from kmisc.MAC import MAC')
-Import('from kmisc.GET import GET')
+Import('from kmisc.GET import *')
 
 class IS:
     def __init__(self,src=None,**opts):

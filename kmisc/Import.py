@@ -4,7 +4,8 @@
 from distutils.version import LooseVersion
 from inspect import getmembers, stack
 from sys import version_info, executable
-from os import path
+from sys import path as mod_path
+from os import path as os_path
 from importlib import import_module
 from pkg_resources import working_set
 #import pip
@@ -38,7 +39,10 @@ if PyVer(3,4,'<='):
 elif PyVer(3,4,'>'): 
     from importlib import reload # Python 3.5+
 
-def Install(module,install_account='',mode=None,upgrade=False,version=None,force=False,pkg_map=None):
+def GlobalEnv(): # Get my parent's globals()
+    return dict(getmembers(stack()[1][0]))["f_globals"]
+
+def Install(module,install_account='',mode=None,upgrade=False,version=None,force=False,pkg_map=None,err=False):
     # version 
     #  - same : ==1.0.0
     #  - big  : >1.0.0
@@ -56,6 +60,9 @@ def Install(module,install_account='',mode=None,upgrade=False,version=None,force
         }
 
     pip_main=check_call
+    if not pip_main:
+        print('!! PIP module not found')
+        return False
 
     pkg_name=module.split('.')[0]
     install_name=pkg_map.get(pkg_name,pkg_name)
@@ -66,19 +73,28 @@ def Install(module,install_account='',mode=None,upgrade=False,version=None,force
     #install_cmd=['install']
     install_cmd=[executable,'-m','pip','install']
     if pkn:
-        if pip_main:
-            if version:
-                chk_ver=version.replace('>',' ').replace('=',' ').replace('<',' ').split()
-                if ('>=' in version and LooseVersion(pkn.version) < LooseVersion(chk_ver[-1])) or ('==' in version and LooseVersion(pkn.version) != LooseVersion(chk_ver[-1])) or ('<=' in version and LooseVersion(pkn.version) > LooseVersion(chk_ver[-1])) or ('>' in version and LooseVersion(pkn.version) <= LooseVersion(chk_ver[-1])) or ('<' in version and LooseVersion(pkn.version) >= LooseVersion(chk_ver[-1])):
-                    upgrade=True
-                    install_cmd.append(install_name+version)
-                else:
-                    return True
+        if version:
+            chk_ver=version.replace('>',' ').replace('=',' ').replace('<',' ').split()
+            if ('>=' in version and LooseVersion(pkn.version) < LooseVersion(chk_ver[-1])) or ('==' in version and LooseVersion(pkn.version) != LooseVersion(chk_ver[-1])) or ('<=' in version and LooseVersion(pkn.version) > LooseVersion(chk_ver[-1])) or ('>' in version and LooseVersion(pkn.version) <= LooseVersion(chk_ver[-1])) or ('<' in version and LooseVersion(pkn.version) >= LooseVersion(chk_ver[-1])):
+                upgrade=True
+                install_cmd.append(install_name+version)
             else:
-                install_cmd.append(install_name)
-            if force: install_cmd.append('--force-reinstall')
-            if install_account: install_cmd.append(install_account)
-            if upgrade is True: pip_main(install_cmd)
+                return True
+        else:
+            install_cmd.append(install_name)
+        if force: install_cmd.append('--force-reinstall')
+        if install_account: install_cmd.append(install_account)
+        if not force and upgrade: install_cmd.append('--upgrade')
+        if pip_main and force or upgrade:
+            if err:
+                if pip_main(install_cmd) == 0: return True
+                return False
+            else:
+                try:
+                    if pip_main(install_cmd) == 0: return True
+                    return False
+                except:
+                    return False
         return True
 
 #    if mode == 'git':
@@ -93,17 +109,33 @@ def Install(module,install_account='',mode=None,upgrade=False,version=None,force
     if force: install_cmd.append('--force-reinstall')
     if install_account: install_cmd.append(install_account)
 
-    if pip_main and pip_main(install_cmd) == 0: return True
+    if err:
+        if pip_main(install_cmd) == 0: return True
+    else:
+        try:
+            if pip_main(install_cmd) == 0: return True
+        except:
+            pass
     return False
 
 
-def ModLoad(inp,force=False,globalenv=dict(getmembers(stack()[1][0]))["f_globals"]):
+def ModLoad(inp,force=False,globalenv=dict(getmembers(stack()[1][0]))["f_globals"],unload=False):
     def Reload(name):
         if isinstance(name,str):
             globalenv[name]=reload(globalenv[name])
         else:
             name=reload(name)
         return True
+
+    def Unload(name):
+        if isinstance(name,str):
+            del globalenv[name]
+        elif isinstance(name,type(inspect)):
+            try:
+                nname = name.__spec__.name
+            except AttributeError:
+                nname = name.__name__
+            if nname in globalenv: del globalenv[nname]
 
     if not inp: return 0,''
     inp_a=inp.split()
@@ -113,6 +145,10 @@ def ModLoad(inp,force=False,globalenv=dict(getmembers(stack()[1][0]))["f_globals
         del inp_a[0]
     name=inp_a[-1]
     module=inp_a[0]
+    if unload:
+        if '*' not in inp and name in globalenv: # already loaded
+            Unload(name) #Unload
+        return 2,module #Not loaded
     if '*' not in inp and name in globalenv: # already loaded
         if force: Reload(name) # if force then reload
         return 0,module
@@ -140,15 +176,21 @@ def ModLoad(inp,force=False,globalenv=dict(getmembers(stack()[1][0]))["f_globals
     except ImportError: # Import error then try install
         return 1,module
 
-
 def Import(*inps,**opts):
+    '''
+    inps has "require <require file>" then install the all require files in <require file>
+    '''
     globalenv=dict(getmembers(stack()[1][0]))["f_globals"] # Get my parent's globals()
-    force=opts.get('force',None)
-    err=opts.get('err',False)
+    force=opts.get('force',None) # reload when already loaded (force=True)
+    unload=opts.get('unload',False) # unload module when True
+    err=opts.get('err',False) # show install or loading error when True
     default=opts.get('default',False)
-    dbg=opts.get('dbg',False)
-    install_account=opts.get('install_account','--user')
-    if install_account in ['user','--user']:
+    dbg=opts.get('dbg',False) # show comment when True
+    #install_account=opts.get('install_account','--user')
+    install_account=opts.get('install_account','') # '--user','user','myaccount','account',myself then install at my local account
+    path=opts.get('path') # if the module file in a special path then define path
+
+    if install_account in ['user','--user','personal','myaccount','account','myself']:
         install_account='--user'
     else:
         install_account=''
@@ -167,8 +209,8 @@ def Import(*inps,**opts):
         ninps=ninps+inp.split(',')
     for inp in ninps:
         inp_a=inp.split()
-        if inp_a[0] in ['require','requirement']:
-            if path.isfile(inp_a[1]):
+        if len(inp_a) ==2 and inp_a[0] in ['require','requirement']:
+            if os_path.isfile(inp_a[1]):
                 rq=[]
                 with open(inp_a[1]) as f:
                     rq=f.read().split('\n')
@@ -190,9 +232,22 @@ def Import(*inps,**opts):
                     if ic:
                         loaded,module=ModLoad(ii_a[0],force=force,globalenv=globalenv)
             continue
-        loaded,module=ModLoad(inp,force=force,globalenv=globalenv)
+        loaded,module=ModLoad(inp,force=force,globalenv=globalenv,unload=unload)
+        if loaded == 2: #unloaded
+            continue
         if loaded == 1:
-            if Install(module,install_account):
+            if path:
+                if isinstance(path,str):
+                    if ':' in path:
+                        path=path.split(':')
+                    else:
+                        path=path.split(',')
+                if isinstance(path,(list,tuple)):
+                    for ii in path:
+                        if isinstance(ii,str) and os_path.isdir(ii):
+                            mod_path.append(ii)
+                loaded,module=ModLoad(inp,force=force,globalenv=globalenv)
+            elif Install(module,install_account):
                 loaded,module=ModLoad(inp,force=force,globalenv=globalenv)
             else:
                 if dbg:
