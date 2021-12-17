@@ -31,3 +31,49 @@ def Cut(src,head_len=None,body_len=None,new_line='\n',out=str):
     if rt and out in ['str',str]: return new_line.join(rt)
     return rt
 
+def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,out_format=list):
+    rc=[]
+    if not isinstance(string,str):
+        string='{0}'.format(string)
+    if new_line:
+        string_a=string.split(new_line)
+    else:
+        string_a=[string]
+    if max_len is None or (max_len is None and sub_len is None):
+        if new_line and out_format in [str,'str','string']:
+            return string
+        return [string]
+    max_num=len(string_a)
+    space=''
+    if sub_len and front_space:
+        for ii in range(0,max_len-sub_len):
+            space=space+' '
+    elif sub_len is None:
+        sub_len=max_len
+    for ii in range(0,max_num):
+        str_len=len(string_a[ii])
+        if max_num == 1:
+            if max_len is None or max_len >= str_len:
+                if new_line and out_format in [str,'str','string']:
+                    return string_a[ii]
+                return [string_a[ii]]
+            if sub_len is None:
+                rc=[string_a[i:i + max_len] for i in range(0, str_len, max_len)]
+                if new_line and out_format in [str,'str','string']:
+                    return new_line.join(rc)
+                return rc
+        rc.append(string_a[ii][0:max_len])
+        string_tmp=string_a[ii][max_len:]
+        string_tmp_len=len(string_tmp)
+        if string_tmp_len > 0:
+            for i in range(0, (string_tmp_len//sub_len)+1):
+                if (i+1)*sub_len > string_tmp_len:
+                    rc.append(space+string_tmp[sub_len*i:])
+                else:
+                    rc.append(space+string_tmp[sub_len*i:(i+1)*sub_len])
+#        else:
+#            rc.append('')
+    if new_line and out_format in [str,'str','string']:
+        return new_line.join(rc)
+    return rc
+

@@ -16,5 +16,12 @@ def OutFormat(data,out=None):
             return data[0]
         elif isinstance(data,dict) and len(data) == 1:
             return data.values()[0]
+    elif out in ['str',str]:
+        return '''{}'''.format(data)
+    elif out in ['int',int]:
+        try:
+            return int(data)
+        except:
+            pass
     return data
 

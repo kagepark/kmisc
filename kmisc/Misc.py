@@ -15,7 +15,6 @@ import time
 from datetime import datetime
 from os import close, remove
 import random
-import string
 import fcntl,socket, struct
 import pickle
 from threading import Thread
@@ -29,11 +28,12 @@ import ast
 import base64
 import ssl
 from distutils.version import LooseVersion
-import xml.etree.ElementTree as ET
 
 from kmisc.Import import *
 Import('zlib')
 Import('from kmisc.GET import *')
+Import('from kmisc.SHELL import SHELL')
+rshell=SHELL().Run
 
 ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
@@ -142,170 +142,6 @@ def log_format(*msg,**opts):
                 m_str='{0}{1}{2}{3}{4}'.format(start_new_line,m_str,intro_space,m,end_new_line)
         return m_str
 
-#def printf(*msg,**opts):
-#    log_p=False
-#    log=opts.get('log',None)
-#    log_level=opts.get('log_level',8)
-#    dsp=opts.get('dsp','a')
-#    func_name=opts.get('func_name',None)
-#    date=opts.get('date',False)
-#    date_format=opts.get('date_format','[%m/%d/%Y %H:%M:%S]')
-#    intro=opts.get('intro',None)
-#    caller=opts.get('caller',False)
-#    caller_detail=opts.get('caller_detail',False)
-#    msg=list(msg)
-#    direct=opts.get('direct',False)
-#    color=opts.get('color',None)
-#    color_db=opts.get('color_db',{'blue': 34, 'grey': 30, 'yellow': 33, 'green': 32, 'cyan': 36, 'magenta': 35, 'white': 37, 'red': 31})
-#    bg_color=opts.get('bg_color',None)
-#    bg_color_db=opts.get('bg_color_db',{'cyan': 46, 'white': 47, 'grey': 40, 'yellow': 43, 'blue': 44, 'magenta': 45, 'red': 41, 'green': 42})
-#    attr=opts.get('attr',None)
-#    attr_db=opts.get('attr_db',{'reverse': 7, 'blink': 5,'concealed': 8, 'underline': 4, 'bold': 1})
-#    syslogd=opts.get('syslogd',None)
-# 
-#    if direct:
-#        new_line=opts.get('new_line','')
-#    else:
-#        new_line=opts.get('new_line','\n')
-#    logfile=opts.get('logfile',None)
-#    logfile_type=type(logfile)
-#    if logfile_type is str:
-#        logfile=logfile.split(',')
-#    elif logfile_type in [list,tuple]:
-#        logfile=list(logfile)
-#    else:
-#        logfile=[]
-#    for ii in msg:
-#        if type(ii) is str and ':' in ii:
-#            logfile_list=ii.split(':')
-#            if logfile_list[0] in ['log_file','logfile']:
-#                if len(logfile_list) > 2:
-#                    for jj in logfile_list[1:]:
-#                        logfile.append(jj)
-#                else:
-#                    logfile=logfile+logfile_list[1].split(',')
-#                msg.remove(ii)
-# 
-#    if os.getenv('ANSI_COLORS_DISABLED') is None and (color or bg_color or attr):
-#        reset='''\033[0m'''
-#        fmt_msg='''\033[%dm%s'''
-#        if color and color in color_db:
-#            msg=fmt_msg % (color_db[color],msg)
-#        if bg_color and bg_color in bg_color_db:
-#            msg=fmt_msg % (color_db[bg_color],msg)
-#        if attr and attr in attr_db:
-#            msg=fmt_msg % (attr_db[attr],msg)
-#        msg=msg+reset
-# 
-#    # Make a Intro
-#    intro_msg=''
-#    if date and syslogd is False:
-#        intro_msg='[{0}] '.format(datetime.now().strftime(date_format))
-#    if caller:
-#        call_name=get_caller_fcuntion_name(detail=caller_detail)
-#        if call_name:
-#            if len(call_name) == 3:
-#                intro_msg=intro_msg+'{}({}:{}): '.format(call_name[0],call_name[1],call_name[2])
-#            else:
-#                intro_msg=intro_msg+'{}(): '.format(call_name)
-#    if intro is not None:
-#        intro_msg=intro_msg+intro+': '
-# 
-#    # Make a Tap
-#    tap=''
-#    for ii in range(0,len(intro_msg)):
-#        tap=tap+' '
-# 
-#    # Make a msg
-#    msg_str=''
-#    for ii in msg:
-#        if msg_str:
-#            if new_line:
-#                msg_str=msg_str+new_line+tap+'{}'.format(ii)
-#            else:
-#                msg_str=msg_str+'{}'.format(ii)
-#        else:
-#            msg_str=intro_msg+'{}'.format(ii)
-# 
-#    # save msg to syslogd
-#    if syslogd:
-#        if syslogd in ['INFO','info']:
-#            syslog.syslog(syslog.LOG_INFO,msg)
-#        elif syslogd in ['KERN','kern']:
-#            syslog.syslog(syslog.LOG_KERN,msg)
-#        elif syslogd in ['ERR','err']:
-#            syslog.syslog(syslog.LOG_ERR,msg)
-#        elif syslogd in ['CRIT','crit']:
-#            syslog.syslog(syslog.LOG_CRIT,msg)
-#        elif syslogd in ['WARN','warn']:
-#            syslog.syslog(syslog.LOG_WARNING,msg)
-#        elif syslogd in ['DBG','DEBUG','dbg','debug']:
-#            syslog.syslog(syslog.LOG_DEBUG,msg)
-#        else:
-#            syslog.syslog(msg)
-# 
-#    # Save msg to file
-#    if type(logfile) is str:
-#        logfile=logfile.split(',')
-#    if type(logfile) in [list,tuple] and ('f' in dsp or 'a' in dsp):
-#        for ii in logfile:
-#            if ii and os.path.isdir(os.path.dirname(ii)):
-#                log_p=True
-#                with open(ii,'a+') as f:
-#                    f.write(msg_str+new_line)
-#    if type(log).__name__ == 'function':
-#         log_func_arg=get_function_args(log,mode='all')
-#         if 'args' in log_func_arg or 'varargs' in log_func_arg:
-#             log_p=True
-#             args=log_func_arg.get('args',[])
-#             if args and len(args) <= 4 and ('direct' in args or 'log_level' in args or 'func_name' in args):
-#                 tmp=[]
-#                 for i in range(0,len(args)):
-#                     tmp.append(i)
-#                 if 'direct' in args:
-#                     didx=args.index('direct')
-#                     del tmp[didx]
-#                     args[didx]=direct
-#                 if 'log_level' in args:
-#                     lidx=args.index('log_level')
-#                     del tmp[lidx]
-#                     args[lidx]=log_level
-#                 if 'func_name' in args:
-#                     lidx=args.index('func_name')
-#                     del tmp[lidx]
-#                     args[lidx]=func_name
-#                 if 'date_format' in args:
-#                     lidx=args.index('date_format')
-#                     del tmp[lidx]
-#                     args[lidx]=date_format
-#                 args[tmp[0]]=msg_str
-#                 log(*args)
-#             elif 'keywards' in log_func_arg:
-#                 log(msg_str,direct=direct,log_level=log_level,func_name=func_name,date_format=date_format)
-#             elif 'defaults' in log_func_arg:
-#                 if 'direct' in log_func_arg['defaults'] and 'log_level' in log_func_arg['defaults']:
-#                     log(msg_str,direct=direct,log_level=log_level)
-#                 elif 'log_level' in log_func_arg['defaults']:
-#                     log(msg_str,log_level=log_level)
-#                 elif 'direct' in log_func_arg['defaults']:
-#                     log(msg_str,direct=direct)
-#                 else:
-#                     log(msg_str)
-#             else:
-#                 log(msg_str)
-#    # print msg to screen
-#    if (log_p is False and 'a' in dsp) or 's' in dsp or 'e' in dsp:
-#         if 'e' in dsp:
-#             sys.stderr.write(msg_str+new_line)
-#             sys.stderr.flush()
-#         else:
-#             sys.stdout.write(msg_str+new_line)
-#             sys.stdout.flush()
-#    # return msg
-#    if 'r' in dsp:
-#         return msg_str
-
-
 def dget(dict=None,keys=None):
     if dict is None or keys is None:
         return False
@@ -359,109 +195,6 @@ def dput(dic=None,keys=None,val=None,force=False,safe=True):
                 return True
     return False
 
-#def is_py3():
-#    if sys.version_info[0] >= 3:
-#        return True
-#    return False
-
-
-#def rshell(cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None):
-#    if isinstance(timeout,int) or (isinstance(timeout,str) and timeout.isdigit()):
-#        try:
-#            timeout=int(timeout)
-#        except:
-#            timeout=600
-#        if timeout < 3:
-#            timeout=3
-#    else:
-#        timeout=None
-# 
-#    def pprog(stop,progress_pre_new_line=False,progress_post_new_line=False,log=None):
-#        time.sleep(5)
-#        if stop():
-#            return
-#        if progress_pre_new_line:
-#            if log:
-#                log('\n',direct=True,log_level=1)
-#            else:
-#                sys.stdout.write('\n')
-#                sys.stdout.flush()
-#        post_chk=False
-#        while True:
-#            if stop():
-#                break
-#            if log:
-#                log('>',direct=True,log_level=1)
-#            else:
-#                sys.stdout.write('>')
-#                sys.stdout.flush()
-#            post_chk=True
-#            time.sleep(5)
-#        if post_chk and progress_post_new_line:
-#            if log:
-#                log('\n',direct=True,log_level=1)
-#            else:
-#                sys.stdout.write('\n')
-#                sys.stdout.flush()
-#    start_time=datetime.now().strftime('%s')
-#    if not isinstance(cmd,str):
-#        return -1,'wrong command information :{0}'.format(cmd),'',start_time,start_time,datetime.now().strftime('%s'),cmd,path
-#    Popen=subprocess.Popen
-#    PIPE=subprocess.PIPE
-# 
-#    cmd_env=''
-#    cmd_a=cmd.split()
-#    cmd_file=cmd_a[0]
-#    if cmd_a[0] == 'sudo': cmd_file=cmd_a[1]
-#    if isinstance(path,str) and path and os.path.isdir(path):
-#        cmd_env='''export PATH=%s:${PATH}; '''%(path)
-#        if os.path.join(path,cmd_file):
-#            cmd_env=cmd_env+'''cd %s && '''%(path)
-#    else:
-#        if os.path.isfile(os.path.basename(cmd_file)):
-#            cmd_env='''./'''
-#    p = Popen(cmd_env+cmd , shell=True, stdout=PIPE, stderr=PIPE)
-#    out=None
-#    err=None
-#    if progress:
-#        stop_threads=False
-#        ppth=Thread(target=pprog,args=(lambda:stop_threads,progress_pre_new_line,progress_post_new_line,log,))
-#        ppth.start()
-#    if is_py3():
-#        try:
-#            out, err = p.communicate(timeout=timeout)
-#        except subprocess.TimeoutExpired:
-#            p.kill()
-#            if progress:
-#                stop_threads=True
-#                ppth.join()
-#            return -1, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time,datetime.now().strftime('%s'),cmd,path
-#    else:
-#        if timeout:
-#            countdown=int('{}'.format(timeout))
-#            while p.poll() is None and countdown > 0:
-#                time.sleep(2)
-#                countdown -= 2
-#            if countdown < 1:
-#                p.kill()
-#                if progress:
-#                    stop_threads=True
-#                    ppth.join()
-#                return -1, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time,datetime.now().strftime('%s'),cmd,path
-#        out, err = p.communicate()
-# 
-#    if progress:
-#        stop_threads=True
-#        ppth.join()
-#        time.sleep(1)
-#    if is_py3():
-#        out=out.decode("ISO-8859-1")
-#        err=err.decode("ISO-8859-1")
-#    if ansi:
-#        return p.returncode, out.rstrip(), err.rstrip(),start_time,datetime.now().strftime('%s'),cmd,path
-#    else:
-#        return p.returncode, ansi_escape.sub('',out).rstrip(), ansi_escape.sub('',err).rstrip(),start_time,datetime.now().strftime('%s'),cmd,path
-
 def sendanmail(to,subj,msg,html=True):
     msg='''{}'''.format(msg)
     msg=msg.replace('"','\\"')
@@ -481,48 +214,48 @@ Content-Type: text/html
     cmd='''echo "{0}" | sendmail -t'''.format(email_msg)
     return rshell(cmd)
 
-def mac2str(mac,case='lower'):
-    if is_mac4(mac):
-        if case == 'lower':
-            mac=mac.strip().replace(':','').replace('-','').lower()
-        else:
-            mac=mac.strip().replace(':','').replace('-','').upper()
-        return mac
-    return False
+#def mac2str(mac,case='lower'):
+#    if is_mac4(mac):
+#        if case == 'lower':
+#            mac=mac.strip().replace(':','').replace('-','').lower()
+#        else:
+#            mac=mac.strip().replace(':','').replace('-','').upper()
+#        return mac
+#    return False
 
-def str2mac(mac,sym=':',case='lower',chk=False):
-    if type(mac) is str:
-        cmac=mac.strip()
-        if len(cmac) in [12,17]:
-            cmac=cmac.replace(':','').replace('-','')
-            if len(cmac) == 12:
-                cmac=sym.join(cmac[i:i+2] for i in range(0,12,2))
-            if case == 'lower':
-                mac=cmac.lower()
-            else:
-                mac=cmac.upper()
-    if chk:
-        if is_mac4(mac,convert=False):
-            return mac
-        else:
-            return False
-    return mac
+#def str2mac(mac,sym=':',case='lower',chk=False):
+#    if type(mac) is str:
+#        cmac=mac.strip()
+#        if len(cmac) in [12,17]:
+#            cmac=cmac.replace(':','').replace('-','')
+#            if len(cmac) == 12:
+#                cmac=sym.join(cmac[i:i+2] for i in range(0,12,2))
+#            if case == 'lower':
+#                mac=cmac.lower()
+#            else:
+#                mac=cmac.upper()
+#    if chk:
+#        if is_mac4(mac,convert=False):
+#            return mac
+#        else:
+#            return False
+#    return mac
 
-def is_mac4(mac=None,symbol=':',convert=True):
-    if convert:
-        mac=str2mac(mac,sym=symbol)
-    if mac is None or type(mac) is not str:
-        return False
-    octets = mac.split(symbol)
-    if len(octets) != 6:
-        return False
-    for i in octets:
-        try:
-           if len(i) != 2 or int(i, 16) > 255:
-               return False
-        except:
-           return False
-    return True
+#def is_mac4(mac=None,symbol=':',convert=True):
+#    if convert:
+#        mac=str2mac(mac,sym=symbol)
+#    if mac is None or type(mac) is not str:
+#        return False
+#    octets = mac.split(symbol)
+#    if len(octets) != 6:
+#        return False
+#    for i in octets:
+#        try:
+#           if len(i) != 2 or int(i, 16) > 255:
+#               return False
+#        except:
+#           return False
+#    return True
 
 def sreplace(pattern,sub,string):
     return re.sub('^%s' % pattern, sub, string)
@@ -532,76 +265,6 @@ def ereplace(pattern,sub,string):
 
 def md5(string):
     return hashlib.md5(_u_bytes(string)).hexdigest()
-
-def is_bmc_ipv4(ipaddr,port=(623,664,443)):
-    if ipv4(ipaddr):
-        if is_port_ip(ipaddr,port):
-            return True
-    return False
-
-def ipv4(ipaddr=None,chk=False):
-    if type(ipaddr) is str:
-        ipaddr_a=ipaddr.strip().split('.')
-        new_ip=''
-        for i in ipaddr_a:
-            for j in range(0,10):
-                if len(i) <= 1:
-                    break
-                i=sreplace('^0','',i)
-            if new_ip:
-                new_ip+='.{}'.format(i)
-            else:
-                new_ip=i
-        if len(new_ip.split('.')) == 4:
-            if chk:
-                if is_ipv4(new_ip):
-                    return new_ip
-                else:
-                    return False
-            return new_ip
-    return False
-
-def is_port_ip(ipadd,port):
-    tcp_sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tcp_sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    tcp_sk.settimeout(1)
-    if isinstance(port,(str,int)):
-        port=[int(port)]
-    if isinstance(port,(list,tuple)):
-        for pt in port:
-            try:
-                tcp_sk.connect((ipadd,pt))
-                return True
-            except:
-                pass
-    return False
-
-def is_ipv4(ipadd=None):
-    if ipadd is None or type(ipadd) is not str or len(ipadd) == 0:
-        return False
-    ipa = ipadd.split(".")
-    if len(ipa) != 4:
-        return False
-    for ip in ipa:
-        if not ip.isdigit():
-            return False
-        if not 0 <= int(ip) <= 255:
-            return False
-    return True
-
-def ip2num(ip):
-    if is_ipv4(ip):
-        return struct.unpack("!L", socket.inet_aton(ip))[0]
-    return False
-
-def ip_in_range(ip,start,end):
-    if type(ip) is str and type(start) is str and type(end) is str:
-        ip=ip2num(ip)
-        start=ip2num(start)
-        end=ip2num(end)
-        if start <= ip and ip <= end:
-            return True
-    return False
 
 def get_function_name():
     return traceback.extract_stack(None, 2)[0][2]
@@ -711,35 +374,6 @@ def get_net_dev_ip(ifname):
         except:
             return
 
-def cat(filename,no_end_newline=False):
-    tmp=file_rw(filename)
-    tmp=Get(tmp,1)
-    if isinstance(tmp,str) and no_end_newline:
-        tmp_a=tmp.split('\n')
-        ntmp=''
-        for ii in tmp_a[:-1]:
-            if ntmp:
-                ntmp='{}\n{}'.format(ntmp,ii)
-            else:
-                ntmp='{}'.format(ii)
-        if len(tmp_a[-1]) > 0:
-            ntmp='{}\n{}'.format(ntmp,tmp_a[-1])
-        tmp=ntmp
-    return tmp
-
-def ls(dirname,opt=''):
-    if os.path.isdir(dirname):
-        dirlist=[]
-        dirinfo=list(os.walk(dirname))[0]
-        if opt == 'd':
-            dirlist=dirinfo[1]
-        elif opt == 'f':
-            dirlist=dirinfo[2]
-        else:
-            dirlist=dirinfo[1]+dirinfo[2]
-        return dirlist
-    return False
-
 def get_net_device(name=None):
     net_dev={}
     net_dir='/sys/class/net'
@@ -783,17 +417,6 @@ def get_net_device(name=None):
     else:
         return False
 
-def rm_file(filelist):
-    if type(filelist) == type([]):
-       filelist_tmp=filelist
-    else:
-       filelist_tmp=filelist.split(',')
-    for ii in list(filelist_tmp):
-        if os.path.isfile(ii):
-            os.unlink(ii)
-        else:
-            print('not found {0}'.format(ii))
-
 def make_tar(filename,filelist,ctype='gz',ignore_file=[]):
     def ignore_files(filename,ignore_files):
         if isinstance(ignore_files,(list,tuple)):
@@ -835,52 +458,6 @@ def make_tar(filename,filelist,ctype='gz',ignore_file=[]):
         else:
             print('{} not found'.format(ii))
     tar.close()
-
-def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,out_format=list):
-    rc=[]
-    if not isinstance(string,str):
-        string='{0}'.format(string)
-    if new_line:
-        string_a=string.split(new_line)
-    else:
-        string_a=[string]
-    if max_len is None or (max_len is None and sub_len is None):
-        if new_line and out_format in [str,'str','string']:
-            return string
-        return [string]
-    max_num=len(string_a)
-    space=''
-    if sub_len and front_space:
-        for ii in range(0,max_len-sub_len):
-            space=space+' '
-    elif sub_len is None:
-        sub_len=max_len
-    for ii in range(0,max_num):
-        str_len=len(string_a[ii])
-        if max_num == 1:
-            if max_len is None or max_len >= str_len:
-                if new_line and out_format in [str,'str','string']:
-                    return string_a[ii]
-                return [string_a[ii]]
-            if sub_len is None:
-                rc=[string_a[i:i + max_len] for i in range(0, str_len, max_len)]
-                if new_line and out_format in [str,'str','string']:
-                    return new_line.join(rc)
-                return rc
-        rc.append(string_a[ii][0:max_len])
-        string_tmp=string_a[ii][max_len:]
-        string_tmp_len=len(string_tmp)
-        if string_tmp_len > 0:
-            for i in range(0, (string_tmp_len//sub_len)+1):
-                if (i+1)*sub_len > string_tmp_len:
-                    rc.append(space+string_tmp[sub_len*i:])
-                else:
-                    rc.append(space+string_tmp[sub_len*i:(i+1)*sub_len])
-#        else:
-#            rc.append('')
-    if new_line and out_format in [str,'str','string']:
-        return new_line.join(rc)
-    return rc
 
 def is_tempfile(filepath,tmp_dir='/tmp'):
    filepath_arr=filepath.split('/')
@@ -952,48 +529,6 @@ def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
    else:
       return new_dest_file
 
-def append2list(*inp,**cond):
-   org=[]
-   add_num=len(inp)
-   uniq=cond.get('uniq',False)
-   if add_num == 0:
-       return []
-   src=inp[0]
-   src_type=type(inp)
-   if add_num == 1:
-       if src_type in [list,tuple,str]:
-           return list(src)
-       else:
-           org.append(src)
-           return org
-   add=inp[1:]
-   if src_type is str:
-      for jj in src.split(','):
-         if uniq and jj in org: continue
-         org.append(jj)
-   elif src_type in [list,tuple]:
-      for jj in src:
-          if uniq and jj in org: continue
-          org.append(jj)
-   else:
-      org.append(src)
-
-   for ii in add:
-      ii_type=type(ii)
-      if ii_type in [list,tuple]:
-         for jj in ii:
-             if uniq and jj in org: continue
-             org.append(jj)
-      elif ii_type is str:
-         for jj in ii.split(','):
-            if uniq and jj in org: continue
-            org.append(jj)
-      else:
-         if uniq and ii in org: continue
-         org.append(ii)
-   return org
-
-
 def isfile(filename=None):
    if filename is None:
       return False
@@ -1004,212 +539,161 @@ def isfile(filename=None):
    return False
 
 
-def ping(host,count=3,interval=1,keep_good=0, timeout_sec=5,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
-    ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
-    ICMP_CODE = socket.getprotobyname('icmp')
-    ERROR_DESCR = {
-        1: ' - Note that ICMP messages can only be '
-           'sent from processes running as root.',
-        10013: ' - Note that ICMP messages can only be sent by'
-               ' users or processes with administrator rights.'
-        }
-
-    def checksum(msg):
-        sum = 0
-        size = (len(msg) // 2) * 2
-        for c in range(0,size, 2):
-            sum = (sum + ord(msg[c + 1])*256+ord(msg[c])) & 0xffffffff
-        if size < len(msg):
-            sum = (sum+ord(msg[len(msg) - 1])) & 0xffffffff
-        ra = ~((sum >> 16) + (sum & 0xffff) + (sum >> 16)) & 0xffff
-        ra = ra >> 8 | (ra << 8 & 0xff00)
-        return ra
-
-    def mk_packet(size):
-        """Make a new echo request packet according to size"""
-        # Header is type (8), code (8), checksum (16), id (16), sequence (16)
-        header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0, 0, size, 1)
-        #data = struct.calcsize('bbHHh') * 'Q'
-        data = size * 'Q'
-        my_checksum = checksum(_u_bytes2str(header) + data)
-        header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0,
-                             socket.htons(my_checksum), size, 1)
-        return header + _u_bytes(data)
-
-    def receive(my_socket, ssize, stime, timeout_sec):
-        while True:
-            if timeout_sec <= 0:
-                return
-            ready = select.select([my_socket], [], [], timeout_sec)
-            if ready[0] == []: # Timeout
-                return
-            received_time = time.time()
-            packet, addr = my_socket.recvfrom(1024)
-            type, code, checksum, gsize, seq = struct.unpack('bbHHh', packet[20:28]) # Get Header
-            if gsize == ssize:
-                return received_time - stime
-            timeout_sec -= received_time - stime
-
-    def pinging(ip,timeout_sec=1,size=64):
-        try:
-            my_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, ICMP_CODE)
-        except socket.error as e:
-            if e.errno in ERROR_DESCR:
-                raise socket.error(''.join((e.args[1], ERROR_DESCR[e.errno])))
-            raise
-        if size in ['rnd','random']:
-            # Maximum size for an unsigned short int c object(65535)
-            size = int((id(timeout_sec) * random.random()) % 65535)
-        packet = mk_packet(size)
-        while packet:
-            sent = my_socket.sendto(packet, (ip, 1)) # ICMP have no port, So just put dummy port 1
-            packet = packet[sent:]
-        delay = receive(my_socket, size, time.time(), timeout_sec)
-        my_socket.close()
-        if delay:
-            return delay,size
-
-    def do_ping(ip,timeout_sec=1,size=64,count=None,interval=0.7,log_format='ping',cancel_func=None,timeout_ping=1):
-        ok=1
-        i=1
-        init_time=None
-        while True:
-            out,init_time=timeout(timeout_sec,init_time)
-            if out:
-                return -1,'Timeout'
-            if is_cancel(cancel_func):
-                return -1,'canceled'
-            delay=pinging(ip,timeout_ping,size)
-            if delay:
-                ok=0
-                if log_format == '.':
-                    sys.stdout.write('.')
-                    sys.stdout.flush()
-                elif log_format == 'ping':
-                    sys.stdout.write('{} bytes from {}: icmp_seq={} ttl={} time={} ms\n'.format(delay[1],ip,i,size,round(delay[0]*1000.0,4)))
-                    sys.stdout.flush()
-            else:
-                ok=1
-                if log_format == '.':
-                    sys.stdout.write('x')
-                    sys.stdout.flush()
-                elif log_format == 'ping':
-                    sys.stdout.write('{} icmp_seq={} timeout ({} second)\n'.format(ip,i,timeout_sec))
-                    sys.stdout.flush()
-            if count:
-                count-=1
-                if count < 1:
-                    return ok,'{} is alive'.format(ip)
-            i+=1
-            time.sleep(interval)
-
-
-    if log_format=='ping':
-        if find_executable('ping'):
-            os.system("ping -c {0} {1}".format(count,host))
-        else:
-            do_ping(host,timeout_sec=timeout_sec,size=64,count=count,log_format='ping',cancel_func=cancel_func)
-    else:
-        chk_sec=int_sec()
-        log_type=type(log).__name__
-        found_lost=False
-        if keep_good > 0 or not count:
-           try:
-               timeout_sec=int(timeout_sec)
-           except:
-               timeout_sec=1
-           if timeout_sec < keep_good:
-               count=keep_good+(2*interval)
-               timeout_sec=keep_good+5
-           elif not count:
-               count=timeout_sec//interval + 3
-           elif count * interval > timeout_sec:
-               timeout_sec=count*interval+timeout_sec
-        good=False
-        timeoutini=None
-        while True:
-           out,timeoutini=timeout(timeout_sec,init_time=timeoutini)
-           if out:
-               return False
-           if is_cancel(cancel_func):
-               log(' - Canceled ping')
-               return False
-           if stop_func:
-               if log_type == 'function':
-                   log(' - Stopped ping')
-               return False
-           if find_executable('ping'):
-               rc=rshell("ping -c 1 {}".format(host))
-           else:
-               rc=do_ping(host,timeout_sec=1,size=64,count=count,log_format=None)
-           if rc[0] == 0:
-              good=True
-              if keep_good:
-                  if good and keep_good and int_sec() - chk_sec >= keep_good:
-                      return True
-              else:
-                  return True
-              if log_type == 'function':
-                  log('.',direct=True,log_level=1)
-           else:
-              good=False
-              chk_sec=int_sec()
-              if log_type == 'function':
-                  log('x',direct=True,log_level=1)
-           time.sleep(interval)
-           count-=1
-        return good
-
-def is_lost(ip,**opts):
-    timeout_sec=opts.get('timeout',1800)
-    interval=opts.get('interval',5)
-    stop_func=opts.get('stop_func',None)
-    cancel_func=opts.get('cancel_func',None)
-    log=opts.get('log',None)
-    init_time=None
-    if not ping(ip,count=3):
-        if not ping(ip,count=0,timeout_sec=timeout_sec,keep_good=30,interval=2,stop_func=stop_func,log=log,cancel_func=cancel_func):
-            return True,'Lost network'
-    return False,'OK'
-
-def is_comeback(ip,**opts):
-    timeout_sec=opts.get('timeout',1800)
-    interval=opts.get('interval',3)
-    keep=opts.get('keep',20)
-    stop_func=opts.get('stop_func',None)
-    cancel_func=opts.get('cancel_func',None)
-    log=opts.get('log',None)
-    init_time=None
-    run_time=int_sec()
-    if keep == 0 or keep is None:
-        return True,'N/A(Missing keep parameter data)'
-    if log:
-        log('[',direct=True,log_level=1)
-    while True:
-        ttt,init_time=timeout(timeout_sec,init_time)
-        if ttt:
-            if log:
-                log(']\n',direct=True,log_level=1)
-            return False,'Timeout monitor'
-        if is_cancel(cancel_func) or stop_func is True:
-            if log:
-                log(']\n',direct=True,log_level=1)
-            return True,'Stopped monitor by Custom'
-        if ping(ip,cancel_func=cancel_func):
-            if (int_sec() - run_time) > keep:
-                if log:
-                    log(']\n',direct=True,log_level=1)
-                return True,'OK'
-            if log:
-                log('-',direct=True,log_level=1)
-        else:
-            run_time=int_sec()
-            if log:
-                log('.',direct=True,log_level=1)
-        time.sleep(interval)
-    if log:
-        log(']\n',direct=True,log_level=1)
-    return False,'Timeout/Unknown issue'
+#def ping(host,count=3,interval=1,keep_good=0, timeout_sec=5,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
+#    ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
+#    ICMP_CODE = socket.getprotobyname('icmp')
+#    ERROR_DESCR = {
+#        1: ' - Note that ICMP messages can only be '
+#           'sent from processes running as root.',
+#        10013: ' - Note that ICMP messages can only be sent by'
+#               ' users or processes with administrator rights.'
+#        }
+# 
+#    def checksum(msg):
+#        sum = 0
+#        size = (len(msg) // 2) * 2
+#        for c in range(0,size, 2):
+#            sum = (sum + ord(msg[c + 1])*256+ord(msg[c])) & 0xffffffff
+#        if size < len(msg):
+#            sum = (sum+ord(msg[len(msg) - 1])) & 0xffffffff
+#        ra = ~((sum >> 16) + (sum & 0xffff) + (sum >> 16)) & 0xffff
+#        ra = ra >> 8 | (ra << 8 & 0xff00)
+#        return ra
+# 
+#    def mk_packet(size):
+#        """Make a new echo request packet according to size"""
+#        # Header is type (8), code (8), checksum (16), id (16), sequence (16)
+#        header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0, 0, size, 1)
+#        #data = struct.calcsize('bbHHh') * 'Q'
+#        data = size * 'Q'
+#        my_checksum = checksum(_u_bytes2str(header) + data)
+#        header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0,
+#                             socket.htons(my_checksum), size, 1)
+#        return header + _u_bytes(data)
+# 
+#    def receive(my_socket, ssize, stime, timeout_sec):
+#        while True:
+#            if timeout_sec <= 0:
+#                return
+#            ready = select.select([my_socket], [], [], timeout_sec)
+#            if ready[0] == []: # Timeout
+#                return
+#            received_time = time.time()
+#            packet, addr = my_socket.recvfrom(1024)
+#            type, code, checksum, gsize, seq = struct.unpack('bbHHh', packet[20:28]) # Get Header
+#            if gsize == ssize:
+#                return received_time - stime
+#            timeout_sec -= received_time - stime
+# 
+#    def pinging(ip,timeout_sec=1,size=64):
+#        try:
+#            my_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, ICMP_CODE)
+#        except socket.error as e:
+#            if e.errno in ERROR_DESCR:
+#                raise socket.error(''.join((e.args[1], ERROR_DESCR[e.errno])))
+#            raise
+#        if size in ['rnd','random']:
+#            # Maximum size for an unsigned short int c object(65535)
+#            size = int((id(timeout_sec) * random.random()) % 65535)
+#        packet = mk_packet(size)
+#        while packet:
+#            sent = my_socket.sendto(packet, (ip, 1)) # ICMP have no port, So just put dummy port 1
+#            packet = packet[sent:]
+#        delay = receive(my_socket, size, time.time(), timeout_sec)
+#        my_socket.close()
+#        if delay:
+#            return delay,size
+# 
+#    def do_ping(ip,timeout_sec=1,size=64,count=None,interval=0.7,log_format='ping',cancel_func=None,timeout_ping=1):
+#        ok=1
+#        i=1
+#        init_time=None
+#        while True:
+#            out,init_time=timeout(timeout_sec,init_time)
+#            if out:
+#                return -1,'Timeout'
+#            if is_cancel(cancel_func):
+#                return -1,'canceled'
+#            delay=pinging(ip,timeout_ping,size)
+#            if delay:
+#                ok=0
+#                if log_format == '.':
+#                    sys.stdout.write('.')
+#                    sys.stdout.flush()
+#                elif log_format == 'ping':
+#                    sys.stdout.write('{} bytes from {}: icmp_seq={} ttl={} time={} ms\n'.format(delay[1],ip,i,size,round(delay[0]*1000.0,4)))
+#                    sys.stdout.flush()
+#            else:
+#                ok=1
+#                if log_format == '.':
+#                    sys.stdout.write('x')
+#                    sys.stdout.flush()
+#                elif log_format == 'ping':
+#                    sys.stdout.write('{} icmp_seq={} timeout ({} second)\n'.format(ip,i,timeout_sec))
+#                    sys.stdout.flush()
+#            if count:
+#                count-=1
+#                if count < 1:
+#                    return ok,'{} is alive'.format(ip)
+#            i+=1
+#            time.sleep(interval)
+# 
+# 
+#    if log_format=='ping':
+#        if find_executable('ping'):
+#            os.system("ping -c {0} {1}".format(count,host))
+#        else:
+#            do_ping(host,timeout_sec=timeout_sec,size=64,count=count,log_format='ping',cancel_func=cancel_func)
+#    else:
+#        chk_sec=int_sec()
+#        log_type=type(log).__name__
+#        found_lost=False
+#        if keep_good > 0 or not count:
+#           try:
+#               timeout_sec=int(timeout_sec)
+#           except:
+#               timeout_sec=1
+#           if timeout_sec < keep_good:
+#               count=keep_good+(2*interval)
+#               timeout_sec=keep_good+5
+#           elif not count:
+#               count=timeout_sec//interval + 3
+#           elif count * interval > timeout_sec:
+#               timeout_sec=count*interval+timeout_sec
+#        good=False
+#        timeoutini=None
+#        while True:
+#           out,timeoutini=timeout(timeout_sec,init_time=timeoutini)
+#           if out:
+#               return False
+#           if is_cancel(cancel_func):
+#               log(' - Canceled ping')
+#               return False
+#           if stop_func:
+#               if log_type == 'function':
+#                   log(' - Stopped ping')
+#               return False
+#           if find_executable('ping'):
+#               rc=rshell("ping -c 1 {}".format(host))
+#           else:
+#               rc=do_ping(host,timeout_sec=1,size=64,count=count,log_format=None)
+#           if rc[0] == 0:
+#              good=True
+#              if keep_good:
+#                  if good and keep_good and int_sec() - chk_sec >= keep_good:
+#                      return True
+#              else:
+#                  return True
+#              if log_type == 'function':
+#                  log('.',direct=True,log_level=1)
+#           else:
+#              good=False
+#              chk_sec=int_sec()
+#              if log_type == 'function':
+#                  log('x',direct=True,log_level=1)
+#           time.sleep(interval)
+#           count-=1
+#        return good
 
 def get_function_args(func,mode='defaults'):
     rc={}
@@ -1651,29 +1135,6 @@ def wait_ready_system(ipmi_ip,ipmi_user='ADMIN',ipmi_pass='ADMIN',timeout_sec=18
 #                return a[0]
 #    return
 
-def sizeConvert(sz=None,unit='b:g'):
-    if sz is None:
-        return False
-    unit_a=unit.lower().split(':')
-    if len(unit_a) != 2:
-        return False
-    def inc(sz):
-        return '%.1f'%(float(sz) / 1024)
-    def dec(sz):
-        return int(sz) * 1024
-    sunit=unit_a[0]
-    eunit=unit_a[1]
-    unit_m=['b','k','m','g','t','p']
-    si=unit_m.index(sunit)
-    ei=unit_m.index(eunit)
-    h=ei-si
-    for i in range(0,abs(h)):
-        if h > 0:
-            sz=inc(sz)
-        else:
-            sz=dec(sz)
-    return sz
-
 def git_ver(git_dir=None):
     if git_dir is not None and os.path.isdir('{0}/.git'.format(git_dir)):
         gver=rshell('''cd {0} && git describe --tags'''.format(git_dir))
@@ -1701,16 +1162,6 @@ def reduce_string(string,symbol=' ',snum=0,enum=None):
         else:
             strs='{0} {1}'.format(strs,arr[ii])
     return strs
-
-def list2str(arr):
-    rc=None
-    for i in arr:
-        if rc:
-            rc='{0} {1}'.format(rc,i)
-        else:
-            rc='{0}'.format(i)
-    return rc
-
 
 def findstr(string,find,prs=None,split_symbol='\n',patern=True):
     # Patern return selection (^: First(0), $: End(-1), <int>: found item index)
@@ -1798,65 +1249,65 @@ def find_cdrom_dev(size=None):
 #Payload Channel                 : 1 (0x01)
 #Payload Port                    : 623
 
-def _u_str2int(val,encode='utf-8'):
-    if is_py3():
-        if type(val) is bytes:
-            return int(val.hex(),16)
-        else:
-            return int(_u_bytes(val,encode=encode).hex(),16)
-    return int(val.encode('hex'),16)
+#def _u_str2int(val,encode='utf-8'):
+#    if is_py3():
+#        if type(val) is bytes:
+#            return int(val.hex(),16)
+#        else:
+#            return int(_u_bytes(val,encode=encode).hex(),16)
+#    return int(val.encode('hex'),16)
 
-def _u_bytes(val,encode='utf-8'):
-    def _bytes_(val,encode):
-        try:
-            if is_py3():
-                if type(val) is bytes:
-                    return val
-                else:
-                    return bytes(val,encode)
-            return bytes(val) # if change to decode then network packet broken
-        except:
-            return val
-    tuple_data=False
-    if isinstance(val,tuple):
-        val=list(val)
-        tuple_data=True
-    if isinstance(val,list):
-        for i in range(0,len(val)):
-            val[i]=_bytes_(val[i],encode)
-        if tuple_data:
-            return tuple(val)
-        else:
-            return val
-    else:
-        return _bytes_(val,encode)
+#def _u_bytes(val,encode='utf-8'):
+#    def _bytes_(val,encode):
+#        try:
+#            if is_py3():
+#                if type(val) is bytes:
+#                    return val
+#                else:
+#                    return bytes(val,encode)
+#            return bytes(val) # if change to decode then network packet broken
+#        except:
+#            return val
+#    tuple_data=False
+#    if isinstance(val,tuple):
+#        val=list(val)
+#        tuple_data=True
+#    if isinstance(val,list):
+#        for i in range(0,len(val)):
+#            val[i]=_bytes_(val[i],encode)
+#        if tuple_data:
+#            return tuple(val)
+#        else:
+#            return val
+#    else:
+#        return _bytes_(val,encode)
 
-def _u_bytes2str(val,encode='latin1'):
-    return _u_byte2str(val,encode=encode)
+#def _u_bytes2str(val,encode='latin1'):
+#    return _u_byte2str(val,encode=encode)
 
 #def _u_byte2str(val,encode='windows-1252'):
-def _u_byte2str(val,encode='latin1'):
-    #return val.decode(encode) # this is original
-    def _byte2str_(val,encode):
-        type_val=type(val)
-        if is_py3() and type_val is bytes:
-            return val.decode(encode)
-        elif type_val.__name__ == 'unicode':
-            return val.encode(encode)
-        return val
-    tuple_data=False
-    if isinstance(val,tuple):
-        val=list(val)
-        tuple_data=True
-    if isinstance(val,list):
-        for i in range(0,len(val)):
-            val[i]=_byte2str_(val[i],encode)
-        if tuple_data:
-            return tuple(val)
-        else:
-            return val
-    else:
-        return _byte2str_(val,encode)
+#def _u_byte2str(val,encode='latin1'):
+#    #return val.decode(encode) # this is original
+#    def _byte2str_(val,encode):
+#        type_val=type(val)
+#        if is_py3() and type_val is bytes:
+#            return val.decode(encode)
+#        elif type_val.__name__ == 'unicode':
+#            return val.encode(encode)
+#        return val
+#    tuple_data=False
+#    if isinstance(val,tuple):
+#        val=list(val)
+#        tuple_data=True
+#    if isinstance(val,list):
+#        for i in range(0,len(val)):
+#            val[i]=_byte2str_(val[i],encode)
+#        if tuple_data:
+#            return tuple(val)
+#        else:
+#            return val
+#    else:
+#        return _byte2str_(val,encode)
 
 def net_send_data(sock,data,key='kg',enc=False,timeout=0):
     if type(sock).__name__ in ['socket','_socketobject','SSLSocket'] and data and type(key) is str and len(key) > 0 and len(key) < 7:
@@ -2112,113 +1563,99 @@ def check_work_dir(work_dir,make=False,ntry=1,try_wait=[1,3]):
                     sleep(try_wait)
     return False
 
-def file_mode(val):
-    if isinstance(val,int):
-        if val > 511:
-            return oct(val)[-4:]
-        elif val > 63:
-            return oct(val)
-    else:
-        val=_u_bytes2str(val)
-        if val:
-            cnt=len(val)
-            num=int(val)
-            if cnt >=3 and cnt <=4 and num >= 100 and num <= 777:
-                return int(val,8)
-
-def get_file(filename,**opts):
-    md5sum=opts.get('md5sum',False)
-    data=opts.get('data',False)
-    include_dir=opts.get('include_dir',False)
-    include_sub_dir=opts.get('include_sub_dir',False)
-
-    def get_file_data(filename,root_path=None):
-        rc={'name':os.path.basename(filename),'path':os.path.dirname(filename),'exist':False,'dir':False,'link':False}
-        if root_path:
-            in_filename=os.path.join(root_path,filename)
-        else:
-            in_filename=filename
-        if os.path.exists(in_filename):
-            fstat=os.stat(in_filename)
-            rc['uid']=fstat.st_uid
-            rc['gid']=fstat.st_gid
-            rc['size']=fstat.st_size
-            rc['atime']=fstat.st_atime
-            rc['mtime']=fstat.st_mtime
-            rc['ctime']=fstat.st_ctime
-            rc['inod']=fstat.st_ino
-            rc['mode']=oct(fstat.st_mode)[-4:]
-            rc['exist']=True
-            if os.path.islink(in_filename):
-                rc['link']=True
-            else:
-                rc['link']=False
-                if os.path.isdir(in_filename):
-                    rc['dir']=True
-                    rc['path']=in_filename
-                    rc['name']=''
-                else:
-                    rc['dir']=False
-                    if md5sum or data:
-                        with open(in_filename,'rb') as f:
-                            fdata=f.read()
-                        if md5sum:
-                            rc['md5']=md5(fdata)
-                        if data:
-                            rc['data']=fdata
-        return rc
-
-    rc={'exist':False,'includes':[]}
-    if type(filename) is str:
-        rc.update(get_file_data(filename))
-        if rc['dir']:
-            root_path=filename
-            real_filename=None
-        else:
-            root_path=os.path.dirname(filename)
-            real_filename=os.path.basename(filename)
-        if include_dir:
-            pwd=os.getcwd()
-            os.chdir(root_path)
-            for dirPath, subDirs, fileList in os.walk('.'):
-                for sfile in fileList:
-                    curFile=os.path.join(dirPath.replace('./',''),sfile)
-                    if curFile != real_filename:
-                        rc['includes'].append(get_file_data(curFile,root_path))
-                if include_sub_dir is False:
-                    break
-            os.chdir(pwd)
-    return rc
+#def get_file(filename,**opts):
+#    md5sum=opts.get('md5sum',False)
+#    data=opts.get('data',False)
+#    include_dir=opts.get('include_dir',False)
+#    include_sub_dir=opts.get('include_sub_dir',False)
+# 
+#    def get_file_data(filename,root_path=None):
+#        rc={'name':os.path.basename(filename),'path':os.path.dirname(filename),'exist':False,'dir':False,'link':False}
+#        if root_path:
+#            in_filename=os.path.join(root_path,filename)
+#        else:
+#            in_filename=filename
+#        if os.path.exists(in_filename):
+#            fstat=os.stat(in_filename)
+#            rc['uid']=fstat.st_uid
+#            rc['gid']=fstat.st_gid
+#            rc['size']=fstat.st_size
+#            rc['atime']=fstat.st_atime
+#            rc['mtime']=fstat.st_mtime
+#            rc['ctime']=fstat.st_ctime
+#            rc['inod']=fstat.st_ino
+#            rc['mode']=oct(fstat.st_mode)[-4:]
+#            rc['exist']=True
+#            if os.path.islink(in_filename):
+#                rc['link']=True
+#            else:
+#                rc['link']=False
+#                if os.path.isdir(in_filename):
+#                    rc['dir']=True
+#                    rc['path']=in_filename
+#                    rc['name']=''
+#                else:
+#                    rc['dir']=False
+#                    if md5sum or data:
+#                        with open(in_filename,'rb') as f:
+#                            fdata=f.read()
+#                        if md5sum:
+#                            rc['md5']=md5(fdata)
+#                        if data:
+#                            rc['data']=fdata
+#        return rc
+# 
+#    rc={'exist':False,'includes':[]}
+#    if type(filename) is str:
+#        rc.update(get_file_data(filename))
+#        if rc['dir']:
+#            root_path=filename
+#            real_filename=None
+#        else:
+#            root_path=os.path.dirname(filename)
+#            real_filename=os.path.basename(filename)
+#        if include_dir:
+#            pwd=os.getcwd()
+#            os.chdir(root_path)
+#            for dirPath, subDirs, fileList in os.walk('.'):
+#                for sfile in fileList:
+#                    curFile=os.path.join(dirPath.replace('./',''),sfile)
+#                    if curFile != real_filename:
+#                        rc['includes'].append(get_file_data(curFile,root_path))
+#                if include_sub_dir is False:
+#                    break
+#            os.chdir(pwd)
+#    return rc
         
-def save_file(data,dest):
-    if not isinstance(data,dict) or not isinstance(dest,str) : return False
-    if os.path.isdir(dest) is False: os.system('mkdir -p {0}'.format(dest))
-    if data.get('dir'):
-        fmode=file_mode(data.get('mode'))
-        if fmode:
-            os.chmod(dest,fmode)
-    else:
-        # if file then save
-        new_file=os.path.join(dest,data['name'])
-        if 'data' in data:
-            with open(new_file,'wb') as f:
-                f.write(data['data'])
-        chmod_mode=file_mode(data.get('mode'))
-        if chmod_mode:
-            os.chmod(new_file,chmod_mode)
-    if 'includes' in data and data['includes']: # If include directory or files 
-        for ii in data['includes']:
-            if ii['path']:
-                sub_dir=os.path.join(dest,ii['path'])
-            else:
-                sub_dir='{}'.format(dest)
-            if os.path.isdir(sub_dir) is False: os.system('mkdir -p {}'.format(sub_dir))
-            sub_file=os.path.join(sub_dir,ii['name'])
-            with open(sub_file,'wb') as f:
-                f.write(ii['data'])
-            chmod_mode=file_mode(ii.get('mode'))
-            if chmod_mode:
-                os.chmod(sub_file,chmod_mode)
+#def save_file(data,dest):
+#    if not isinstance(data,dict) or not isinstance(dest,str) : return False
+#    if os.path.isdir(dest) is False: os.system('mkdir -p {0}'.format(dest))
+#    if data.get('dir'):
+#        fmode=file_mode(data.get('mode'))
+#        if fmode:
+#            os.chmod(dest,fmode)
+#    else:
+#        # if file then save
+#        new_file=os.path.join(dest,data['name'])
+#        if 'data' in data:
+#            with open(new_file,'wb') as f:
+#                f.write(data['data'])
+#        chmod_mode=file_mode(data.get('mode'))
+#        if chmod_mode:
+#            os.chmod(new_file,chmod_mode)
+#    if 'includes' in data and data['includes']: # If include directory or files 
+#        for ii in data['includes']:
+#            if ii['path']:
+#                sub_dir=os.path.join(dest,ii['path'])
+#            else:
+#                sub_dir='{}'.format(dest)
+#            if os.path.isdir(sub_dir) is False: os.system('mkdir -p {}'.format(sub_dir))
+#            sub_file=os.path.join(sub_dir,ii['name'])
+#            with open(sub_file,'wb') as f:
+#                f.write(ii['data'])
+#            chmod_mode=file_mode(ii.get('mode'))
+#            if chmod_mode:
+#                os.chmod(sub_file,chmod_mode)
 
 
 def get_node_info():
@@ -2236,20 +1673,6 @@ def int_sec():
 
 def now():
     return int_sec()
-
-def timeout(timeout_sec,init_time=None,default=(24*3600)):
-    if timeout_sec == 0: return True,0
-    init_time=integer(init_time,default=0)
-    timeout_sec=integer(timeout_sec,default=default)
-    if init_time == 0:
-        init_time=int_sec()
-    if timeout_sec == 0:
-        return False,init_time
-    if timeout_sec < 3:
-       timeout_sec=3
-    if int_sec() - init_time >  timeout_sec:
-        return True,init_time
-    return False,init_time
 
 def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=True,log_raw=False, argv=[],queue=None):
     # Clean
@@ -2548,123 +1971,6 @@ def make_second(try_wait=None):
 #        time.sleep(10)
 #    return False,'TimeOut'
 
-def screen_logging(title,cmd):
-    # ipmitool -I lanplus -H 172.16.114.80 -U ADMIN -P ADMIN sol activate
-    pid=os.getpid()
-    tmp_file=mktemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
-    log_file=mktemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
-    if os.path.isfile(log_file):
-        log_file=''
-    with open(tmp_file,'w') as f:
-        f.write('''logfile {}\nlogfile flush 0\nlog on\n'''.format(log_file))
-    if os.path.isfile(tmp_file):
-        rc=rshell('''screen -c {} -dmSL "{}" {}'''.format(tmp_file,title,cmd))
-        if rc[0] == 0:
-            for ii in range(0,50):
-                if os.path.isfile(log_file):
-                    os.unlink(tmp_file)
-                    return log_file
-                time.sleep(0.1)
-
-def screen_id(title=None):
-    scs=[]
-    rc=rshell('''screen -ls''')
-    if rc[0] == 1:
-        for ii in rc[1].split('\n')[1:]:
-            jj=ii.split()
-            if len(jj) == 2:
-                if title:
-                    zz=jj[0].split('.')
-                    if zz[1] == title:
-                        scs.append(jj[0])
-                else:
-                    scs.append(jj[0])
-    return scs
-
-def screen_kill(title):
-    ids=screen_id(title)
-    if len(ids) == 1:
-        rc=rshell('''screen -X -S {} quit'''.format(ids[0]))
-        if rc[0] == 0:
-            return True
-        return False
-
-def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
-    if type(title) is not str or not title:
-        print('no title')
-        return False
-    scr_id=screen_id(title)
-    if scr_id:
-        print('Already has the title at {}'.format(scr_id))
-        return False
-    cmd="ipmitool -I lanplus -H {} -U {} -P {} sol activate".format(ip,ipmi_user,ipmi_pass)
-    # Linux OS Boot (Completely kernel loaded): find=['initrd0.img','\xff']
-    # PXE Boot prompt: find=['boot:']
-    # PXE initial : find=['PXE ']
-    # DHCP initial : find=['DHCP'] 
-    # ex: aa=screen_monitor('test','ipmitool -I lanplus -H <bmc ip> -U ADMIN -P ADMIN sol activate',find=['initrd0.img','\xff'],timeout=300)
-    log_file=screen_logging(title,cmd)
-    init_time=int_sec()
-    if log_file:
-        mon_line=0
-        old_mon_line=-1
-        found=0
-        find_num=len(find)
-        cnt=0
-        while True:
-            if int_sec() - init_time > timeout_sec :
-                print('Monitoring timeout({} sec)'.format(timeout_sec))
-                if screen_kill(title):
-                    os.unlink(log_file)
-                break
-            with open(log_file,'rb') as f:
-                tmp=f.read()
-            tmp=_u_byte2str(tmp)
-            if '\x1b' in tmp:
-                tmp_a=tmp.split('\x1b')
-            elif '\r\n' in tmp:
-                tmp_a=tmp.split('\r\n')
-            elif '\r' in tmp:
-                tmp_a=tmp.split('\r')
-            else:
-                tmp_a=tmp.split('\n')
-            tmp_n=len(tmp_a)
-            for ss in tmp_a[tmp_n-2:]:
-                if 'SOL Session operational' in ss:
-                    # control+c : "^C", Enter: "^M", any command "<linux command> ^M"
-                    rshell('screen -S {} -p 0 -X stuff "^M"'.format(title))
-                    cnt+=1
-                    if cnt > 5:
-                        print('maybe not activated SOL or BMC issue')
-                        if screen_kill(title):
-                            os.unlink(log_file)
-                        return False
-                    continue
-            if find:
-                for ii in tmp_a[mon_line:]:
-                    if find_num == 0:
-                        print(ii)
-                    else:
-                        for ff in range(0,find_num):
-                            find_i=find[found]
-                            if ii.find(find_i) < 0:
-                                break
-                            found=found+1
-                            if found >= find_num:
-                                if screen_kill(title):
-                                    os.unlink(log_file)
-                                return True
-                if tmp_n > 1:
-                    mon_line=tmp_n -1
-                else:
-                    mon_line=tmp_n
-            else:
-                if screen_kill(title):
-                    os.unlink(log_file)
-                return True
-            time.sleep(1)
-    return False
-
 def check_value(src,find,idx=None):
     '''Check key or value in the dict, list or tuple then True, not then False'''
     if isinstance(src, (list,tuple,str,dict)):
@@ -2683,31 +1989,6 @@ def check_value(src,find,idx=None):
                 if Get(src,idx,out='raw') == find:
                     return True
     return False
-
-def OutFormat(data,out=None):
-    if out in [tuple,'tuple']:
-        if not isinstance(data,tuple):
-            return (data,)
-        elif not isinstance(data,list):
-            return tuple(data)
-    elif out in [list,'list']:
-        if not isinstance(data,list):
-            return [data]
-        elif not isinstance(data,tuple):
-            return list(data)
-    elif out in ['raw',None]:
-        if isinstance(data,(list,tuple)) and len(data) == 1:
-            return data[0]
-        elif isinstance(data,dict) and len(data) == 1:
-            return data.values()[0]
-    elif out in ['str',str]:
-        return '''{}'''.format(data)
-    elif out in ['int',int]:
-        try:
-            return int(data)
-        except:
-            pass
-    return data
 
 #def Get(*inps,**opts):
 #    default=opts.get('default',None)
@@ -2782,19 +2063,6 @@ def decode(string):
         return '{0}'.format(dd.decode("utf-8"))
     return string
 
-def string2data(string,default='org',want_type=None):
-    if isinstance(string,str):
-        try:
-            return ast.literal_eval(string)
-        except:
-            pass
-    if want_type:
-        if isinstance(string,want_type):
-            return string
-    if default == 'org':
-        return string
-    return default
-
 def mount_samba(url,user,passwd,mount_point):
     if os.path.isdir(mount_point) is False:
         os.system('sudo mkdir -p {0}'.format(mount_point))
@@ -2828,36 +2096,6 @@ def umount(mount_point,del_dir=False):
         os.system('[ -d {0} ] && sudo rmdir {0}'.format(mount_point))
     return rc
 
-def append(src,addendum):
-    type_src=type(src)
-    type_data=type(addendum)
-    if src is None:
-        if type_data is str:
-            src=''
-        elif type_data is dict:
-            src={}
-        elif type_data is list:
-            src=[]
-        elif type_data is tuple:
-            src=()
-        type_src=type(src)
-    if addendum is None:
-        return src
-    if type_src == type_data:
-        if type_src is dict:
-            return src.update(addendum)
-        elif type_src in [list,tuple]:
-            src=list(src)
-            for ii in addendum:
-                if ii not in src:
-                    src.append(ii)
-            if type_src is tuple:
-                src=tuple(src)
-            return src
-        elif type_src is str:
-            return src+addendum
-    return False
-
 def is_xml(filename):
     firstLine_i=file_rw(filename,out='string',read='firstline')
     if krc(firstLine_i,chk=True):
@@ -2890,119 +2128,6 @@ def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':
         if default == 'org': return rt
         return default
     return nrtc
-
-def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[],out_form=str):
-    if argtype(data,'Request'):
-        if key:
-            if method is None:
-                method=data.method
-            if method.upper() == 'GET':
-                rc=data.GET.get(key,default)
-            elif method == 'FILE':
-                if out_form is list:
-                    rc=data.FILES.getlist(key,default)
-                else:
-                    rc=data.FILES.get(key,default)
-            else:
-                if out_form is list:
-                    rc=data.POST.getlist(key,default)
-                else:
-                    rc=data.POST.get(key,default)
-            if argtype(rc,str) and strip:
-                rc=rc.strip()
-            if find and rc in find:
-                return True
-            if rc == 'true':
-                return True
-            elif rc == '':
-                return default
-            return rc
-        else:
-            if data.method == 'GET':
-                return data.GET
-            else:
-                return data.data
-    else:
-        type_data=type(data)
-        if type_data in [tuple,list]:
-            if len(data) > key:
-                if ekey and len(data) > ekey:
-                    return data[key:ekey]
-                else:
-                    return data[key]
-        elif type_data is dict:
-            return data.get(key,default)
-    return default
-
-def compare(a,sym,b,ignore=None):
-    if type(a) is not int or type(b) is not int:
-        return False
-    if ignore is not None:
-        if eval('{} == {}'.format(a,ignore)) or eval('{} == {}'.format(b,ignore)):
-            return False
-    return eval('{} {} {}'.format(a,sym,b))
-
-def integer(a,default=0):
-    if isinstance(a,int):
-        return a
-    try:
-        a=int(a)
-    except:
-        return default
-
-def file_rw(name,data=None,out='string',append=False,read=None,overwrite=True):
-    if isinstance(name,str):
-        if data is None:
-            if os.path.isfile(name):
-                try:
-                    if read in ['firstread','firstline','first_line','head','readline']:
-                        with open(name,'rb') as f:
-                            data=f.readline()
-                    else:
-                        with open(name,'rb') as f:
-                            data=f.read()
-                except:
-                    pass
-                if data is not None:
-                    if out in ['string','str']:
-                        return True,_u_bytes2str(data)
-                    else:
-                        return True,data
-            return False,'File({}) not found'.format(name)
-        else:
-            file_path=os.path.dirname(name)
-            if not file_path or os.path.isdir(file_path): # current dir or correct directory
-                try:
-                    if append:
-                        with open(name,'ab') as f:
-                            f.write(_u_bytes(data))
-                    else:
-                        with open(name,'wb') as f:
-                            f.write(_u_bytes(data))
-                    return True,None
-                except:
-                    pass
-            return False,'Directory({}) not found'.format(file_path)
-    return False,'Unknown type({}) filename'.format(name)
-
-def argtype(arg,want='_',get_data=['_']):
-    type_arg=type(arg)
-    if want in get_data:
-        if type_arg.__name__ == 'Request':
-            return arg.method.lower()
-        return type_arg.__name__.lower()
-    if type(want) is str:
-        if type_arg.__name__ == 'Request':
-            if want.upper() == 'REQUEST' or want.upper() == arg.method:
-                return True
-            return False
-        else:
-            if type_arg.__name__.lower() == want.lower():
-                return True
-    else:
-        if type_arg == want:
-            return True
-    return False        
 
 def replacestr(data,org,new):
     if isinstance(data,str):
@@ -3434,23 +2559,6 @@ def is_same(a,b,sense=False):
 #        return True
 #    return False
     
-def gen_random_string(length=8,letter='*',digits=True,symbols=True,custom=''):
-    src=''
-    if custom:
-        src=custom
-    else:
-        if letter == 'upper':
-            src=string.ascii_uppercase
-        elif letter == 'lower':
-            src=string.ascii_lowercase
-        elif letter in ['*','all']:
-            src=string.ascii_letters
-        if digits:
-            src=src+string.digits
-        if symbols:
-            src=src+string.punctuation
-    return ''.join(random.choice(src) for i in range(length))
-
 def Try(cmd):
     try:
         return True,cmd
@@ -3500,27 +2608,4 @@ def code_error(email_func=None,email=None,email_title=None,email_server=None,log
         a=email_func(email,email_title,log_msg,dj_ip=email_server)
     time.sleep(5)
     return default
-
-def findXML(xmlfile,find_name=None,find_path=None):
-    tree=ET.parse(xmlfile)
-    #root=ET.fromstring(data)
-    root=tree.getroot()
-    def find(tr,find_name):
-        for x in tr:
-            if x.attrib.get('name') == find_name:
-                return x,x.tag
-            rt,pp=find(x,find_name)
-            if rt:
-                return rt,'{}/{}'.format(x.tag,pp)
-        return None,None
-    found_root=None
-    if find_name:
-        found=find(root,find_name)
-        if found[0]:
-             found_root=found[0]
-    if find_path and isinstance(find_path,str):
-        #ex: root.findall('./Menu/Setting/[@name="Administrator Password"]/Information/HasPassword'):
-        if not found_root: found_root=root
-        return found_root.findall(find_path)
-        # <element>.tag: name, .text: data, .attrib: dict
 

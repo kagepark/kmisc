@@ -2,6 +2,7 @@
 import uuid
 from kmisc.Import import *
 Import('from kmisc.Type import Type')
+Import('from kmisc.IS import IS')
 
 class MAC:
     def __init__(self,src=None):
@@ -41,12 +42,12 @@ class MAC:
                 else:
                     self.src=self.src.upper()
         if chk:
-            if not IS(self.src).Mac4():
+            if not self.IsV4():
                 return  default
         return self.src
 
     def ToStr(self,case='lower',default=False):
-        if IS(self.src).Mac4():
+        if self.IsV4():
             if case == 'lower':
                 self.src=self.src.strip().replace(':','').replace('-','').lower()
             else:

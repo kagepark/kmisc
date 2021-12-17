@@ -12,35 +12,80 @@ class CONVERT:
 
     def Int(self,default=False):
         if isinstance(self.src,int): return self.src
-        print('>>',self.src,Type(self.src,'str','float','long','str'))
         if Type(self.src,('float','long','str')):
             try:return int(self.src)
             except: pass
         return default
 
     def Bytes(self,encode='utf-8'):
-        if PyVer(3):
-            if isinstance(self.src,bytes):
+        def _bytes_(encode):
+            try:
+                if PyVer(3):
+                    if isinstance(self.src,bytes):
+                        return self.src
+                    else:
+                        return bytes(self.src,encode)
+                return bytes(self.src) # if change to decode then network packet broken
+            except:
                 return self.src
+
+        tuple_data=False
+        if isinstance(self.src,tuple):
+            self.src=list(self.src)
+            tuple_data=True
+        if isinstance(self.src,list):
+            for i in range(0,len(self.src)):
+                self.src[i]=_bytes_(self.src[i],encode)
+            if tuple_data:
+                return tuple(self.src)
             else:
-                return bytes(self.src,encode)
-        return bytes(self.src) # if change to decode then network packet broken
+                return self.src
+        else:
+            return _bytes_(self.src,encode)
 
     def Str(self,encode='latin1'): # or windows-1252
-        if PyVer(3) and isinstance(self.src,bytes):
-            return self.src.decode(encode)
-        elif isinstance(self.src,unicode):
-            return self.src.encode(encode)
-        return '''{}'''.format(self.src)
+        def _byte2str_(encode):
+            if PyVer(3) and isinstance(self.src,bytes):
+                return self.src.decode(encode)
+            elif isinstance(self.src,unicode): # type(self.src).__name__ == 'unicode':
+                return self.src.encode(encode)
+            return '''{}'''.format(self.src)
 
-    def Ast(self,default=False):
+        tuple_data=False
+        if isinstance(self.src,tuple):
+            self.src=list(self.src)
+            tuple_data=True
+        if isinstance(self.src,list):
+            for i in range(0,len(self.src)):
+                self.src[i]=_byte2str_(self.src[i],encode)
+            if tuple_data:
+                return tuple(self.src)
+            else:
+                return self.src
+        else:
+            return _byte2str_(self.src,encode)
+
+
+    def Str2Int(self,encode='utf-8'):
+        if PyVer(3):
+            if isinstance(self.src,bytes):
+                return int(self.src.hex(),16)
+            else:
+                return int(self.Bytes(encode=encode).hex(),16)
+        return int(self.src.encode('hex'),16)
+
+    def Ast(self,default=False,want_type=None):
         if isinstance(self.src,str):
             try:
                 ast.literal_eval(string)
             except:
                 return default
-        else:
+        if want_type:
+            if isinstance(string,want_type):
+                return self.src
+        if default == 'org' or default == {'org'}:
             return self.src
+        return default
 
     def Form(self,default=False):
         return self.Ast(default=default)
@@ -71,7 +116,9 @@ class CONVERT:
         return self.src
 
     def Size(self,unit='b:g',default=False):
-        if not isinstance(self.src,int):
+        try:
+            self.src=int(self.src)
+        except:
             return default
         unit_a=unit.lower().split(':')
         if len(unit_a) != 2:

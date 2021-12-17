@@ -28,7 +28,7 @@ class FILE:
             self.info=info
         else:
             self.info={}
-            sub_dir=opts.get('sub_dir',False)
+            sub_dir=opts.get('sub_dir',opts.get('include_sub_dir',opts.get('include_dir',False)))#???
             data=opts.get('data',False)
             md5sum=opts.get('md5sum',False)
             link2file=opts.get('link2file',False) # If True then copy file-data of sym-link file, so get it real file instead of sym-link file
@@ -328,15 +328,18 @@ class FILE:
 
     def Mode(self,val,default=False):
         if isinstance(val,int):
-            if val >= 32768:  # stat
+            #if val >= 32768:  # stat
+            if val > 511:
                 return oct(val)[-4:]
             elif val > 63:    # mask
                 return oct(val)
         elif isinstance(val,str):
             try:
+                cnt=len(val)
                 val=int(val)
-                if val >= 100 and val <= 777: # string type of permission number 
-                    return '%04d'%(val)
+                if cnt >=3 and cnt <=4 and val >= 100 and val <= 777: # string type of permission number 
+                    #return '%04d'%(val)
+                    return int(val,8)
             except:           # permission string
                 if len(val) != 9: return 'Bad permission length'
                 if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]): return 'Bad permission format (read-write)'

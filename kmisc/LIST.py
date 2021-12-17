@@ -64,6 +64,50 @@ class LIST(list):
                 self.root.append(rp)
         return self.root
 
+
+#def append2list(*inp,**cond):
+#   org=[]
+#   add_num=len(inp)
+#   uniq=cond.get('uniq',False)
+#   if add_num == 0:
+#       return []
+#   src=inp[0]
+#   src_type=type(inp)
+#   if add_num == 1:
+#       if src_type in [list,tuple,str]:
+#           return list(src)
+#       else:
+#           org.append(src)
+#           return org
+#   add=inp[1:]
+#   if src_type is str:
+#      for jj in src.split(','):
+#         if uniq and jj in org: continue
+#         org.append(jj)
+#   elif src_type in [list,tuple]:
+#      for jj in src:
+#          if uniq and jj in org: continue
+#          org.append(jj)
+#   else:
+#      org.append(src)
+# 
+#   for ii in add:
+#      ii_type=type(ii)
+#      if ii_type in [list,tuple]:
+#         for jj in ii:
+#             if uniq and jj in org: continue
+#             org.append(jj)
+#      elif ii_type is str:
+#         for jj in ii.split(','):
+#            if uniq and jj in org: continue
+#            org.append(jj)
+#      else:
+#         if uniq and ii in org: continue
+#         org.append(ii)
+#   return org
+
+
+
     def append(self,inp):
         self.root.append(inp)
 

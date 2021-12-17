@@ -3,7 +3,6 @@ import socket
 import struct
 from distutils.spawn import find_executable
 from kmisc.Import import Import
-Import('from kmisc.Type import Type')
 Import('from kmisc.TIME import TIME')
 Import('from kmisc.SHELL import SHELL')
 
@@ -24,6 +23,9 @@ class IP:
         if not ip: ip=self.ip
         if self.V4(ip,default=False) is False: return False
         return True
+
+    def IsBmcIp(self,ip=None,port=(623,664,443)):
+        return self.IsOpenPort(port,ip=ip)
 
     def IsOpenPort(self,port,**opts):
         '''
@@ -46,6 +48,7 @@ class IP:
         for pt in port:
             try:
                 tcp_sk.connect((ip,pt))
+                tcp_sk.close()
                 return True
             except:
                 pass
@@ -120,11 +123,12 @@ class IP:
             elif '.' in ipstr:
                 try:
                     ip_int=struct.unpack("!I", socket.inet_aton(ipstr))[0] # convert Int IP
+                    #struct.unpack("!L", socket.inet_aton(ip))[0]
                 except:
                     return default
         elif isinstance(ip,int):
             try:
-                socket.inet_ntoa(struct.pack("!I", ipaddr)) # check int is IP or not
+                socket.inet_ntoa(struct.pack("!I", ip)) # check int is IP or not
                 ip_int=ip
             except:
                 return default
@@ -132,12 +136,15 @@ class IP:
             ip_int=int(ip,16)
 
         if ip_int is not None:
-            if out in ['str',str]:
-                return socket.inet_ntoa(struct.pack("!I", ip_int))
-            elif out in ['int',int]:
-                return ip_int
-            elif out in ['hex',hex]:
-                return hex(ip_int)
+            try:
+                if out in ['str',str]:
+                    return socket.inet_ntoa(struct.pack("!I", ip_int))
+                elif out in ['int',int]:
+                    return ip_int
+                elif out in ['hex',hex]:
+                    return hex(ip_int)
+            except:
+                pass
         return default
 
     def Online(self,**opts):
