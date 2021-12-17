@@ -15,19 +15,20 @@ class CONVERT:
         if Type(self.src,('float','long','str')):
             try:return int(self.src)
             except: pass
+        if default == 'org' or default == {'org'}: return self.src
         return default
 
     def Bytes(self,encode='utf-8'):
-        def _bytes_(encode):
+        def _bytes_(src,encode):
             try:
                 if PyVer(3):
-                    if isinstance(self.src,bytes):
-                        return self.src
+                    if isinstance(src,bytes):
+                        return src
                     else:
-                        return bytes(self.src,encode)
-                return bytes(self.src) # if change to decode then network packet broken
+                        return bytes(src,encode)
+                return bytes(src) # if change to decode then network packet broken
             except:
-                return self.src
+                return src
 
         tuple_data=False
         if isinstance(self.src,tuple):
@@ -44,12 +45,14 @@ class CONVERT:
             return _bytes_(self.src,encode)
 
     def Str(self,encode='latin1'): # or windows-1252
-        def _byte2str_(encode):
-            if PyVer(3) and isinstance(self.src,bytes):
-                return self.src.decode(encode)
-            elif isinstance(self.src,unicode): # type(self.src).__name__ == 'unicode':
-                return self.src.encode(encode)
-            return '''{}'''.format(self.src)
+        def _byte2str_(src,encode):
+            if PyVer(3) and isinstance(src,bytes):
+                return src.decode(encode)
+            #elif isinstance(src,unicode): # type(self.src).__name__ == 'unicode':
+            elif Type(src,'unicode'):
+                return src.encode(encode)
+            #return '''{}'''.format(src)
+            return src
 
         tuple_data=False
         if isinstance(self.src,tuple):
@@ -64,7 +67,6 @@ class CONVERT:
                 return self.src
         else:
             return _byte2str_(self.src,encode)
-
 
     def Str2Int(self,encode='utf-8'):
         if PyVer(3):

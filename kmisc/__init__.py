@@ -15,7 +15,7 @@ for iii in os.listdir(os.path.dirname(__file__)):
             Import('from kmisc import {0}'.format(ii_a[0]))
 
 Import('from kmisc.Misc import *')
-Import('from kmisc.kBmc import kBmc,Ipmitool,Smcipmitool,')
+Import('from kmisc.kBmc import kBmc')
 
 def mac2str(mac,case='lower'):
     return MAC(mac).ToStr(case=case)
@@ -347,3 +347,14 @@ def get_file(filename,**opts):
 
 def save_file(data,dest):
     return data.Save(dest)
+
+def CompVersion(src,compare_symbol,dest,compare_range='dest',version_symbol='.'):
+    return VERSION().Compare(src,compare_symbol,dest,compare_range=compare_range,version_symbol=version_symbol)
+
+def Int(i,default={'org'}):
+    return CONVERT(i,default=default)
+
+def Lower(src):
+    if isinstance(src,str): return src.lower()
+    return src
+
