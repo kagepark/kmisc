@@ -342,7 +342,7 @@ def _u_byte2str(val,encode='latin1'):
 def file_mode(val):
     return FILE().Mode(val)
 
-def get_file(filename,**opts)
+def get_file(filename,**opts):
     return FILE(filename,**opts)
 
 def save_file(data,dest):
