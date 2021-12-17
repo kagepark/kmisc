@@ -2609,3 +2609,10 @@ def code_error(email_func=None,email=None,email_title=None,email_server=None,log
     time.sleep(5)
     return default
 
+def move2first(item,pool):
+    if item:
+        if type(pool) is list and item in pool:
+            pool.remove(item)
+        return [item]+pool
+    return pool
+

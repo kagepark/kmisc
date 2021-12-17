@@ -15,7 +15,7 @@ for iii in os.listdir(os.path.dirname(__file__)):
             Import('from kmisc import {0}'.format(ii_a[0]))
 
 Import('from kmisc.Misc import *')
-Import('from kmisc.BMC import kBmc')
+Import('from kmisc.kBmc import kBmc,Ipmitool,Smcipmitool,')
 
 def mac2str(mac,case='lower'):
     return MAC(mac).ToStr(case=case)
