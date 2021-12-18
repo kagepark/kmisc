@@ -12,7 +12,7 @@ from kmisc.Import import *
 Import('from kmisc.Type import Type')
 Import('from kmisc.COLOR import COLOR')
 Import('from kmisc.STR import STR')
-#Import('from kmisc.Misc import *')
+Import('from kmisc.Obj import *')
 
 def printf(*msg,**opts):
     log_p=False
@@ -124,7 +124,8 @@ def printf(*msg,**opts):
                 log_p=True
                 with open(ii,'a+') as f:
                     f.write(msg_str+new_line)
-    if type(log).__name__ == 'function':
+    #if type(log).__name__ == 'function':
+    if Type(log,'function'):
          log_func_arg=get_function_args(log,mode='all')
          if 'args' in log_func_arg or 'varargs' in log_func_arg:
              log_p=True
