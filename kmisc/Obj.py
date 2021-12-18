@@ -1,7 +1,7 @@
 #Kage Park
 import sys
 import traceback,inspect
-import kmisc.Import import *
+from kmisc.Import import *
 Import('kmisc.TIME import TIME')
 
 def get_function_name():
