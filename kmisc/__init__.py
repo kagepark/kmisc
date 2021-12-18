@@ -2139,8 +2139,8 @@ def check_value(src,find,idx=None):
                     return True
     return False
 
-def get_value(src,key=None,default=None,check=[str,list,tuple,dict]):
-    return Get(src,key,default=default,check=check)
+def get_value(src,key=None,default=None,check=[str,list,tuple,dict],err=False):
+    return Get(src,key,default=default,check=check,err=err)
 
 def encode(string):
     enc='{0}'.format(string)
