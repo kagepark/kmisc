@@ -1,6 +1,8 @@
 #Kage Park
 import sys
 import traceback,inspect
+import kmisc.Import import *
+Import('kmisc.TIME import TIME')
 
 def get_function_name():
     return traceback.extract_stack(None, 2)[0][2]
