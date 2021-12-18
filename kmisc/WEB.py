@@ -2,7 +2,7 @@
 import re
 from kmisc.Import import *
 Import('requests')
-Import('kmisc.Misc import *')
+#Import('kmisc.Misc import *')
 
 class WEB:
     def __init__(self,request=None):

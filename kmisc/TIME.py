@@ -9,6 +9,9 @@ class TIME:
     def __init__(self):
         self.init_sec=int(datetime.now().strftime('%s'))
 
+    def Reset(self):
+        self.init_sec=int(datetime.now().strftime('%s'))
+
     def Sleep(self,try_wait=None,default=1):
         if isinstance(try_wait,(int,str)): try_wait=(try_wait,)
         if isinstance(try_wait,(list,tuple)) and len(try_wait):
@@ -63,6 +66,7 @@ class TIME:
         if time in [0,'0',None]:
             return datetime.now().strftime(tformat)
         elif isinstance(time,int) or (isinstance(time,str) and time.isdigit()):
+            #if type(time) is int or (type(time) is str and time.isdigit()):
             if read_format == '%S':
                 return datetime.fromtimestamp(int(time)).strftime(tformat)
             else:

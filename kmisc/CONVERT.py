@@ -3,7 +3,6 @@ import ast
 import struct
 from kmisc.Import import *
 Import('from kmisc.Type import Type')
-Import('from kmisc.Misc import *')
 Import('from kmisc.MAC import MAC')
 
 class CONVERT:
@@ -18,8 +17,8 @@ class CONVERT:
         if default == 'org' or default == {'org'}: return self.src
         return default
 
-    def Bytes(self,encode='utf-8'):
-        def _bytes_(src,encode):
+    def Bytes(self,encode='utf-8',default='org'):
+        def _bytes_(src,encode,default='org'):
             try:
                 if PyVer(3):
                     if isinstance(src,bytes):
@@ -28,7 +27,9 @@ class CONVERT:
                         return bytes(src,encode)
                 return bytes(src) # if change to decode then network packet broken
             except:
-                return src
+                if default == 'org' or default =={'org'}:
+                    return src
+                return default
 
         tuple_data=False
         if isinstance(self.src,tuple):
@@ -36,23 +37,25 @@ class CONVERT:
             tuple_data=True
         if isinstance(self.src,list):
             for i in range(0,len(self.src)):
-                self.src[i]=_bytes_(self.src[i],encode)
+                self.src[i]=_bytes_(self.src[i],encode,default)
             if tuple_data:
                 return tuple(self.src)
             else:
                 return self.src
         else:
-            return _bytes_(self.src,encode)
+            return _bytes_(self.src,encode,default)
 
-    def Str(self,encode='latin1'): # or windows-1252
-        def _byte2str_(src,encode):
+    def Str(self,encode='latin1',default='org'): # or windows-1252
+        def _byte2str_(src,encode,default='org'):
             if PyVer(3) and isinstance(src,bytes):
                 return src.decode(encode)
             #elif isinstance(src,unicode): # type(self.src).__name__ == 'unicode':
             elif Type(src,'unicode'):
                 return src.encode(encode)
             #return '''{}'''.format(src)
-            return src
+            if default =='org' or default == {'org'}:
+                return src
+            return default
 
         tuple_data=False
         if isinstance(self.src,tuple):
@@ -60,13 +63,13 @@ class CONVERT:
             tuple_data=True
         if isinstance(self.src,list):
             for i in range(0,len(self.src)):
-                self.src[i]=_byte2str_(self.src[i],encode)
+                self.src[i]=_byte2str_(self.src[i],encode,default)
             if tuple_data:
                 return tuple(self.src)
             else:
                 return self.src
         else:
-            return _byte2str_(self.src,encode)
+            return _byte2str_(self.src,encode,default)
 
     def Str2Int(self,encode='utf-8'):
         if PyVer(3):
@@ -79,11 +82,13 @@ class CONVERT:
     def Ast(self,default=False,want_type=None):
         if isinstance(self.src,str):
             try:
-                ast.literal_eval(string)
+                return ast.literal_eval(self.src)
             except:
+                if default == 'org' or default == {'org'}:
+                    return self.src
                 return default
         if want_type:
-            if isinstance(string,want_type):
+            if isinstance(self.src,want_type):
                 return self.src
         if default == 'org' or default == {'org'}:
             return self.src

@@ -1,6 +1,6 @@
 # Kage Park
 #
-from kmisc.Import import Import
+from kmisc.Import import *
 Import('from kmisc.OutFormat import OutFormat')
 
 def Abs(*inps,**opts):

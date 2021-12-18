@@ -1,20 +1,22 @@
 #Kage Park
 import string
 
-def Random(length=8,strs=None,mode='*',letter='*'):
+def Random(length=8,strs=None,mode='*',letter='*',default=1):
     if mode in [int,'int','num','number']:
         if isinstance(strs,(list,tuple)) and len(strs) == 2:
             try:
                 s=int(strs[0])
                 n=int(strs[1])
-                return random.randint(s,int(n))
+                return random.randint(s,n)
             except:
                 pass
         s=0
         n=''
         for i in range(0,length):
             n=n+'9'
-        return random.randint(s,int(n))
+        if n:
+            return random.randint(s,int(n))
+        return default
     new=''
 #    if mode in [int,'int','num']:
 #        for i in range(0,length):

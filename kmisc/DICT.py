@@ -5,6 +5,17 @@ import pickle
 import sys
 import os
 
+def Dict(pk={},add=False,**var):
+    for key in var.keys():
+        if key in pk:
+            pk.update({key:var[key]})
+        else:
+            if add:
+                pk[key]=var[key]
+            else:
+                return False
+    return pk
+
 def peeling(v,ignore=[],collect=[],jump=None):
   if isinstance(v,dict):
     v=v.copy()

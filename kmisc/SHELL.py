@@ -1,5 +1,6 @@
 #Kage park
 import sys
+import os
 import subprocess
 from threading import Thread
 from kmisc.Import import *
@@ -44,14 +45,15 @@ class SHELL:
         Popen=subprocess.Popen
         PIPE=subprocess.PIPE
         cmd_env=''
-        if path is not None:
-            #cmd_env='''export PATH=%s:${PATH}\n[ -d %s ] && cd %s\n'''%(path,path,path)
-            if os.path.isfile('{}/{}'.format(path,cmd.split()[0])):
-                cmd_env='''export PATH=%s:${PATH}; [ -d "%s" ] && cd "%s"; '''%(path,path,path)
-            elif os.path.isfile(cmd.split()[0]):
-                cmd_env='''export PATH=%s:${PATH}; ./'''%(path)
-            else:
-                cmd_env='''export PATH=%s:${PATH}; '''%(path)
+        cmd_a=cmd.split()
+        cmd_file=cmd_a[0]
+        if cmd_a[0] == 'sudo': cmd_file=cmd_a[1]
+        if path and isinstance(path,str) and os.path.isdir(path) and os.path.isfile(os.path.join(path,cmd_file)):
+            cmd_env='''export PATH=%s:${PATH}; '''%(path)
+            if os.path.join(path,cmd_file):
+                cmd_env=cmd_env+'''cd %s && '''%(path)
+        elif cmd_file[0] != '/' and cmd_file == os.path.basename(cmd_file) and os.path.isfile(cmd_file):
+            cmd_env='./'
         p = Popen(cmd_env+cmd , shell=True, stdout=PIPE, stderr=PIPE)
         out=None
         err=None

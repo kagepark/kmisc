@@ -2,7 +2,7 @@
 import re
 from kmisc.Import import *
 Import('from kmisc.Abs import Abs')
-Import('from kmisc.Misc import *')
+#Import('from kmisc.Misc import *')
 
 
 class LIST(list):
@@ -55,10 +55,10 @@ class LIST(list):
         for pp in inps:
             for rp in self.Convert(pp,symbol=symbol,path=path,default=default):
                 if rp == default: continue
-                if uniq and rp in rt: continue
+                if uniq and rp in self.root: continue
                 if path:
                     if rp == '.': continue
-                    if rp == '..' and len(rt):
+                    if rp == '..' and len(self.root):
                         del self.root[-1]
                         continue
                 self.root.append(rp)
@@ -252,14 +252,20 @@ class LIST(list):
         return tuple(self.root)
 
     def Move2first(self,find):
-        if find in self.root:
-            self.Delete(*(find),find='data')
+        if isinstance(find,(list,tuple)):
+            self.Delete(*find,find='data')
+            self.root=list(find)+self.root
+        else:
+            self.Delete(*(find,),find='data')
             self.root=[find]+self.root
         return self.root
 
     def Move2end(self,find):
-        if find in self.root:
-            self.Delete(*(find),find='data')
+        if isinstance(find,(list,tuple)):
+            self.Delete(*find,find='data')
+            self.root=self.root+list(find)
+        else:
+            self.Delete(*(find,),find='data')
             self.root=self.root+[find]
         return self.root
 

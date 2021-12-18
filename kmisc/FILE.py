@@ -1,5 +1,6 @@
 #Kage Park
 from distutils.spawn import find_executable
+import sys
 import os
 import fnmatch
 import stat
@@ -8,9 +9,9 @@ import tarfile
 import zipfile
 from kmisc.Import import *
 Import('from kmisc.CONVERT import CONVERT')
-Import('from kmisc.Misc import *')
 Import('from kmisc.Path import Path')
 Import('from kmisc.Compress import *')
+Import('from kmisc.Dir import *')
 Import('import magic')
 
 class FILE:
@@ -22,7 +23,8 @@ class FILE:
     '''
     def __init__(self,*inp,**opts):
         self.root_path=opts.get('root_path',None)
-        if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
+        #if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
+        if self.root_path is None: self.root_path=Pwd()
         info=opts.get('info',None)
         if isinstance(info,dict):
             self.info=info
@@ -166,7 +168,7 @@ class FILE:
                         MkInfo(rt,filename=tfilename,type='link',dest=os.readlink(tfilename))
                 elif os.path.isdir(tfilename): # it is a directory
                     MkInfo(rt,tfilename,type='dir')
-                elif os.path.isfile(filename): # it is a File
+                elif os.path.isfile(tfilename): # it is a File
                     name,ext=self.FileName(tfilename)
                     _md5=None
                     if data or md5sum: # MD5SUM or Data
@@ -338,8 +340,8 @@ class FILE:
                 cnt=len(val)
                 val=int(val)
                 if cnt >=3 and cnt <=4 and val >= 100 and val <= 777: # string type of permission number 
-                    #return '%04d'%(val)
-                    return int(val,8)
+                    return '%04d'%(val)
+                    #return int(val,8)
             except:           # permission string
                 if len(val) != 9: return 'Bad permission length'
                 if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]): return 'Bad permission format (read-write)'
