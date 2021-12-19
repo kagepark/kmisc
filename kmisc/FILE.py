@@ -7,11 +7,12 @@ import stat
 import pickle
 import tarfile
 import zipfile
+import inspect
 from kmisc.Import import *
 Import('from kmisc.CONVERT import CONVERT')
 Import('from kmisc.Path import Path')
 Import('from kmisc.Compress import *')
-Import('from kmisc.Dir import *')
+Import('from kmisc.Type import Type')
 Import('import magic')
 
 class FILE:
@@ -24,7 +25,7 @@ class FILE:
     def __init__(self,*inp,**opts):
         self.root_path=opts.get('root_path',None)
         #if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
-        if self.root_path is None: self.root_path=Pwd()
+        if self.root_path is None: self.root_path=self.Path()
         info=opts.get('info',None)
         if isinstance(info,dict):
             self.info=info
@@ -527,6 +528,31 @@ class FILE:
         else:
             print('Can not read {}'.format(filename))
             return False
+
+    def Cd(self,data,path,sym='/'):
+        if Type(data,'module') and data == os:
+            if isinstance(path,str):
+                data.chdir(path)
+                return data
+        else:
+            if isinstance(path,int): path='{}'.format(path)
+            for ii in path.split(sym):
+                if isinstance(data,dict):
+                    if ii in data:
+                        data=data[ii]
+                elif isinstance(data,(list,tuple)):
+                    if not isinstance(ii,str) or not ii.isdigit(): continue
+                    ii=int(ii)
+                    if len(data) > ii:
+                        data=data[ii]
+            return data
+
+    def Path(self,filanem=None):
+        if filanem:
+            return os.path.dirname(os.path.realpath(filename))
+        return os.path.dirname(os.path.realpath((inspect.stack()[-1])[1]))
+        #if '__file__' in globals() : return os.path.dirname(os.path.realpath(__file__))
+
 
 
 if __name__ == "__main__":

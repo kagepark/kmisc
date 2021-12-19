@@ -5,7 +5,10 @@ So, suddenly it will be big change when I got some more good idea.
 I re-groupped to library.
 and change name to klib
 
-
+# Install
+```javascript
+pip3 install kmisc
+```
 # Custom Dictionary Class
 
 Convert Dictionary to Object style Dictionary
