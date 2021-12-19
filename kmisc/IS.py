@@ -10,6 +10,7 @@ Import('from kmisc.Misc import *') # import klib(file)'s each function to local 
 Import('from kmisc.Type import Type')
 Import('from kmisc.MAC import MAC')
 Import('from kmisc.GET import *')
+Import('from kmisc.CONVERT import CONVERT')
 
 class IS:
     def __init__(self,src=None,**opts):
@@ -51,7 +52,8 @@ class IS:
     def Xml(self):
         firstLine=file_rw(self.src,out='string',read='firstline')
         if firstLine is False:
-            filename_str=_u_byte2str(self.src)
+            #filename_str=_u_byte2str(self.src)
+            filename_str=CONVERT(self.src).Str()
             if isinstance(filename_str,str):
                 firstLine=filename_str.split('\n')[0]
         if isinstance(firstLine,str) and firstLine.split(' ')[0] == '<?xml': return True

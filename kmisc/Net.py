@@ -5,24 +5,25 @@ import fcntl,socket, struct
 from kmisc.Import import *
 Import('from kmisc.Type import Type')
 Import('from kmisc.TIME import TIME')
+Import('from kmisc.CONVERT import CONVERT')
 Import('ssl')
 
-def _u_bytes(val,encode='utf-8'):
-    if Py3():
-        if type(val) is bytes:
-            return val
-        else:
-            return bytes(val,encode)
-    return bytes(val) # if change to decode then network packet broken
-    #return val.decode(encode)
+#def _u_bytes(val,encode='utf-8'):
+#    if Py3():
+#        if type(val) is bytes:
+#            return val
+#        else:
+#            return bytes(val,encode)
+#    return bytes(val) # if change to decode then network packet broken
+#    #return val.decode(encode)
 
-def _u_str2int(val,encode='utf-8'):
-    if Py3:
-        if type(val) is bytes:
-            return int(val.hex(),16)
-        else:
-            return int(_u_bytes(val,encode=encode).hex(),16)
-    return int(val.encode('hex'),16)
+#def _u_str2int(val,encode='utf-8'):
+#    if Py3:
+#        if type(val) is bytes:
+#            return int(val.hex(),16)
+#        else:
+#            return int(_u_bytes(val,encode=encode).hex(),16)
+#    return int(val.encode('hex'),16)
 
 def _dict(pk={},add=False,**var):
     for key in var.keys():
@@ -156,7 +157,8 @@ def net_receive_data(sock,key='kg',progress=None):
             st_head=struct.unpack('>IssI',CONVERT(head).Bytes())
         except:
             return [False,'Fail for read header({})'.format(head)]
-        if st_head[3] == _u_str2int(key):
+        #if st_head[3] == _u_str2int(key):
+        if st_head[3] == CONVERT(key).Str2Int():
             data=recvall(sock,st_head[0])
             if data:
                 if st_head[2] == 't':
@@ -174,7 +176,8 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0):
         # encode code here
         if timeout > 0:
             sock.settimeout(timeout)
-        nkey=_u_str2int(key)
+        #nkey=_u_str2int(key)
+        nkey=CONVERT(key).Str2Int()
         pdata=pickle.dumps(data,protocol=2) # common 2.x & 3.x version : protocol=2
         data_type=CONVERT(type(data).__name__[0]).Bytes()
         if enc and key:

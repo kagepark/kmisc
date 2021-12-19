@@ -5,6 +5,7 @@ Import('from kmisc.Type import Type')
 Import('from kmisc.SHELL import SHELL')
 Import('from kmisc.FILE import FILE')
 Import('from kmisc.TIME import TIME')
+Import('from kmisc.CONVERT import CONVERT')
 rshell=SHELL().Run
 
 def screen_kill(title):
@@ -46,7 +47,8 @@ def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
                 break
             with open(log_file,'rb') as f:
                 tmp=f.read()
-            tmp=_u_byte2str(tmp)
+            #tmp=_u_byte2str(tmp)
+            tmp=CONVERT(tmp).Str()
             if '\x1b' in tmp:
                 tmp_a=tmp.split('\x1b')
             elif '\r\n' in tmp:
