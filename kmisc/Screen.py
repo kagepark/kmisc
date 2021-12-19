@@ -1,4 +1,5 @@
 #Kage Park
+import os
 from kmisc.Import import *
 Import('from kmisc.Type import Type')
 Import('from kmisc.SHELL import SHELL')
