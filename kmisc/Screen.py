@@ -3,6 +3,7 @@ import os
 from kmisc.Import import *
 Import('from kmisc.Type import Type')
 Import('from kmisc.SHELL import SHELL')
+Import('from kmisc.FILE import FILE')
 rshell=SHELL().Run
 
 def screen_kill(title):
@@ -109,8 +110,8 @@ def screen_id(title=None):
 def screen_logging(title,cmd):
     # ipmitool -I lanplus -H 172.16.114.80 -U ADMIN -P ADMIN sol activate
     pid=os.getpid()
-    tmp_file=mktemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
-    log_file=mktemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
+    tmp_file=FILE().MkTemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
+    log_file=FILE().MkTemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
     if os.path.isfile(log_file):
         log_file=''
     with open(tmp_file,'w') as f:

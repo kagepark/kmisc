@@ -463,6 +463,65 @@ class FILE:
                 return False
         return True
 
+
+    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
+        if filename is None:
+            filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
+        dir_name=os.path.dirname(filename)
+        file_name=os.path.basename(filename)
+        name, ext = os.path.splitext(file_name)
+        if type(suffix) is not str:
+            suffix='-XXXXXXXX'
+        num_type='.%0{}d'.format(len(suffix)-1)
+        if dir_name == '.':
+            dir_name=os.path.dirname(os.path.realpath(__file__))
+        elif dir_name == '':
+            dir_name=base_dir
+        def new_name(name,ext=None,ext2=None):
+            if ext:
+                if ext2:
+                    return '{}{}{}'.format(name,ext,ext2)
+                return '{}{}'.format(name,ext)
+            if ext2:
+                return '{}{}'.format(name,ext2)
+            return name
+        def new_dest(dest_dir,name,ext=None):
+            if os.path.isdir(dest_dir) is False:
+                return False
+            i=0
+            new_file=new_name(name,ext)
+            while True:
+                rfile=os.path.join(dest_dir,new_file)
+                if os.path.exists(rfile) is False:
+                    return rfile
+                if suffix:
+                    if '0' in suffix or 'n' in suffix or 'N' in suffix:
+                        if suffix[-1] not in ['0','n']:
+                            new_file=new_name(name,num_type%i,ext)
+                        else:
+                            new_file=new_name(name,ext,num_type%i)
+                    elif 'x' in suffix or 'X' in suffix:
+                        rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
+                        if suffix[-1] not in ['X','x']:
+                            new_file=new_name(name,rnd_str,ext)
+                        else:
+                            new_file=new_name(name,ext,rnd_str)
+                    else:
+                        if i == 0:
+                            new_file=new_name(name,ext,'.{}'.format(suffix))
+                        else:
+                            new_file=new_name(name,ext,'.{}.{}'.format(suffix,i))
+                else:
+                    new_file=new_name(name,ext,'.{}'.format(i))
+                i+=1
+        new_dest_file=new_dest(dir_name,name,ext)
+        if opt in ['file','f']:
+           os.mknode(new_dest_file)
+        elif opt in ['dir','d','directory']:
+           os.mkdir(new_dest_file)
+        else:
+           return new_dest_file
+
     def SetIdentity(self,path,**opts):
         if os.path.exists(path):
             chmod=self.Mode(opts.get('mode',None))
