@@ -2,6 +2,7 @@
 import re
 from kmisc.Import import *
 Import('requests')
+Import('kmisc.TIME import TIME')
 #Import('kmisc.Misc import *')
 
 class WEB:
@@ -107,7 +108,7 @@ class WEB:
                 printf("Server({}) has no response (wait {}/{} (10s))".format(server_a[0],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
             else:
                 printf("Server({}:{}) has no response (wait {}/{} (10s))".format(server_a[0],server_a[1],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
-            time.sleep(10)
+            TIME().Sleep(10)
         return False,'TimeOut'
 
     def str2url(self,string):

@@ -4,6 +4,7 @@ from kmisc.Import import *
 Import('from kmisc.Type import Type')
 Import('from kmisc.SHELL import SHELL')
 Import('from kmisc.FILE import FILE')
+Import('from kmisc.TIME import TIME')
 rshell=SHELL().Run
 
 def screen_kill(title):
@@ -30,7 +31,7 @@ def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
     # DHCP initial : find=['DHCP']
     # ex: aa=screen_monitor('test','ipmitool -I lanplus -H <bmc ip> -U ADMIN -P ADMIN sol activate',find=['initrd0.img','\xff'],timeout=300)
     log_file=screen_logging(title,cmd)
-    init_time=int_sec()
+    init_time=TIME().Int()
     if log_file:
         mon_line=0
         old_mon_line=-1
@@ -38,7 +39,7 @@ def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
         find_num=len(find)
         cnt=0
         while True:
-            if int_sec() - init_time > timeout_sec :
+            if TIME().Int() - init_time > timeout_sec :
                 print('Monitoring timeout({} sec)'.format(timeout_sec))
                 if screen_kill(title):
                     os.unlink(log_file)
@@ -88,7 +89,7 @@ def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
                 if screen_kill(title):
                     os.unlink(log_file)
                 return True
-            time.sleep(1)
+            TIME().Sleep(1)
     return False
 
 
@@ -123,5 +124,5 @@ def screen_logging(title,cmd):
                 if os.path.isfile(log_file):
                     os.unlink(tmp_file)
                     return log_file
-                time.sleep(0.1)
+                TIME().Sleep(0.1)
 

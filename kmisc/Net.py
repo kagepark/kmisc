@@ -4,6 +4,7 @@ import multiprocessing
 import fcntl,socket, struct
 from kmisc.Import import *
 Import('from kmisc.Type import Type')
+Import('from kmisc.TIME import TIME')
 Import('ssl')
 
 def _u_bytes(val,encode='utf-8'):
@@ -46,7 +47,7 @@ def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],
             else:
                 sys.stdout.write('.')
                 sys.stdout.flush()
-            time.sleep(wait_time)
+            TIME().Sleep(wait_time)
             continue
         sent=False
         try:
@@ -61,7 +62,7 @@ def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],
             wait_time=make_second(try_wait)
             if dbg >= 3:
                 print('try send data ... [{}/{}], wait {}s'.format(ii+1,try_num,wait_time))
-            time.sleep(wait_time)
+            TIME().Sleep(wait_time)
     return [False,'Send fail :\n%s'%(data)]
 
 
@@ -244,7 +245,7 @@ def cert_file(keyfile,certfile,C='US',ST='CA',L='San Jose',O='KGC',OU='KG',CN=No
                 rc=rshell('openssl genrsa -out {0} 2048'.format(keyfile))
         if (os.path.isfile(keyfile) and os.path.isfile(certfile) is False) or rc[0] == 0:
             # gen CSR
-    #        time.sleep(0.1)
+    #        TIME().Sleep(0.1)
             os.system('''rm -f {}'''.format(certfile))
             os.system('''rm -f {}.csr'''.format(keyfile))
             rrc=rshell('openssl req -new -key {0} -out {0}.csr {1}'.format(keyfile,subj))
@@ -281,7 +282,7 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
                 if 'log' in mp:
                     mp['log']['queue'].put('\nterminate function {}'.format(n))
         else:
-            if mp[n]['timeout'] > 0 and int_sec() > mp[n]['timeout']:
+            if mp[n]['timeout'] > 0 and TIME().Int() > mp[n]['timeout']:
                 mp[n]['mp'].terminate()
                 if 'log' in mp:
                     mp['log']['queue'].put('\ntimeout function {}'.format(n))
@@ -289,7 +290,7 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
             del mp[n]
     if quit is True and 'log' in mp:
         mp['log']['queue'].put('\nterminate function log')
-        time.sleep(2)
+        TIME().Sleep(2)
         mp['log']['mp'].terminate()
         return
 
@@ -298,7 +299,7 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
         while True:
             #if not ql.empty():
             if ql.empty():
-                time.sleep(0.01)
+                TIME().Sleep(0.01)
             else:
                 ll=ql.get()
                 if raw:
@@ -318,7 +319,7 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
         log=multiprocessing.Queue()
         lqp=multiprocessing.Process(name='log',target=logging,args=(log,log_file,log_screen,log_raw,))
         lqp.daemon = True
-        mp.update({'log':{'mp':lqp,'start':int_sec(),'timeout':0,'queue':log}})
+        mp.update({'log':{'mp':lqp,'start':TIME().Int(),'timeout':0,'queue':log}})
         lqp.start()
 
     # Functions
@@ -331,16 +332,16 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
             else:
                 mf=multiprocessing.Process(name=name,target=func)
             if timeout > 0:
-                timeout=int_sec()+timeout
+                timeout=TIME().Int()+timeout
 
 #            for aa in argv:
 #                if type(aa).__name__ == 'Queue':
 #                    mp.update({name:{'mp':mf,'timeout':timeout,'start':now(),'queue':aa}})
             if name not in mp:
                 if queue and type(queue).__name__ == 'Queue':
-                    mp.update({name:{'mp':mf,'timeout':timeout,'start':int_sec(),'queue':queue}})
+                    mp.update({name:{'mp':mf,'timeout':timeout,'start':TIME().Int(),'queue':queue}})
                 else:
-                    mp.update({name:{'mp':mf,'timeout':timeout,'start':int_sec()}})
+                    mp.update({name:{'mp':mf,'timeout':timeout,'start':TIME().Int()}})
             mf.start()
     return mp
 
@@ -366,12 +367,12 @@ def net_get_socket(host,port,timeout=3,dbg=0,SSLC=False): # host : Host name or 
                 cert=ssl.get_server_certificate((host,port))
             except:
                 os.system('rm -f /tmp/.{}.{}.crt'.format(host,port))
-                time.sleep(1)
+                TIME().Sleep(1)
                 continue
             f=open(icertfile,'w')
             f.write(cert)
             f.close()
-            time.sleep(0.3)
+            TIME().Sleep(0.3)
             try:
                 soc=ssl.wrap_socket(soc,ca_certs=icertfile,cert_reqs=ssl.CERT_REQUIRED)
                 soc.connect((host,port))
@@ -379,7 +380,7 @@ def net_get_socket(host,port,timeout=3,dbg=0,SSLC=False): # host : Host name or 
             except socket.error as msg:
                 if dbg > 3:
                     print(msg)
-                time.sleep(1)
+                TIME().Sleep(1)
     ########################
     else:
         try:
