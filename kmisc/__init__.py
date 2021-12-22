@@ -1,36 +1,4590 @@
-#Kage park
-
-#######################################
-# Load All files
-#######################################
-import sys,os,re
-import fcntl,socket, struct
+#!/bin/python
+# -*- coding: utf-8 -*-
+# Kage personal stuff
+#
+from __future__ import print_function
+import os
+import re
+import sys
+import ast
+import ssl
+import stat
+import time
+import uuid
+import tarfile
+import zipfile
+import random
+import struct
+import string
+import fnmatch
 import pickle
-from threading import Thread
+import tarfile
+import zipfile
+import pickle
+import random
+import inspect
 import base64
 import hashlib
+import importlib
+import subprocess
+import traceback
+import fcntl,socket,struct
+import json as _json
+import xml.etree.ElementTree as ET
+from sys import modules
+from sys import path as mod_path
+from sys import version_info
+from pprint import pprint
+from threading import Thread
+from datetime import datetime
 from multiprocessing import Process, Queue
-
-import json
-import uuid
-import ssl
-
+from distutils.spawn import find_executable
+from distutils.version import LooseVersion
 from kmisc.Import import *
-Import('zlib')
-Import('tarfile')
+Import('from lz4 import frame')
+Import('import bz2')
+Import('import magic')
+Import('import requests')
 
-for iii in os.listdir(os.path.dirname(__file__)):
-    ii_a=iii.split('.')
-    if len(ii_a) == 2 and ii_a[-1] == 'py':
-        if ii_a[0] in ['__init__','MODULE','test','setup','kmisc','Misc','kBmc']: continue
-        #Import('from kmisc.{0} import *'.format(ii_a[0]),force=True)
-        if ii_a[0].isupper():
-            #Import('from kmisc.{0} import {0}'.format(ii_a[0]))
-            Import('from kmisc.{0} import *'.format(ii_a[0]))
+url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
+#log_file=None
+log_intro=3
+log_new_line='\n'
+pipe_file=None
+
+cdrom_ko=['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage']
+
+def OutFormat(data,out=None):
+    if out in [tuple,'tuple']:
+        if not isinstance(data,tuple):
+            return (data,)
+        elif not isinstance(data,list):
+            return tuple(data)
+    elif out in [list,'list']:
+        if not isinstance(data,list):
+            return [data]
+        elif not isinstance(data,tuple):
+            return list(data)
+    elif out in ['raw',None]:
+        if isinstance(data,(list,tuple)) and len(data) == 1:
+            return data[0]
+        elif isinstance(data,dict) and len(data) == 1:
+            return data.values()[0]
+    elif out in ['str',str]:
+        return '''{}'''.format(data)
+    elif out in ['int',int]:
+        try:
+            return int(data)
+        except:
+            pass
+    return data
+
+def Abs(*inps,**opts):
+    default=opts.get('default',None)
+    out=opts.get('out','auto')
+    obj=opts.get('obj',None)
+    err=opts.get('err',True)
+    def int_idx(idx,nobj,default,err,out='auto'):
+        if idx < 0:
+            if abs(idx) <= nobj:
+                if out in ['list',list]:
+                    return [nobj+idx]
+                elif out in ['tuple',tuple]:
+                    return (nobj+idx,)
+                return nobj+idx
+            elif err not in [True,'err','True']:
+                return 0
         else:
-            Import('from kmisc.{0} import *'.format(ii_a[0]),force=True)
-            #Import('from kmisc import {0}'.format(ii_a[0]))
+            if nobj > idx:
+                if out in ['list',list]:
+                    return [idx]
+                elif out in ['tuple',tuple]:
+                    return (idx,)
+                return idx
+            elif err not in [True,'err','True']:
+                return nobj-1
+        return default
+    if len(inps) > 0:
+        ss=None
+        ee=None
+        rt=[]
+        if obj is None:
+            for i in inps:
+                if isinstance(i,int):
+                    rt.append(abs(i))
+                elif err in [True,'err','True']:
+                    rt.append(default)
+#        elif isinstance(obj,dict):
+#            keys=list(obj)
+#            for idx in inps:
+#                if isinstance(idx,int):
+#                    int_index=int_idx(idx,len(keys),default,err)
+#                    if int_index != default: rt.append(keys[int_index])
+#                elif isinstance(idx,tuple) and len(idx) == 2:
+#                    ss=Abs(idx[0],**opts)
+#                    ee=Abs(idx[1],**opts)
+#                    for i in range(ss,ee+1):
+#                        rt.append(keys[i])
+#                elif isinstance(idx,str):
+#                    try:
+#                        idx=int(idx)
+#                        rt.append(int_idx(idx,len(keys),default,err))
+#                    except:
+#                        if len(idx.split(':')) == 2:
+#                            ss,ee=tuple(idx.split(':'))
+#                            if isinstance(ss,int) and isinstance(ee,int):
+#                                for i in range(ss,ee+1):
+#                                    rt.append(keys[i])
+#                        elif len(idx.split('-')) == 2:
+#                            ss,ee=tuple(idx.split('-'))
+#                            if isinstance(ss,int) and isinstance(ee,int):
+#                                for i in range(ss,ee+1):
+#                                    rt.append(keys[i])
+#                        elif len(idx.split('|')) > 1:
+#                            rt=rt+idx.split('|')
+        elif isinstance(obj,(list,tuple,str)):
+            nobj=len(obj)
+            for idx in inps:
+                if isinstance(idx,list):
+                    for ii in idx:
+                        if isinstance(ii,int):
+                            if nobj > ii:
+                                rt.append(ii)
+                            else:
+                                rt.append(OutFormat(default))
+                elif isinstance(idx,int):
+                    rt.append(int_idx(idx,nobj,default,err))
+                elif isinstance(idx,tuple) and len(idx) == 2:
+                    ss=Abs(idx[0],**opts)
+                    ee=Abs(idx[1],**opts)
+                    rt=rt+list(range(ss,ee+1))
+                elif isinstance(idx,str):
+                    try:
+                        idx=int(idx)
+                        rt.append(int_idx(idx,nobj,default,err))
+                    except:
+                        if len(idx.split(':')) == 2:
+                            ss,ee=tuple(idx.split(':'))
+                            ss=Abs(ss,**opts)
+                            ee=Abs(ee,**opts)
+                            if isinstance(ss,int) and isinstance(ee,int):
+                                rt=rt+list(range(ss,ee+1))
+                        elif len(idx.split('-')) == 2:
+                            ss,ee=tuple(idx.split('-'))
+                            ss=Abs(ss,**opts)
+                            ee=Abs(ee,**opts)
+                            if isinstance(ss,int) and isinstance(ee,int):
+                                rt=rt+list(range(ss,ee+1))
+                        elif len(idx.split('|')) > 1:
+                            for i in idx.split('|'):
+                                ss=Abs(i,obj=obj,out='raw')
+                                if isinstance(ss,int):
+                                    rt.append(ss)
+                        else:
+                            rt.append(OutFormat(default))
+        return OutFormat(rt,out=out)
+    elif obj:
+        if isinstance(obj,(list,tuple,str)):
+            return len(obj)
+        elif isinstance(obj,dict):
+            return list(obj.keys())
+    return default
 
+def ObjName(obj,default=None):
+    if isinstance(obj,str):
+        if os.path.isfile(obj):
+            aa=magic.from_buffer(open(obj,'rb').read(2048))
+            if aa: return aa.split()[0].lower()
+            try:
+                with open(obj,'rb') as f: # Pickle Type
+                    pickle.load(f)
+                    return 'pickle'
+            except:
+                pass
+        return 'str'
+    else:
+        obj_dir=dir(obj)
+        obj_name=type(obj).__name__
+        if obj_name in ['function']: return obj_name
+        if '__dict__' in obj_dir:
+            if obj_name == 'type': return 'classobj'
+            return 'instance'
+#        elif obj_name == 'type':
+#            return obj.__name__
+        return obj_name.lower() # Object Name
+    return default
+
+#def TypeFixer(name,default=None):
+def TypeFixer(obj,default='unknown'):
+    if obj == default: return default
+    if isinstance(obj,str): 
+        name=obj.lower()
+    else: 
+        name=ObjName(obj).lower()
+    # Fix short word to correct name
+    if name in ['none']: return 'nonetype'
+    if name in ['byte']: return 'bytes'
+    if name in ['obj']: return 'object'
+    if name in ['func','unboundmethod']: return 'function'
+    if name in ['class']: return 'classobj'
+    if name in ['yield']: return 'generator'
+    if name in ['builtinfunction','builtinmethod','builtin_function_or_method']: return 'builtin_function_or_method'
+    # function: function and instance's function in Python3
+    # method:  class's function in Python3
+    # instancemethod: instance's and class's function in Python2
+    if name in ['method','classfunction','instancemethod','unboundmethod']: return 'method' # function in the class
+    # it changed name between python versions, so return both name for this name
+    if name in ['dictproxy','mappingproxy']: return ['dictproxy','mappingproxy'] # function in the class
+    # Fix python version for long
+    if name in ['long']:
+        if sys.version_info[0] < 3: return name
+        return 'int'
+    if not isinstance(obj,str) and name == 'type':
+        return obj.__name__.lower()
+    # return original name
+    return name
+
+def Type(*inp,**opts):
+    '''
+       instance: <class name>()
+       classobj : <class name>
+       function : <func name>
+       return value: <func name>()
+       method   : <class name>().<func name>
+    '''
+    inpn=len(inp)
+    default=opts.get('default','unknown')
+    if inpn == 0: return default
+    obj=inp[0]
+    if inpn == 1: return TypeFixer(obj,default=default)
+    chk_type=[]
+    for name in inp[1:]:
+        if not isinstance(name,(tuple,list)): name=[name]
+        for ii in name:
+            a=TypeFixer(TypeFixer(ii,default=default),default=default)
+            if a == default: continue
+            if isinstance(a,list): 
+                chk_type=chk_type+a
+            elif a not in chk_type:
+                chk_type.append(a)
+    if chk_type: 
+        obj_type=ObjName(obj)
+#        print('    ::',obj_type,'  in  ',chk_type)
+        if obj_type == default: return default
+        if obj_type == 'instance':
+            if 'int' in chk_type: 
+                if isinstance(obj,int): return True
+            elif 'dict' in chk_type:
+                if isinstance(obj,dict): return True
+            elif 'list' in chk_type:
+                if isinstance(obj,list): return True
+            elif 'tuple' in chk_type:
+                if isinstance(obj,tuple): return True
+            elif 'float' in chk_type:
+                if isinstance(obj,float): return True
+        if obj_type in chk_type: return True
+    return False
+
+def Copy(src):
+    if isinstance(src,(list,tuple)): return src.root[:]
+    if isinstance(src,dict): return src.copy()
+    if isinstance(src,str): return '{}'.format(src)
+    if isinstance(src,int): return int('{}'.format(src))
+    if isinstance(src,float): return float('{}'.format(src))
+    if PyVer(2):
+        if isinstance(src,long): return long('{}'.format(src))
+
+class COLOR:
+    def __init__(self,**opts):
+       self.color_db=opts.get('color',{'blue': 34, 'grey': 30, 'yellow': 33, 'green': 32, 'cyan': 36, 'magenta': 35, 'white': 37, 'red': 31})
+       self.bg_color_db=opts.get('bg',{'cyan': 46, 'white': 47, 'grey': 40, 'yellow': 43, 'blue': 44, 'magenta': 45, 'red': 41, 'green': 42})
+       self.attr_db=opts.get('attr',{'reverse': 7, 'blink': 5,'concealed': 8, 'underline': 4, 'bold': 1})
+
+    def Color_code(self,name,default=None):
+       return self.color_db.get(name,default)
+
+    def Background_code(self,name,default=None):
+       return self.color_db.get(name,default)
+
+    def Attr_code(self,name,default=None):
+       return self.color_db.get(name,default)
+
+    def Get(self,color,mode='color',default=None):
+       color_code=None
+       if mode == 'color':
+           color_code=self.Color_code(color,default=default)
+       elif mode in ['background','bg']:
+           color_code=self.Background_code(color,default=default)
+       elif mode in ['attr','attribute']:
+           color_code=self.Attr_code(color,default=default)
+       return color_code
+
+    def String(self,msg,color,bg=False,attr=False,mode='shell'):
+       if mode in ['html','HTML']:
+           if bg:
+               return '''<p style="background-color: {}">{}</p>'''.format(format(color,msg))
+           else:
+               return '''<font color={}>{}</font>'''.format(color,msg)
+       else:
+           if bg:
+               color_code=self.Get(color,mode='bg',default=None)
+           elif attr:
+               color_code=self.Get(color,mode='attr',default=None)
+           else:
+               color_code=self.Get(color,default=None)
+           if color_code is None:
+               return msg
+           if os.getenv('ANSI_COLORS_DISABLED') is None:
+               reset='''\033[0m'''
+               fmt_msg='''\033[%dm%s'''
+               msg=fmt_msg % (color_code,msg)
+               return msg+reset
+
+class FIND:
+    def __init__(self,string,out='index',word=False):
+        string=string.replace('*','.+').replace('?','.')
+        if word:
+            self.find_re=re.compile(r'\b({0})\b'.format(string),flags=re.IGNORECASE)
+        else:
+            self.find_re=re.compile(string,flags=re.IGNORECASE)
+        self.out=out
+
+    def From(self,data,symbol='\n'):
+        rt=[]
+
+        def Search(data,key,rt):
+            found=self.find_re.findall(data)
+            if found:
+                if self.out in ['found']:
+                    rt=rt+found
+                elif self.out in ['index','idx','key']:
+                    rt.append(key)
+                elif self.out in ['all','*']:
+                    rt.append((key,data))
+                else:
+                    rt.append(data)
+            return rt
+
+        if Type(data,str):
+            data=data.split(symbol)
+        if Type(data,list,tuple):
+            for i in range(0,len(data)):
+                if Type(data[i],(list,tuple,dict)):
+                    sub=self.From(data[i],symbol=symbol)
+                    if sub:
+                        if self.out in ['key','index','idx']:
+                            for z in sub:
+                                rt.append('{}/{}'.format(i,z))
+                        else:
+                            rt=rt+sub
+                elif Type(data[i],str):
+                    rt=Search(data[i],i,rt)
+        elif Type(data,dict):
+            for i in data:
+                if Type(data[i],(list,tuple,dict)):
+                    sub=self.From(data[i],symbol=symbol)
+                    if sub:
+                        if self.out in ['key','index','idx']:
+                            for z in sub:
+                                rt.append('{}/{}'.format(i,z))
+                        else:
+                            rt=rt+sub
+                elif Type(data[i],str):
+                    rt=Search(data[i],i,rt)
+        else:
+             return 'Unknown format'
+        return rt
+
+    def Find(self,src,find,prs=None,sym='\n',pattern=True,default=[],out=None,findall=False,word=False,mode='value'):
+        #if Type(src,'instance','classobj'):
+        # if src is instance or classobj then search in description and made function name at key
+        if isinstance(src,(list,tuple)):
+            rt=[]
+            for i in range(0,len(self.root)):
+                for j in inps:
+                    j=j.replace('*','.+').replace('?','.')
+                    mm=re.compile(j)
+                    if bool(re.match(mm,self.root[i])):
+                        if mode in ['index','idx']:
+                            rt.append(i)
+                        else:
+                            rt.append(src[i])
+            if len(rt):
+                return rt
+        elif isinstance(src,dict):
+            path=[]
+            for key in src:
+                if mode in ['key','*','all']: # find in key only
+                    if find == key:
+                        path.append(key)
+                found=src.get(key,None)
+                if isinstance(found,dict):
+                    if dep in found:
+                         if mode in ['value','*','all'] and (find == found[dep] or (type(found[dep]) in [DICT,dict,list,tuple] and find in found[dep]) or (type(find) is str and type(found[dep]) is str and find in found[dep])): # find in 'find' only
+                              # Value find
+                              path.append(key)
+                         elif isinstance(found[dep], dict): # recursing
+                              path=path+Find(found[dep],find,proper=proper,mode=mode)
+                    else:
+                         if mode in ['value','*','all'] and find == found or (type(found) in [list,tuple] and find in found) or (type(find) is str and type(found) is str and find in found):
+                             path.append(key)
+                         else:
+                             for kk in Find(src[key],find,proper=proper,mode=mode): # recursing
+                                 path.append(key+'/'+kk)
+                else:
+                    if mode in ['value','*','all'] and find == found or (type(found) in [list,tuple] and find in found) or (type(find) is str and type(found) is str and find in found):
+                        path.append(key)
+            return path
+        elif isinstance(src,str):
+            if word:
+                find_re=re.compile(r'\b({0})\b'.format(find),flags=re.IGNORECASE)
+            else:
+                find_re=re.compile(find,flags=re.IGNORECASE)
+            if findall:
+                match=find_re.findall(src)
+                if match: return OutFormat(match,out=out)
+            else:
+                match=find_re.search(src)
+                if match: return OutFormat([match.group()],out=out)
+        return OutFormat(default,out=out)
+
+class DIFF:
+    def __init__(self):
+        pass
+
+    def Data(self,a,sym,b,ignore=None,default=None):
+        if isinstance(ignore,(list,tuple)):
+            if a in ignore or b in ignore:
+                return default
+        elif ignore is not None:
+            if eval('{} == {}'.format(a,ignore)) or eval('{} == {}'.format(b,ignore)):
+                return default
+        if sym == '==':
+            try:
+                return eval('{} == {}'.format(a,b))
+            except:
+                return default
+        elif isinstance(a,int) and isinstance(b,int):
+            try:
+                return eval('{} {} {}'.format(a,sym,b))
+            except:
+                return default
+        elif isinstance(a,str) and isinstance(b,str) and a.isdigit() and b.isdigit():
+            try:
+                return eval('{} {} {}'.format(a,sym,b))
+            except:
+                return default
+        return default
+
+    def Code(self):
+        pass
+
+    def File(self):
+        pass
+
+
+class LIST(list):
+    def __init__(self,*inps):
+        if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
+            self.root=list(inps[0])
+        else:
+            self.root=list(inps)
+
+#    def __new__(cls,*inps):
+#        if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
+#            return list(inps[0])
+#        else:
+#            return list(inps)
+
+    # reply self.root back to the Class's output a=List(['a']), return the data to a
+    def __repr__(self):
+        return repr(self.root)
+
+    def Convert(self,src,path=False,default=False,symbol=':white_space:',**opts):
+        if isinstance(src,str) and src:
+            if path and isinstance(symbol,str):
+                if symbol == ':white_space:':
+                    symbol='/'
+                start=0
+                if src[0] == symbol:
+                    start=1
+                if src[-1] == symbol:
+                    return src.split(symbol)[start:-1]
+                return src.split(symbol)[start:]
+            else:
+                if symbol == ':white_space:':
+                    return src.strip().split()
+                elif isinstance(symbol,str):
+                    return src.split(symbol)
+                elif isinstance(symbol,(tuple,list)):
+                    regexPattern = '|'.join(map(re.escape,tuple(symbol)))
+                    return re.split(regexPattern,src)
+                return default
+        elif isinstance(src,(list,tuple)):
+            return list(src)
+        else:
+            return [src]
+ 
+    def Append(self,*inps,**opts):
+        uniq=opts.get('uniq',False)
+        symbol=opts.get('symbol',':white_space:')
+        path=opts.get('path',False)
+        default=opts.get('default',False)
+        for pp in inps:
+            for rp in self.Convert(pp,symbol=symbol,path=path,default=default):
+                if rp == default: continue
+                if uniq and rp in self.root: continue
+                if path:
+                    if rp == '.': continue
+                    if rp == '..' and len(self.root):
+                        del self.root[-1]
+                        continue
+                self.root.append(rp)
+        return self.root
+
+
+#def append2list(*inp,**cond):
+#   org=[]
+#   add_num=len(inp)
+#   uniq=cond.get('uniq',False)
+#   if add_num == 0:
+#       return []
+#   src=inp[0]
+#   src_type=type(inp)
+#   if add_num == 1:
+#       if src_type in [list,tuple,str]:
+#           return list(src)
+#       else:
+#           org.append(src)
+#           return org
+#   add=inp[1:]
+#   if src_type is str:
+#      for jj in src.split(','):
+#         if uniq and jj in org: continue
+#         org.append(jj)
+#   elif src_type in [list,tuple]:
+#      for jj in src:
+#          if uniq and jj in org: continue
+#          org.append(jj)
+#   else:
+#      org.append(src)
+# 
+#   for ii in add:
+#      ii_type=type(ii)
+#      if ii_type in [list,tuple]:
+#         for jj in ii:
+#             if uniq and jj in org: continue
+#             org.append(jj)
+#      elif ii_type is str:
+#         for jj in ii.split(','):
+#            if uniq and jj in org: continue
+#            org.append(jj)
+#      else:
+#         if uniq and ii in org: continue
+#         org.append(ii)
+#   return org
+
+
+
+    def append(self,inp):
+        self.root.append(inp)
+
+    def Uniq(self,*inps,**opts):
+        symbol=opts.get('symbol',':white_space:')
+        path=opts.get('path',False)
+        default=opts.get('default',False)
+        for pp in self.root + list(inps):
+            for rp in self.Convert(pp,symbol=symbol,path=path,default=default):
+                if rp == default: continue
+                if rp in rt: continue
+                if path:
+                    if rp == '.': continue
+                    if rp == '..' and len(rt):
+                        del self.root[-1]
+                        continue
+                self.root.append(rp)
+        return self.root
+
+    def Delete(self,*inps,**opts):
+        find=opts.get('find','index')
+        default=opts.get('default',False)
+        if find in ['data','element']:
+            for i in inps:
+                if i in self.root:
+                    self.root.remove(i)
+        else:
+            if len(inps) == 1 and isinstance(inps[0],int):
+                if len(self.root) > inps[0]:
+                    del self.root[inps[0]]
+            else:
+                rt=[]
+                del_list=Abs(*inps,obj=self.root,out=list)
+                for i in range(0,len(self.root)):
+                    if i in del_list: continue
+                    rt.append(self.root[i])
+                self.root=rt
+
+    def Get(self,*inps,**opts):
+        if not inps: return self.root
+        find=opts.get('find','data')
+        default=opts.get('default',None)
+        out=opts.get('out',list)
+        err=opts.get('err',False)
+        if len(self.root) == 0 and err:
+            return default
+        rt=[]
+        if find in ['index','idx']:
+            for i in inps:
+                if i in self.root:
+                    rt.append(self.root.index(i))
+                elif err is True:
+                    rt.append(default)
+        else:
+            for i in Abs(*inps,obj=self.root,err=err,out=list,default=None):
+                if isinstance(i,int) and self.root:
+                    rt.append(self.root[i])
+                elif err is True:
+                    return default
+        if rt:
+            if out in [list,'list']:
+                return rt
+            elif out in [tuple,'tuple']:
+                return tuple(rt)
+            elif out in [None,'raw']:
+                if len(rt) == 1:
+                    return rt[0]
+                return rt
+        return default
+
+    def Index(self,*inps):
+        return self.Get(*inps,find='index')
+
+    def Insert(self,*inps,**opts):
+        start=opts.get('at',0)
+        default=opts.get('default',False)
+        err=opts.get('err',False)
+        if isinstance(at,str):
+            if at in ['start','first']: self.root=list(inps)+self.root
+            if at in ['end','last']: self.root=self.root+list(inps)
+        elif len(self.root) == 0:
+            self.root=list(inps)
+        elif isinstance(start,int) and len(self.root) > start:
+            self.root=self.root[:start]+list(inps)+self.root[start:]
+        else:
+            if err:
+                return default
+            self.root=self.root+list(inps)
+
+    def Update(self,*inps,**opts):
+        at=opts.get('at',0)
+        err=opts.get('err',False)
+        default=opts.get('default',False)
+        n=len(self.root)
+        if n == 0:
+            if err is True:
+                return default
+            else:
+                self.root=list(inps)
+        elif isinstance(at,int) and n > at:
+            for i in range(0,len(inps)):
+                if n > at+i:
+                    self.root[at+i]=inps[i]
+                elif err is True:
+                    return default
+                else:
+                    self.root=self.root+list(inps)[i:]
+                    break
+        elif isinstance(at,(tuple,list)):
+            if len(inps) == len(at):
+                for i in range(0,len(at)):
+                    if isinstance(at[i],int) and n > at[i]:
+                        self.root[at[i]]=inps[i]
+                    elif err is True:
+                        return default
+                    else:
+                        self.root.append(inps[i])
+
+    def Find(self,*inps,**opts):
+        find=opts.get('find','index')
+        default=opts.get('default',[])
+        rt=[]
+        for i in range(0,len(self.root)):
+            for j in inps:
+                j=j.replace('*','.+').replace('?','.')
+                mm=re.compile(j)
+                if bool(re.match(mm,self.root[i])):
+                    if find in ['index','idx']:
+                        rt.append(i)
+                    else:
+                        rt.append(self.root[i])
+        if len(rt):
+            return rt
+        return default
+
+    def Copy(self):
+        return self.root[:]
+    def copy(self):
+        return self.root[:]
+
+    def Tuple(self):
+        return tuple(self.root)
+
+    def Move2first(self,find):
+        if isinstance(find,(list,tuple)):
+            self.Delete(*find,find='data')
+            self.root=list(find)+self.root
+        else:
+            self.Delete(*(find,),find='data')
+            self.root=[find]+self.root
+        return self.root
+
+    def Move2end(self,find):
+        if isinstance(find,(list,tuple)):
+            self.Delete(*find,find='data')
+            self.root=self.root+list(find)
+        else:
+            self.Delete(*(find,),find='data')
+            self.root=self.root+[find]
+        return self.root
+
+    def Sort(self,reverse=False,func=None,order=None,field=None):
+        if order in [int,'int','digit','number']:
+            def _cint_(e):
+                try:
+                    if isinstance(field,int):
+                        if isinstance(e,(list,tuple)) and len(e) > field:
+                            return int(e[field])
+                        else:
+                            return 9999999
+                    return int(e)
+                except:
+                    return e
+            return self.root.sort(reverse=reverse,key=_cint_)
+        elif order in [str,'str']:
+            def _cint_(e):
+                if isinstance(field,int):
+                    if isinstance(e,(list,tuple)) and len(e) > field:
+                        return '''{}'''.format(e[field])
+                    else:
+                        return 'zzzzzzzzz'
+                return '''{}'''.format(e)
+            return self.root.sort(reverse=reverse,key=_cint_)
+        else:
+            if isinstance(field,int):
+                def _cint_(e):
+                    if isinstance(e,(list,tuple)) and len(e) > field:
+                        return e[field]
+                return self.root.sort(reverse=reverse,key=_cint_)
+            else:
+                return self.root.sort(reverse=reverse,key=func)
+
+    def Str(self,sym=' ',default=None):
+        if isinstance(self.src,(tuple,list)):
+            rt_str=''
+            for ii in self.src:
+                if rt_str:
+                    rt_str='''{}{}{}'''.format(rt_str,sym,ii)
+                else:
+                    rt_str='''{}'''.format(ii)
+            self.src=rt_str
+            return rt_str
+        return default
+
+class STR(str):
+    def __init__(self,src):
+        self.src=src
+
+    def Rand(self,length=8,strs=None,mode='*'):
+        return Random(length=length,strs=strs,mode=mode)
+
+    def Cut(self,head_len=None,body_len=None,new_line='\n',out=str):
+        if not isinstance(self.src,str):
+           self.src='''{}'''.format(self.src)
+
+        source=self.src.split(new_line)
+
+        if len(source) == 1 and not head_len or head_len >= len(self.src):
+           return [self.src]
+
+        rt=[]
+        for src_idx in range(0,len(source)):
+            str_len=len(source[src_idx])
+
+            if not body_len:
+                rt=rt+[source[src_idx][i:i + head_len] for i in range(0, str_len, head_len)]
+            else:
+                if src_idx == 0: 
+                    rt.append(source[src_idx][0:head_len]) # Take head
+                    if str_len > head_len:
+                        rt=rt+[source[src_idx][head_len:][i:i + body_len] for i in range(0, str_len-head_len, body_len)]
+                    ## Cut body
+                    #string_tmp=self.src[head_len:]
+                    #string_tmp_len=len(string_tmp)
+                    #for i in range(0, int(string_tmp_len/body_len)+1):
+                    #    if (i+1)*body_len > string_tmp_len:
+                    #       rt.append(string_tmp[body_len*i:])
+                    #    else:
+                    #       rt.append(string_tmp[body_len*i:(i+1)*body_len])
+                else:
+                    rt=rt+[source[src_idx][i:i + body_len] for i in range(0, str_len, body_len)]
+        if rt and out in ['str',str]: return new_line.join(rt)
+        return rt
+
+    def Space(num=1,fill=' ',mode='space'):
+        if mode.lower() =='tap':
+            fill='\t'
+        tap=''
+        for i in range(0,num):
+            tap=tap+fill
+        return tap
+
+    def Tap(self,space='',sym='\n',default=None,NFLT=False,out=str):
+        # No First Line Tap (NFLT)
+        if isinstance(space,int):
+            space=self.Space(space)
+        if isinstance(self.src,str):
+            self.src=self.src.split(sym)
+        if isinstance(self.src,(list,tuple)):
+            rt=[]
+            if NFLT:
+                rt.append(self.src.pop(0))
+            for ii in self.src:
+                rt.append('%s%s'%(space,ii))
+            if rt and out in [str,'str']: return sym.join(rt)
+            return rt
+        return default
+
+    def Wrap(self,src=None,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
+        if src is None: src=self.src
+        if not isinstance(src,(str,list,tuple)): return src
+        if isinstance(src,str): src=src.split(sym)
+        if isinstance(space,int): space=self.Space(space,mode=space_mode)
+        rt=[]
+        # No First Line Tap (NFLT)
+        if NFLT: rt.append('%s'%(src.pop(0)))
+        for ii in src:
+            rt.append('%s%s'%(space,ii))
+        if rt and out in [str,'str']: return sym.join(rt)
+        return rt
+
+    def Reduce(self,start=0,end=None,sym=None,default=None):
+        if isinstance(self.src,str):
+            if sym:
+                arr=self.src.split(sym)
+                if isinstance(end,int):
+                    return sym.join(arr[start:end])
+                else:
+                    return sym.join(arr[start])
+            else:
+                if isinstance(end,int):
+                    return self.src[start:end]
+                else:
+                    return self.src[start:]
+        return default
+
+    def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=False,word=False):
+        if src is None: src=self.src
+        return FIND().Find(src,find,prs=prs,sym=sym,pattern=pattern,default=default,out=out,findall=findall,word=word,mode='value')
+
+    def Index(self,find,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
+        if not isinstance(self.src,str): return default
+        rt=[]
+        source=self.src.split(sym)
+        for row in range(0,len(source)):
+            for ff in self.Find(find,src=source[row],pattern=pattern,word=word,findall=findall,default=[],out=list):
+                if findall:
+                    rt=rt+[(row,[m.start() for m in re.finditer(ff,source[row])])]
+                else:
+                    idx=source[row].index(ff,start,end)
+                    if idx >= 0:
+                        rt.append((row,idx))
+        if rt:
+            if out in ['tuple',tuple]: return tuple(rt)
+            if out not in ['list',list] and len(rt) == 1 and rt[0][0] == 0: 
+                if len(rt[0][1]) == 1:return rt[0][1][0]
+                return rt[0][1]
+            return rt
+        return default
+
+    def Replace(self,replace_what,replace_to,default=None):
+        if isinstance(self.src,str):
+            if replace_what[-1] == '$' or replace_what[0] == '^':
+                return re.sub(replace_what, replace_to, self.src)
+            else:
+                head, _sep, tail = self.src.rpartition(replace_what)
+                return head + replace_to + tail
+        return default
+
+    def Split(self,sym,src=None,default=None):
+        if not isinstance(sym,str): return default
+        if src is None: src=self.src
+        if isinstance(src,str):
+            if isinstance(sym,bytes): sym=CONVERT(sym).Str()
+        elif isinstance(src,bytes):
+            if isinstance(sym,str): sym=CONVERT(sym).Bytes(default={'org'})
+        else:
+            return src
+        if len(sym) > 2 and '|' in sym:
+            try:
+                sym_a=sym.split('|')
+                for i in ['.','+','*']:
+                    try:
+                        x=sym_a.index(i)
+                        sym_a[x]='\{}'.format(sym_a[x])
+                    except:
+                        continue
+                return re.split('|'.join(sym_a),src) # splited by '|' or expression
+            except:
+                pass
+        return src.split(sym)
+
+#    def Split(self,sym=None):
+#        if isinstance(self.src,str):
+#            try:
+#                return re.split(sym,self.src) # splited by '|' or expression
+#            except:
+#                return self.src.split(sym)
+
+class TIME:
+    def __init__(self):
+        self.init_sec=int(datetime.now().strftime('%s'))
+
+    def Reset(self):
+        self.init_sec=int(datetime.now().strftime('%s'))
+
+    def Sleep(self,try_wait=None,default=1):
+        if isinstance(try_wait,(int,str)): try_wait=(try_wait,)
+        if isinstance(try_wait,(list,tuple)) and len(try_wait):
+            if len(try_wait) == 2:
+                try:
+                    time.sleep(random.randint(int(try_wait[0]),int(try_wait[1])))
+                except:
+                    pass
+            else:
+                try:
+                    time.sleep(int(try_wait[0]))
+                except:
+                    pass
+        else:
+            time.sleep(default)
+
+    def Rand(self,try_wait=None,default=1):
+        if isinstance(try_wait,(int,str)): try_wait=(try_wait,)
+        if isinstance(try_wait,(list,tuple)) and len(try_wait):
+            if len(try_wait) == 2:
+                try:
+                    return random.randint(int(try_wait[0]),int(try_wait[1]))
+                except:
+                    pass
+            else:
+                try:
+                    return int(try_wait[0])
+                except:
+                    pass
+        return default
+
+    def Int(self):
+        return int(datetime.now().strftime('%s'))
+
+    def Now(self,mode=None):
+        if mode in [int,'int','INT','sec']:return self.Int()
+        return time.now()
+
+    def Out(self,timeout_sec,default=(24*3600)):
+        try:
+            timeout_sec=int(timeout_sec)
+        except:
+            timeout_sec=default
+        if timeout_sec == 0:
+            return False
+        if self.Int() - self.init_sec >  timeout_sec:
+            return True
+        return False
+
+
+    def Format(self,time=0,tformat='%s',read_format='%S'):
+        if time in [0,'0',None]:
+            return datetime.now().strftime(tformat)
+        elif isinstance(time,int) or (isinstance(time,str) and time.isdigit()):
+            #if type(time) is int or (type(time) is str and time.isdigit()):
+            if read_format == '%S':
+                return datetime.fromtimestamp(int(time)).strftime(tformat)
+            else:
+                return datetime.strptime(str(time),read_format).strftime(tformat)
+
+    def Init(self):
+        return self.init_sec
+
+    def Time(self):
+        return time.time()
+
+    def Datetime(self):
+        return datetime()
+
+class SHELL:
+    def __init__(self):
+        pass
+
+    def Pprog(self,stop,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5):
+        TIME().Sleep(progress_interval)
+        if stop():
+            return
+        if progress_pre_new_line:
+            if log:
+                log('\n',direct=True,log_level=1)
+            else:
+                sys.stdout.write('\n')
+                sys.stdout.flush()
+        post_chk=False
+        while True:
+            if stop():
+                break
+            if log:
+                log('>',direct=True,log_level=1)
+            else:
+                sys.stdout.write('>')
+                sys.stdout.flush()
+            post_chk=True
+            TIME().Sleep(progress_interval)
+        if post_chk and progress_post_new_line:
+            if log:
+                log('\n',direct=True,log_level=1)
+            else:
+                sys.stdout.write('\n')
+                sys.stdout.flush()
+
+    def Run(self,cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5):
+        start_time=TIME()
+        if not isinstance(cmd,str):
+            return -1,'wrong command information :{0}'.format(cmd),'',start_time.Init(),start_time.Init(),start_time.Now(int),cmd,path
+        Popen=subprocess.Popen
+        PIPE=subprocess.PIPE
+        cmd_env=''
+        cmd_a=cmd.split()
+        cmd_file=cmd_a[0]
+        if cmd_a[0] == 'sudo': cmd_file=cmd_a[1]
+        if path and isinstance(path,str) and os.path.isdir(path) and os.path.isfile(os.path.join(path,cmd_file)):
+            cmd_env='''export PATH=%s:${PATH}; '''%(path)
+            if os.path.join(path,cmd_file):
+                cmd_env=cmd_env+'''cd %s && '''%(path)
+        elif cmd_file[0] != '/' and cmd_file == os.path.basename(cmd_file) and os.path.isfile(cmd_file):
+            cmd_env='./'
+        p = Popen(cmd_env+cmd , shell=True, stdout=PIPE, stderr=PIPE)
+        out=None
+        err=None
+        if progress:
+            stop_threads=False
+            ppth=Thread(target=self.Pprog,args=(lambda:stop_threads,progress_pre_new_line,progress_post_new_line,log,progress_interval))
+            ppth.start()
+        if isinstance(timeout,(int,str)):
+            try:
+                timeout=int(timeout)
+            except:
+                timeout=600
+            if timeout < 3:
+                timeout=3
+        if PyVer(3):
+            try:
+                out, err = p.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                p.kill()
+                if progress:
+                    stop_threads=True
+                    ppth.join()
+                return -1, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time.Init(),start_time.Now(int),cmd,path
+        else:
+            if isinstance(timeout,int):
+                countdown=int('{}'.format(timeout))
+                while p.poll() is None and countdown > 0:
+                    TIME().Sleep(2)
+                    countdown -= 2
+                if countdown < 1:
+                    p.kill()
+                    if progress:
+                        stop_threads=True
+                        ppth.join()
+                    return -1, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time.Init(),start_time.Now(int),cmd,path
+            out, err = p.communicate()
+
+        if progress:
+            stop_threads=True
+            ppth.join()
+        if PyVer(3):
+            out=out.decode("ISO-8859-1")
+            err=err.decode("ISO-8859-1")
+        if ansi:
+            return p.returncode, out.rstrip(), err.rstrip(),start_time.Init(),start_time.Now(int),cmd,path
+        else:
+            return p.returncode, ansi_escape.sub('',out).rstrip(), ansi_escape.sub('',err).rstrip(),start_time.Init(),start_time.Now(int),cmd,path
+
+class CONVERT:
+    def __init__(self,src):
+        self.src=src
+
+    def Int(self,default=False):
+        if isinstance(self.src,int): return self.src
+        if Type(self.src,('float','long','str')):
+            try:return int(self.src)
+            except: pass
+        if default == 'org' or default == {'org'}: return self.src
+        return default
+
+    def Bytes(self,encode='utf-8',default='org'):
+        def _bytes_(src,encode,default='org'):
+            try:
+                if PyVer(3):
+                    if isinstance(src,bytes):
+                        return src
+                    else:
+                        return bytes(src,encode)
+                return bytes(src) # if change to decode then network packet broken
+            except:
+                if default == 'org' or default =={'org'}:
+                    return src
+                return default
+
+        tuple_data=False
+        if isinstance(self.src,tuple):
+            self.src=list(self.src)
+            tuple_data=True
+        if isinstance(self.src,list):
+            for i in range(0,len(self.src)):
+                self.src[i]=_bytes_(self.src[i],encode,default)
+            if tuple_data:
+                return tuple(self.src)
+            else:
+                return self.src
+        else:
+            return _bytes_(self.src,encode,default)
+
+    def Str(self,encode='latin1',default='org'): # or windows-1252
+        def _byte2str_(src,encode,default='org'):
+            if PyVer(3) and isinstance(src,bytes):
+                return src.decode(encode)
+            #elif isinstance(src,unicode): # type(self.src).__name__ == 'unicode':
+            elif Type(src,'unicode'):
+                return src.encode(encode)
+            #return '''{}'''.format(src)
+            if default =='org' or default == {'org'}:
+                return src
+            return default
+
+        tuple_data=False
+        if isinstance(self.src,tuple):
+            self.src=list(self.src)
+            tuple_data=True
+        if isinstance(self.src,list):
+            for i in range(0,len(self.src)):
+                self.src[i]=_byte2str_(self.src[i],encode,default)
+            if tuple_data:
+                return tuple(self.src)
+            else:
+                return self.src
+        else:
+            return _byte2str_(self.src,encode,default)
+
+    def Str2Int(self,encode='utf-8'):
+        if PyVer(3):
+            if isinstance(self.src,bytes):
+                return int(self.src.hex(),16)
+            else:
+                return int(self.Bytes(encode=encode).hex(),16)
+        return int(self.src.encode('hex'),16)
+
+    def Ast(self,default=False,want_type=None):
+        if isinstance(self.src,str):
+            try:
+                return ast.literal_eval(self.src)
+            except:
+                if default == 'org' or default == {'org'}:
+                    return self.src
+                return default
+        if want_type:
+            if isinstance(self.src,want_type):
+                return self.src
+        if default == 'org' or default == {'org'}:
+            return self.src
+        return default
+
+    def Form(self,default=False):
+        return self.Ast(default=default)
+
+    def Json(self,src=None,default=None):
+        if src is None: src=self.src
+        try:
+            return _json.loads(src)
+        except:
+            return default
+
+    def Mac2Str(self,case='lower',default=False):
+        if MAC(self.src).IsV4():
+            if case == 'lower':
+                self.src=self.src.strip().replace(':','').replace('-','').lower()
+            else:
+                self.src=self.src.strip().replace(':','').replace('-','').upper()
+            return self.src
+        return default
+
+    def Str2Mac(self,case='lower',default=False,sym=':',chk=False):
+        if isinstance(self.src, str):
+            self.src=self.src.strip()
+            if len(self.src) in [12,17]:
+                self.src=self.src.replace(':','').replace('-','')
+                if len(self.src) == 12:
+                    self.src=sym.join(self.src[i:i+2] for i in range(0,12,2))
+                if case == 'lower':
+                    self.src=self.src.lower()
+                else:
+                    self.src=self.src.upper()
+        if chk:
+            if not MAC(self.src).IsV4():
+                return  default
+        return self.src
+
+    def Size(self,unit='b:g',default=False):
+        try:
+            self.src=int(self.src)
+        except:
+            return default
+        unit_a=unit.lower().split(':')
+        if len(unit_a) != 2:
+            return False
+        def inc(sz):
+            return '%.1f'%(float(sz) / 1024)
+        def dec(sz):
+            return int(sz) * 1024
+        sunit=unit_a[0]
+        eunit=unit_a[1]
+        unit_m=['b','k','m','g','t','p']
+        si=unit_m.index(sunit)
+        ei=unit_m.index(eunit)
+        h=ei-si
+        for i in range(0,abs(h)):
+            if h > 0:
+                self.src=inc(self.src)
+            else:
+                self.src=dec(self.src)
+        return self.src
+
+    def Url(self):
+        if isinstance(self.src,str):
+            return self.src.replace('+','%2B').replace('?','%3F').replace('/','%2F').replace(':','%3A').replace('=','%3D').replace(' ','+')
+        return self.src
+
+class MAC:
+    def __init__(self,src=None):
+        self.src=src
+
+    def IsV4(self,**opts):
+        symbol=opts.get('symbol',':')
+        default=opts.get('default',False)
+        if isinstance(self.src,str):
+            self.src=self.src.strip()
+            # make sure the format
+            if 12 <= len(self.src) <= 17:
+                for i in [':','-']:
+                    self.src=self.src.replace(i,'')
+                self.src=symbol.join(self.src[i:i+2] for i in range(0,12,2))
+            # Check the normal mac format
+            octets = self.src.split(symbol)
+            if len(octets) != 6: return False
+            for i in octets:
+                try:
+                   if len(i) != 2 or int(i, 16) > 255:
+                       return False
+                except:
+                   return False
+            return True
+        return default
+
+    def FromStr(self,case='lower',default=False,sym=':',chk=False):
+        if isinstance(self.src, str):
+            self.src=self.src.strip()
+            if len(self.src) in [12,17]:
+                self.src=self.src.replace(':','').replace('-','')
+                if len(self.src) == 12:
+                    self.src=sym.join(self.src[i:i+2] for i in range(0,12,2))
+                if case == 'lower':
+                    self.src=self.src.lower()
+                else:
+                    self.src=self.src.upper()
+        if chk:
+            if not self.IsV4():
+                return  default
+        return self.src
+
+    def ToStr(self,case='lower',default=False):
+        if self.IsV4():
+            if case == 'lower':
+                self.src=self.src.strip().replace(':','').replace('-','').lower()
+            else:
+                self.src=self.src.strip().replace(':','').replace('-','').upper()
+            return self.src
+        return default
+
+class VERSION:
+    def __init__(self):
+        pass
+
+    def Clear(self,string,sym='.'):
+        if type(string) in [int,str]:
+            string='{}'.format(string)
+        else:
+            return False
+        arr=string.split(sym)
+        for ii in range(len(arr)-1,0,-1):
+            if arr[ii].replace('0','') == '':
+                arr.pop(-1)
+            else:
+                break
+        return sym.join(arr)
+
+    def Check(self,a,sym,b):
+        a=self.Clear(a)
+        b=self.Clear(b)
+        if a is False or b is False:
+            return False
+        if sym == '>':
+            if LooseVersion(a) > LooseVersion(b):
+                return True
+        elif sym == '>=':
+            if LooseVersion(a) >= LooseVersion(b):
+                return True
+        elif sym == '==':
+            if LooseVersion(a) == LooseVersion(b):
+                return True
+        elif sym == '<=':
+            if LooseVersion(a) <= LooseVersion(b):
+                return True
+        elif sym == '<':
+            if LooseVersion(a) < LooseVersion(b):
+                return True
+        return False
+
+    def Compare(self,src,compare_symbol,dest,compare_range='dest',version_symbol='.'):
+        if isinstance(src,dict): src=src.get('version')
+        if isinstance(dest,dict): dest=dest.get('version')
+        if isinstance(src,str):
+            src=STR(src).Split(version_symbol)
+        elif isinstance(src,tuple):
+            src=list(src)
+        if isinstance(dest,str):
+            dest=STR(dest).Split(version_symbol)
+        elif isinstance(dest,tuple):
+            dest=list(dest)
+        src=[ Int(i) for i in src]
+        dest=[ Int(i) for i in dest]
+        if compare_range == 'dest':
+            src=src[:len(dest)]
+        elif compare_range == 'src':
+             dest=dest[:len(src)]
+        elif isinstance(compare_range,(tuple,list)) and len(compare_range) == 2:
+            if isinstance(compare_range[0],int) and isinstance(compare_range[1],int):
+                 src=src[compare_range[0]:compare_range[1]]
+                 dest=dest[compare_range[0]:compare_range[1]]
+            elif not compare_range[0] and isinstance(compare_range[1],int):
+                 src=src[:compare_range[1]]
+                 dest=dest[:compare_range[1]]
+            elif isinstance(compare_range[0],int) and not compare_range[1]:
+                 src=src[compare_range[0]:]
+                 dest=dest[compare_range[0]:]
+        elif isinstance(compare_range,int):
+            if len(src) > compare_range and len(dest) > compare_range:
+                 src=src[compare_range]
+                 dest=dest[compare_range]
+            else:
+                 return
+        return eval('{} {} {}'.format(src,compare_symbol,dest))
+
+def is_cancel(func):
+    ttt=type(func).__name__
+    if ttt in ['function','instancemethod','method']:
+        if func():
+            return True
+    elif ttt in ['bool','str'] and func in [True,'cancel']:
+        return True
+    return False
+
+class IP:
+    def __init__(self,ip=None):
+        self.ip=ip
+
+    def IsV4(self,ip=None):
+        if not ip: ip=self.ip
+        if self.V4(ip,default=False) is False: return False
+        return True
+
+    def IsBmcIp(self,ip=None,port=(623,664,443)):
+        return self.IsOpenPort(port,ip=ip)
+
+    def IsOpenPort(self,port,**opts):
+        '''
+        It connectionable port(?) like as ssh, ftp, telnet, web, ...
+        '''
+        default=opts.get('default',False)
+        ip=opts.get('ip')
+        if not ip:
+            ip=self.ip
+        tcp_sk = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        tcp_sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        tcp_sk.settimeout(1)
+        if self.IsV4(ip) is False or not isinstance(port,(str,int,list,tuple)):
+            return default
+        if isinstance(port,(str,int)):
+            try:
+                port=[int(port)]
+            except:
+                return default
+        for pt in port:
+            try:
+                tcp_sk.connect((ip,pt))
+                tcp_sk.close()
+                return True
+            except:
+                pass
+        return False
+
+    def IsUsedPort(self,port,ip=None):
+        if ip is None:
+            ip=self.ip
+        if ip in ['localhost','local',None]:
+            ip='127.0.0.1'
+        '''
+        The IP used the port, it just checkup used port. (open port or dedicated port)
+        '''
+        soc=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        location=(ip,int(port))
+        rc=soc.connect_ex(location)
+        soc.close()
+        if rc== 0:
+            return True
+        return False
+
+    def Ip2Num(self,ip=None,default=False):
+        if not ip: ip=self.ip
+        return self.V4(ip,out=int,default=default)
+
+    def Ip2Str(self,ip=None,default=False):
+        if not ip:ip=self.ip
+        return self.V4(ip,out=str,default=default)
+
+    def Ip2hex(self,ip=None,default=False):
+        if not ip: ip=self.ip
+        return self.V4(ip,out=hex,default=default)
+
+    def InRange(self,start_ip,end_ip,**opts):
+        ip=opts.get('ip')
+        if not ip: ip=self.ip
+        default=opts.get('default',False)
+        startip=self.Ip2Num(start_ip)
+        myip=self.Ip2Num(ip)
+        endip=self.Ip2Num(end_ip)
+        if isinstance(startip,int) and isinstance(myip,int) and isinstance(endip,int):
+            if startip <= myip <= endip: return True
+            return False
+        return default
+
+    def LostNetwork(self,**opts):
+        ip=opts.get('ip')
+        if not ip: ip=self.ip
+        default=opts.get('default',False)
+        timeout_sec=opts.get('timeout',1800)
+        interval=opts.get('interval',2)
+        keep_good=opts.get('keep_good',30)
+        cancel_func=opts.get('cancel_func',None)
+        log=opts.get('log',None)
+        init_time=None
+        if self.IsV4(ip):
+            if not self.Ping(ip,count=3):
+                if not self.Ping(ip,count=0,timeout=timeout_sec,keep_good=keep_good,interval=interval,cancel_func=cancel_func,log=log):
+                    return True
+            return False
+        return default
+
+    def V4(self,ip=None,out='str',default=False):
+        if ip is None: ip=self.ip
+        ip_int=None
+        if isinstance(ip,str):
+            ipstr=ip.strip()
+            if '0x' in ipstr:
+                ip_int=int(ipstr,16)
+            elif ipstr.isdigit():
+                ip_int=int(ipstr)
+            elif '.' in ipstr:
+                try:
+                    ip_int=struct.unpack("!I", socket.inet_aton(ipstr))[0] # convert Int IP
+                    #struct.unpack("!L", socket.inet_aton(ip))[0]
+                except:
+                    return default
+        elif isinstance(ip,int):
+            try:
+                socket.inet_ntoa(struct.pack("!I", ip)) # check int is IP or not
+                ip_int=ip
+            except:
+                return default
+        elif isinstance(ip,type(hex)):
+            ip_int=int(ip,16)
+
+        if ip_int is not None:
+            try:
+                if out in ['str',str]:
+                    return socket.inet_ntoa(struct.pack("!I", ip_int))
+                elif out in ['int',int]:
+                    return ip_int
+                elif out in ['hex',hex]:
+                    return hex(ip_int)
+            except:
+                pass
+        return default
+
+    def Online(self,**opts):
+        ip=opts.get('ip')
+        if not ip: ip=self.ip
+        default=opts.get('default',False)
+        timeout_sec=opts.get('timeout',1800)
+        interval=opts.get('interval',3)
+        keep=opts.get('keep',20)
+        cancel_func=opts.get('cancel_func',None)
+        log=opts.get('log',None)
+        time=TIME()
+        run_time=time.Int()
+        if self.IsV4(ip):
+            if log:
+                log('[',direct=True,log_level=1)
+            while True:
+                if time.Out(timeout_sec):
+                    if log:
+                        log(']\n',direct=True,log_level=1)
+                    return False,'Timeout monitor'
+                if is_cancel(cancel_func):
+                    if log:
+                        log(']\n',direct=True,log_level=1)
+                    return True,'Stopped monitor by Custom'
+                if self.Ping(ip,cancel_func=cancel_func):
+                    if (time.Int() - run_time) > keep:
+                        if log:
+                            log(']\n',direct=True,log_level=1)
+                        return True,'OK'
+                    if log:
+                        log('-',direct=True,log_level=1)
+                else:
+                    run_time=time.Int()
+                    if log:
+                        log('.',direct=True,log_level=1)
+                time.Sleep(interval)
+            if log:
+                log(']\n',direct=True,log_level=1)
+            return False,'Timeout/Unknown issue'
+        return default,'IP format error'
+
+    def Ping(self,host=None,count=3,interval=1,keep_good=0, timeout=60,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
+        if host is None: host=self.ip
+        ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
+        ICMP_CODE = socket.getprotobyname('icmp')
+        ERROR_DESCR = {
+            1: ' - Note that ICMP messages can only be '
+               'sent from processes running as root.',
+            10013: ' - Note that ICMP messages can only be sent by'
+                   ' users or processes with administrator rights.'
+            }
+
+        def checksum(msg):
+            sum = 0
+            size = (len(msg) // 2) * 2
+            for c in range(0,size, 2):
+                sum = (sum + ord(msg[c + 1])*256+ord(msg[c])) & 0xffffffff
+            if size < len(msg):
+                sum = (sum+ord(msg[len(msg) - 1])) & 0xffffffff
+            ra = ~((sum >> 16) + (sum & 0xffff) + (sum >> 16)) & 0xffff
+            ra = ra >> 8 | (ra << 8 & 0xff00)
+            return ra
+
+        def mk_packet(size):
+            """Make a new echo request packet according to size"""
+            # Header is type (8), code (8), checksum (16), id (16), sequence (16)
+            header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0, 0, size, 1)
+            #data = struct.calcsize('bbHHh') * 'Q'
+            data = size * 'Q'
+            my_checksum = checksum(CONVERT(header).Str() + data)
+            header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0,
+                                 socket.htons(my_checksum), size, 1)
+            return header + CONVERT(data).Bytes()
+
+        def receive(my_socket, ssize, stime, timeout):
+            while True:
+                if timeout <= 0:
+                    return
+                ready = select.select([my_socket], [], [], timeout)
+                if ready[0] == []: # Timeout
+                    return
+                received_time = time.time()
+                packet, addr = my_socket.recvfrom(1024)
+                type, code, checksum, gsize, seq = struct.unpack('bbHHh', packet[20:28]) # Get Header
+                if gsize == ssize:
+                    return received_time - stime
+                timeout -= received_time - stime
+
+        def pinging(ip,timeout=1,size=64):
+            try:
+                my_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, ICMP_CODE)
+            except socket.error as e:
+                if e.errno in ERROR_DESCR:
+                    raise socket.error(''.join((e.args[1], ERROR_DESCR[e.errno])))
+                raise
+            if size in ['rnd','random']:
+                # Maximum size for an unsigned short int c object(65535)
+                size = int((id(timeout) * random.random()) % 65535)
+            packet = mk_packet(size)
+            while packet:
+                sent = my_socket.sendto(packet, (ip, 1)) # ICMP have no port, So just put dummy port 1
+                packet = packet[sent:]
+            delay = receive(my_socket, size, TIME().Time(), timeout)
+            my_socket.close()
+            if delay:
+                return delay,size
+
+        def do_ping(ip,timeout=1,size=64,count=None,interval=0.7,log_format='ping',cancel_func=None):
+            ok=1
+            i=1
+            while True:
+                if is_cancel(cancel_func):
+                    return -1,'canceled'
+                delay=pinging(ip,timeout,size)
+                if delay:
+                    ok=0
+                    if log_format == '.':
+                        sys.stdout.write('.')
+                        sys.stdout.flush()
+                    elif log_format == 'ping':
+                        sys.stdout.write('{} bytes from {}: icmp_seq={} ttl={} time={} ms\n'.format(delay[1],ip,i,size,round(delay[0]*1000.0,4)))
+                        sys.stdout.flush()
+                else:
+                    ok=1
+                    if log_format == '.':
+                        sys.stdout.write('x')
+                        sys.stdout.flush()
+                    elif log_format == 'ping':
+                        sys.stdout.write('{} icmp_seq={} timeout ({} second)\n'.format(ip,i,timeout))
+                        sys.stdout.flush()
+                if count:
+                    count-=1
+                    if count < 1:
+                        return ok,'{} is alive'.format(ip)
+                i+=1
+                TIME().Sleep(interval)
+
+
+        if log_format=='ping':
+            if find_executable('ping'):
+                os.system("ping -c {0} {1}".format(count,host))
+            else:
+                do_ping(host,timeout=timeout,size=64,count=count,log_format='ping',cancel_func=cancel_func)
+        else:
+            Time=TIME()
+            init_sec=Time.Init()
+            chk_sec=Time.Init()
+            log_type=type(log).__name__
+            found_lost=False
+            if keep_good > 0 or not count:
+               try:
+                   timeout=int(timeout)
+               except:
+                   timeout=1
+               if timeout < keep_good:
+                   count=keep_good+(2*interval)
+                   timeout=keep_good+5
+               elif not count:
+                   count=timeout//interval + 3
+               elif count * interval > timeout:
+                   timeout=count*interval+timeout
+            good=False
+            while count > 0:
+               if is_cancel(cancel_func):
+                   log(' - Canceled ping')
+                   return False
+               if stop_func:
+                   if log_type == 'function':
+                       log(' - Stopped ping')
+                   return False
+               if find_executable('ping'):
+                   rc=SHELL().Run("ping -c 1 {}".format(host))
+               else:
+                   rc=do_ping(host,timeout=1,size=64,count=1,log_format=None)
+               if rc[0] == 0:
+                  good=True
+                  if keep_good:
+                      if good and keep_good and TIME().Now(int) - chk_sec >= keep_good:
+                          return True
+                  else:
+                      return True
+                  if log_type == 'function':
+                      log('.',direct=True,log_level=1)
+               else:
+                  good=False
+                  chk_sec=TIME().Now(int)
+                  if log_type == 'function':
+                      log('x',direct=True,log_level=1)
+               if TIME().Now(int) - init_sec > timeout:
+                   return False
+               TIME().Sleep(interval)
+               count-=1
+            return good
+
+class GET:
+    def __init__(self,src=None,**opts):
+        self.src=src
+
+    def __repr__(self):
+        if self.src is None: return repr(self.MyAddr())
+        if Type(self.src,('instance','classobj')):
+            def method_in_class(class_name):
+                ret=dir(class_name)
+                if hasattr(class_name,'__bases__'):
+                    for base in class_name.__bases__:
+                        ret=ret+method_in_class(base)
+                return repr(ret)
+            return repr(method_in_class(self.src))
+        elif Type(self.src,'dict'):
+            return repr(list(self.src.keys()))
+        elif Type(self.src,('str','list','tuple')):
+            return repr(len(self.src))
+        else:
+            #return repr(type(self.src).__name__)
+            return repr(self.src)
+
+    def MyAddr(self):
+        return hex(id(self))
+
+    def Index(self,*find,**opts):
+        default=opts.get('default',None)
+        err=opts.get('err',False)
+        out=opts.get('out',None)
+        rt=[]
+        if Type(self.src,(list,tuple,str)):
+            for ff in find:
+                if ff in self.src: rt.append(self.src.index(ff))
+        elif Type(self.src,dict):
+            for i in self.src:
+                for ff in find:
+                    if find == self.src[i]: rt.append(i)
+        if rt: return OutFormat(rt,out=out)
+        if err == {'org'}: return self.src
+        return OutFormat(default,out=out)
+
+    def Value(self,*find,**opts):
+        default=opts.get('default',None)
+        err=opts.get('err',False)
+        out=opts.get('out',None)
+        check=opts.get('check',('str','list','tuple','dict','instance','classobj'))
+        rt=[]
+        src_name=type(self.src).__name__
+        if len(find) == 0:
+            if src_name in ['kDict','kList','DICT']: return self.src.Get()
+            if Type(self.src,('instance','classobj')):
+                def method_in_class(class_name):
+                    ret=dir(class_name)
+                    if hasattr(class_name,'__bases__'):
+                        for base in class_name.__bases__:
+                            ret=ret+method_in_class(base)
+                    return ret
+                return method_in_class(self.src)
+        elif Type(self.src,tuple(check)):
+            # Support
+            if Type(self.src,(list,tuple,str)):
+                if src_name in ['kList']: self.src=self.src.Get()
+                for ff in Abs(*find,obj=self.src,out=list,default=None,err=err):
+                    if ff is None:
+                        if err in [True,'True','err']: rt.append(default)
+                    else:
+                        rt.append(self.src[ff])
+            elif Type(self.src,dict):
+                if src_name in ['kDict','DICT']: self.src=self.src.Get()
+                for ff in find:
+                    gval=self.src.get(ff,default)
+                    if gval == default:
+                        if err in [True,'True','err']: rt.append(gval)
+                    else:
+                        rt.append(gval)
+            elif Type(self.src,('instance','classobj')):
+                # get function object of finding string name in the class/instance
+                for ff in find:
+                    if isinstance(ff,(list,tuple,dict)):
+                        for kk in ff:
+                            rt.append(getattr(self.src,kk,default))
+                    elif isinstance(ff,str): 
+                        rt.append(getattr(self.src,ff,default))
+            if rt: return OutFormat(rt,out=out)
+        # Not support format or if not class/instance then return error
+        if err in [True,'True','true','err','ERR','ERROR','error']: OutFormat(default,out=out)
+        return OutFormat(self.src,out=out)
+
+    def Read(self,default=False):
+        if Is(self.src).Pickle():
+            try:
+                with open(self.src,'rb') as handle:
+                    return pickle.load(handle)
+            except:
+                pass
+        elif os.path.isfile(self.src):
+            return FILE().Get(self.src)
+        return default
+
+    def Args(self,field='all',default={}):
+        rt={}
+        if Type(self.src,('classobj,instance')):
+            try:
+                self.src=getattr(self.src,'__init__')
+            except:
+                return self.src.__dict__
+        elif not Type(self.src,'function'):
+            return default
+        args, varargs, keywords, defaults = inspect.getargspec(self.src)
+        if defaults is not None:
+            defaults=dict(zip(args[-len(defaults):], defaults))
+            del args[-len(defaults):]
+            rt['defaults']=defaults
+        if args:
+            rt['args']=args
+        if varargs:
+            rt['varargs']=varargs
+        if keywords:
+            rt['keywards']=keywords
+        if Type(field,(list,tuple)):
+            rts=[]
+            for ii in field:
+                rts.append(rt.get(ii,default))
+            return rts
+        else:
+            if field in ['*','all']:
+                return rt
+            if field in rt:
+                return rt[field]
+        return default
+
+    def ArgType(self,arg,want='_',get_data=['_']):
+        type_arg=type(arg)
+        if want in get_data:
+            if type_arg.__name__ == 'Request':
+                return arg.method.lower()
+            return type_arg.__name__.lower()
+        if Type(want,str):
+            if type_arg.__name__ == 'Request':
+                if want.upper() == 'REQUEST' or want.upper() == arg.method:
+                    return True
+                return False
+            else:
+                if type_arg.__name__.lower() == want.lower():
+                    return True
+        else:
+            if type_arg == want:
+                return True
+        return False
+
+    def FuncList(self):
+        rt={}
+        if Type(self.src,'instance'):
+            self.src=self.src.__class__
+        if Type(self.src,('classobj','module')):
+            for name,fobj in inspect.getmembers(self.src):
+                if Type(fobj,('function','instancemethod')):
+                    rt.update({name:fobj})
+        return rt
+
+    def FunctionList(self):
+        return self.FuncList()
+
+    def Func(self,name,default=None):
+        funcList=self.FuncList()
+        if isinstance(name,str):
+            if name in funcList: return funcList[name]
+        elif Type(name,('function','instancemeethod')):
+            return name
+        return default
+
+    def Function(self,name,default=None):
+        return self.Func(name,default=default)
+
+    def FuncName(self,default=False,detail=False):
+        #return traceback.extract_stack(None, 2)[0][2]
+        try:
+            dep=len(inspect.stack())-2
+            if detail:
+                return sys._getframe(dep).f_code.co_name,sys._getframe(dep).f_lineno,sys._getframe(dep).f_code.co_filename
+            else:
+                name=sys._getframe(dep).f_code.co_name
+                if name == '_bootstrap_inner' or name == '_run_code':
+                    return sys._getframe(3).f_code.co_name
+                return name
+        except:
+            return default
+
+    def FunctionName(self,default=False,detail=False):
+        return self.FuncName(default=default,detail=detail)
+
+    def ParentName(self):
+        return traceback.extract_stack(None, 3)[0][2]
+
+    def Class(self,default=None):
+        if Type(self.src,'instance'):
+            return self.src.__class__
+        elif Type(self.src,'classobj'):
+            return self.src
+        else:
+            return default
+
+    def ClassName(self,default=None):
+        if Type(self.src,'instance'):
+            return self.src.__class__.__name__
+        elif Type(self.src,'classobj'):
+            return self.src.__name__
+        else:
+            return default
+
+    def DirName(self,default=None):
+        if Type(self.src,str):
+            dirname=os.path.dirname(self.src)
+            if dirname == '': return '.'
+            return dirname
+        return default
+
+    def DirectoryName(self,default=None):
+        return self.DirName(default=default)
+
+    def Pwd(self):
+        #return os.path.abspath(__file__)
+        return os.path.dirname(os.path.realpath(__file__))
+
+    def Basename(self):
+        if Type(self.src,str): return os.path.basename(self.src)
+        return __file__
+
+class IS:
+    def __init__(self,src=None,**opts):
+        self.src=src
+        self.rtd=opts.get('rtd',{'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error',{'ERR'}],'WARN':['Warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}]})
+
+    def Py2(self):
+        if PyVer(2): return True
+        return False
+
+    def Py3(self):
+        if PyVer(3): return True
+        return False
+
+    def Int(self):
+        try:
+            int(self.src)
+            return True
+        except:
+            return False
+
+    def Ipv4(self):
+        return IP(self.src).IsV4()
+
+    def Mac4(self,**opts):
+        return MAC(self.src).IsV4()
+
+    def Ip_with_port(self,port,**opts):
+        return IP(self.src).WithPort(port,**opts)
+
+    def File(self):
+        if isinstance(self.src,str): return os.path.isfile(self.src)
+        return False
+
+    def Dir(self):
+        if isinstance(self.src,str): return os.path.isdir(self.src)
+        return False
+
+    def Xml(self):
+        firstLine=file_rw(self.src,out='string',read='firstline')
+        if firstLine is False:
+            #filename_str=_u_byte2str(self.src)
+            filename_str=CONVERT(self.src).Str()
+            if isinstance(filename_str,str):
+                firstLine=filename_str.split('\n')[0]
+        if isinstance(firstLine,str) and firstLine.split(' ')[0] == '<?xml': return True
+        return False
+
+    def Json(self,src=None):
+        if src is None: src=self.src
+        try:
+            _json.loads(self.src)
+            return True
+        except:
+            return False
+
+    def Pickle(self):
+        if isinstance(self.src,str) and os.path.isfile(self.src):
+            try:
+                with open(self.src,'rb') as f: # Pickle Type
+                    pickle.load(f)
+                    return True
+            except:
+                pass
+        return False
+
+    def Matrix(self,**opts):
+        default=opts.get('default',False)
+        if isinstance(self.src,(tuple,list)) and len(self.src) >= 1:
+            if isinstance(self.src[0],(tuple,list)): # |a,b,c|
+                first_ln=len(self.src[0])            # |d,e,f|
+                for ii in self.src[1:]:
+                    if isinstance(ii,(tuple,list)) and len(ii) == first_ln: continue
+                    return False
+                return True
+            else: # |a,b,c,d|
+                first_typ=type(self.src[0])
+                for ii in self.src[1:]:
+                    if type(ii) != first_type: return False
+                return True
+        return default
+
+    def Lost_network(self,**opts):
+        return IP(self.src).LostNetwork(**opts)
+
+    def Comback_network(self,**opts):
+        return IP(self.src).Online(**opts)
+
+    def Rc(self,chk='_'):
+        def trans(irt):
+            type_irt=type(irt)
+            for ii in rtd:
+                for jj in rtd[ii]:
+                    if type(jj) == type_irt and ((type_irt is str and jj.lower() == irt.lower()) or jj == irt):
+                        return ii
+            return 'UNKN'
+        rtc=Get(self.src,'0|rc',out='raw',err='ignore',check=(list,tuple,dict))
+        nrtc=trans(rtc)
+        if chk != '_':
+            if trans(chk) == nrtc:
+                return True
+            return False
+        return nrtc
+
+    def Cancel(self,func=None):
+        if func is None:
+            func=self.src
+        ttt=type(func).__name__
+        if ttt in ['function','instancemethod','method']:
+            if func():
+                return True
+        elif ttt in ['bool','str'] and func in [True,'cancel']:
+            return True
+        return False
+
+    def Window(self):
+        return False
+
+    def Android(self):
+        return False
+
+    def IOS(self):
+        return False
+
+    def Centos(self):
+        return False
+
+    def Unbuntu(self):
+        return False
+
+    def Suse(self):
+        return False
+
+    def Linux(self):
+        if self.centos() or self.ubuntu() or self.suse(): return True
+        return False
+
+    def Function(self,obj=None,default=False):
+        if Type(self.src,'function'): return True
+        if obj is None:
+            obj=sys.modules.get('__name__',default)
+        elif isinstance(obj,str):
+            obj=sys.modules.get(obj,default)
+        if obj == default: return default
+        if Type(obj,'Class','module'):
+            if GET(obj).FuncList().get(self.src,default) == default: return default
+            return True
+            #return vars(obj).get(self.src,default)
+        return default
+
+    def Var(self,obj=None,default=False):
+        if obj is None:
+            obj=sys.modules.get('__main__',default)
+        elif isinstance(obj,str):
+            obj=sys.modules.get(obj,default)
+        if obj == default: return default
+        if Type(obj,'class','function','instance'):
+            ARGS=GET(obj).Args()
+            for tt in ARGS:
+                if self.src in ARGS[tt]: return True 
+        else:
+            get_var=dict(inspect.getmembers(inspect.stack()[1][0]))["f_globals"].get(self.src,'_#_')
+            if get_var != '_#_':
+                if not Type(get_var,'module','class','function'): return True
+#        if hasattr(obj,self.src):
+#            return True
+        return False
+
+    def Exec(self):
+        if isinstance(self.src,str):
+            if find_executable(self.src):
+                return True
+        return False
+
+    def Bin(self):
+        return self.Exec()
+
+    def Same(self,src=None,chk_val=None,sense=False):
+        def _IsSame_(src,chk,sense):
+            src_type=type(src).__name__
+            chk_type=type(chk).__name__
+            if src_type == 'bytes' or chk_type == 'bytes':
+                if chk_type=='int': chk='{}'.format(chk)
+                if isinstance(chk,str):
+                    chk=CONVERT(chk).Bytes()
+                if not sense:
+                    chk=chk.lower()
+                if src_type=='int': src='{}'.format(src)
+                if isinstance(src,str):
+                    src=CONVERT(src).Bytes()
+                if not sense:
+                    src=src.lower()
+                if src == chk: return True
+            else:
+                if src_type == 'str' and src.isdigit(): src=int(src)
+                if chk_type == 'str' and chk.isdigit(): chk=int(chk)
+                if not sense and isinstance(src,str) and isinstance(chk,str):
+                    if src.lower() == chk.lower(): return True
+                elif src == chk:
+                    return True
+            return False
+        if isinstance(src,(list,tuple)) and isinstance(chk_val,(list,tuple)):
+            for j in src:
+                ok=False
+                for i in chk_val:
+                    aa=_IsSame_(j,i,sense)
+                    if aa is True:
+                        ok=True
+                        break
+                if ok is False: return False
+            for j in chk_val:
+                ok=False
+                for i in src:
+                    aa=_IsSame_(j,i,sense)
+                    if aa is True:
+                        ok=True
+                        break
+                if ok is False: return False
+            return True
+        else:
+            if isinstance(chk_val,(list,tuple)):
+                for i in chk_val:
+                    aa=_IsSame_(src,i,sense)
+                    if aa is True: return True
+                return False
+            else:
+                return _IsSame_(src,chk_val,sense)
+
+class LOG:
+    def __init__(self,**opts):
+        self.limit=opts.get('limit',3)
+        self.dbg_level=opts.get('dbg_level',None)
+        self.path=opts.get('path','/tmp')
+        self.log_file=opts.get('log_file',None)
+        self.info_file=opts.get('info_file',None)
+        self.error_file=opts.get('error_file',None)
+        self.dbg_file=opts.get('dbg_file',None)
+        self.screen=opts.get('screen',False)
+        self.date_format=opts.get('date_format','[%m/%d/%Y %H:%M:%S]')
+
+    def Format(self,*msg,**opts):
+        log_date_format=opts.get('date_format',self.date_format)
+        func_name=opts.get('func_name',None)
+        end_new_line=opts.get('end_new_line','')
+        start_new_line=opts.get('start_new_line','\n')
+        if len(msg) > 0:
+            m_str=None
+            intro=''
+            intro_space=''
+            if log_date_format:
+                intro=TIME().Format(tformat=log_date_format)+' '
+            func_name_name=type(func_name).__name__
+            if func_name_name == 'str':
+                intro=intro+'{0} '.format(func_name)
+            elif func_name is True:
+                intro=intro+'{0}() '.format(get_caller_fcuntion_name())
+            elif func_name_name in ['function','instancemethod']:
+                intro=intro+'{0}() '.format(func_name.__name__)
+            if intro:
+               for i in range(0,len(intro)):
+                   intro_space=intro_space+' '
+            for m in list(msg):
+                n=m.split('\n')
+                if m_str is None:
+                    m_str='{0}{1}{2}{3}'.format(start_new_line,intro,n[0],end_new_line)
+                else:
+                    m_str='{0}{1}{2}{3}{4}'.format(m_str,start_new_line,intro_space,n[0],end_new_line)
+                for nn in n[1:]:
+                    m_str='{0}{1}{2}{3}{4}'.format(m_str,start_new_line,intro_space,nn,end_new_line)
+            return m_str
+
+    def Syslogd(self,*msg,**opts):
+        syslogd=opts.get('syslogd',None)
+        if syslogd:
+            syslog_msg=' '.join(msg)
+            if syslogd in ['INFO','info']:
+                syslog.syslog(syslog.LOG_INFO,syslog_msg)
+            elif syslogd in ['KERN','kern']:
+                syslog.syslog(syslog.LOG_KERN,syslog_msg)
+            elif syslogd in ['ERR','err']:
+                syslog.syslog(syslog.LOG_ERR,syslog_msg)
+            elif syslogd in ['CRIT','crit']:
+                syslog.syslog(syslog.LOG_CRIT,syslog_msg)
+            elif syslogd in ['WARN','warn']:
+                syslog.syslog(syslog.LOG_WARNING,syslog_msg)
+            elif syslogd in ['DBG','DEBUG','dbg','debug']:
+                syslog.syslog(syslog.LOG_DEBUG,syslog_msg)
+            else:
+                syslog.syslog(syslog_msg)
+
+
+    def File(self,log_str,log_level,special_file=None):
+        log_file=None
+        if os.path.isdir(self.path):
+            if (log_level in ['dbg','debug'] or (isinstance(log_level,int) and isinstance(self.dbg_level,int) and self.dbg_level <= log_level <= self.limit)) and isinstance(self.dbg_file,str):
+                log_file=os.path.join(self.path,self.dbg_file)
+            elif log_level in ['info'] and isinstance(self.info_file,str):
+                log_file=os.path.join(self.path,self.info_file)
+            elif log_level in ['error'] and isinstance(self.error_file,str):
+                log_file=os.path.join(self.path,self.error_file)
+            elif isinstance(self.log_file,str) or isinstance(special_file,str):
+                if special_file:
+                    log_file=os.path.join(self.path,special_file)
+                elif log_level in ['dbg','debug','info','error'] or (isinstance(log_level,int) and log_level <= self.limit):
+                    log_file=os.path.join(self.path,self.log_file)
+            if log_file:
+                with open(log_file,'a+') as f:
+                    f.write(log_str)
+        return log_file
+
+    def Screen(self,log_str,log_level):
+        if log_level in ['error']:
+            sys.stderr.write(log_str)
+            sys.stderr.flush()
+        elif log_level <= self.limit:
+            sys.stdout.write(log_str)
+            sys.stdout.flush()
+
+
+    def Log(self,*msg,**opts):
+        direct=opts.get('direct',False)
+        func_name=opts.get('func_name',None)
+        date_format=opts.get('date_format','[%m/%d/%Y %H:%M:%S]')
+        start_new_line=opts.get('start_new_line','\n')
+        end_new_line=opts.get('end_new_line','')
+        log_level=opts.get('log_level',3)
+        special_file=opts.get('filename',None)
+        screen=opts.get('screen',None)
+        syslogd=opts.get('syslogd',None)
+        if msg:
+            # send log at syslogd
+            self.Syslogd(*msg,syslogd=syslogd)
+
+            if date_format in [False,None,'','no','ignore']:
+                date_format=None
+            if func_name in [False,None,'','no','ignore']:
+                func_name=None
+            if direct:
+                log_str=' '.join(msg)
+            else:
+                log_str=self.Format(*msg,func_name=func_name,date_format=date_format,end_new_line=end_new_line,start_new_line=start_new_line)
+
+            # Saving log at file
+            log_file=self.File(log_str,log_level,special_file=special_file)
+
+            # print at screen
+            if screen is True or (screen is None and self.screen is True):
+                self.Screen(log_str,log_level)
+ 
+            # Send Log Data to logging function (self.log_file)
+            if log_file is None:
+                self.Function(log_str)
+
+    def Function(self,*msg,**opts):
+        if type(self.log_file).__name__ == 'function': 
+            log_func_arg=get_function_args(self.log_file,mode='all')
+            if 'args' in log_func_arg or 'varargs' in log_func_arg:
+                log_p=True
+                args=log_func_arg.get('args',[])
+                if args and len(args) <= 4 and ('direct' in args or 'log_level' in args or 'func_name' in args):
+                    tmp=[]
+                    for i in range(0,len(args)):
+                        tmp.append(i)
+                    if 'direct' in args:
+                        didx=args.index('direct')
+                        del tmp[didx]
+                        args[didx]=direct
+                    if 'log_level' in args:
+                        lidx=args.index('log_level')
+                        del tmp[lidx]
+                        args[lidx]=log_level
+                    if 'func_name' in args:
+                        lidx=args.index('func_name')
+                        del tmp[lidx]
+                        args[lidx]=func_name
+                    if 'date_format' in args:
+                        lidx=args.index('date_format')
+                        del tmp[lidx]
+                        args[lidx]=date_format
+                    args[tmp[0]]=log_str
+                    self.log_file(*args)
+                elif 'keywards' in log_func_arg:
+                    self.log_file(log_str,direct=direct,log_level=log_level,func_name=func_name,date_format=date_format)
+                elif 'defaults' in log_func_arg:
+                    if 'direct' in log_func_arg['defaults'] and 'log_level' in log_func_arg['defaults']:
+                        self.log_file(log_str,direct=direct,log_level=log_level)
+                    elif 'log_level' in log_func_arg['defaults']:
+                        self.log_file(log_str,log_level=log_level)
+                    elif 'direct' in log_func_arg['defaults']:
+                        self.log_file(log_str,direct=direct)
+                    else:
+                        self.log_file(log_str)
+                else:
+                    self.log_file(log_str)
+
+class HOST:
+    def __init__(self):
+        pass
+
+    def Name(self):
+        return socket.gethostname()
+
+    def NetIp(self,ifname):
+        if os.path.isdir('/sys/class/net/{}'.format(ifname)) is False:
+            return False
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            return socket.inet_ntoa(fcntl.ioctl(
+                s.fileno(),
+                0x8915,  # SIOCGIFADDR
+                struct.pack('256s', ifname[:15])
+            )[20:24])
+        except:
+            try:
+                return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
+            except:
+                return
+
+    def Ip(self,ifname=None,mac=None,default=None):
+        if mac is None : mac=self.Mac()
+        if ifname is None: ifname=get_dev_name_from_mac(mac)
+        ip=self.NetIp(ifname)
+        if ip: return ip
+        return socket.gethostbyname(socket.gethostname())
+
+    def IpmiIp(self,default=None):
+        rt=SHELL().Run('''ipmitool lan print 2>/dev/null| grep "IP Address" | grep -v Source | awk '{print $4}' ''')
+        if rt[0]:return rt[1]
+        return default
+
+    def IpmiMac(self,default=None):
+        rt=SHELL().Run(""" ipmitool lan print 2>/dev/null | grep "MAC Address" | awk """ + """ '{print $4}' """)
+        if rt[0]:return rt[1]
+        return default
+
+    def DevMac(self,ifname,default=None):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
+            return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+        except:
+            return default
+
+    def Mac(self,ip=None,dev=None,default=None):
+        if IP(ip).IsV4():
+            dev_info=self.NetDevice()
+            for dev in dev_info.keys():
+                if self.NetIp(dev) == ip:
+                    return dev_info[dev]['mac']
+        elif dev:
+            return self.DevMac(dev)
+        else:
+            #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+            return CONVERT('%012x' % uuid.getnode()).Str2Mac()
+        return default
+
+    def DevName(self,mac=None,default=None):
+        if mac is None:
+            mac=self.Mac()
+        net_dir='/sys/class/net'
+        if isinstance(mac,str) and os.path.isdir(net_dir):
+            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+            for dev in dirnames:
+                fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
+                if isinstance(fmac,str) and fmac.strip().lower() == mac.lower():
+                    return dev
+        return default
+
+    def NetIP(ifname,default=None):
+        if not os.path.isdir('/sys/class/net/{}'.format(ifname)):
+            return default
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            return socket.inet_ntoa(fcntl.ioctl(
+                s.fileno(),
+                0x8915,  # SIOCGIFADDR
+                struct.pack('256s', ifname[:15])
+            )[20:24])
+        except:
+            try:
+                return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
+            except:
+                pass
+        return default
+
+    def Info(self):
+        return {
+         'host_name':self.Name(),
+         'host_ip':self.Ip(),
+         'host_mac':self.Mac(),
+         'ipmi_ip':self.IpmiIp(),
+         'ipmi_mac':self.IpmiMac(),
+         }
+
+    def NetDevice(self,name=None):
+        net_dev={}
+        net_dir='/sys/class/net'
+        if os.path.isdir(net_dir):
+            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+            if name:
+                if name in dirnames:
+                    drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,name))
+                    if drv is False:
+                        drv='unknown'
+                    else:
+                        drv=drv[0].split(':')[1]
+                    net_dev[name]={
+                        'mac':cat('{}/{}/address'.format(dirpath,name),no_end_newline=True),
+                        'duplex':cat('{}/{}/duplex'.format(dirpath,name),no_end_newline=True),
+                        'mtu':cat('{}/{}/mtu'.format(dirpath,name),no_end_newline=True),
+                        'state':cat('{}/{}/operstate'.format(dirpath,name),no_end_newline=True),
+                        'speed':cat('{}/{}/speed'.format(dirpath,name),no_end_newline=True),
+                        'id':cat('{}/{}/ifindex'.format(dirpath,name),no_end_newline=True),
+                        'driver':drv,
+                        'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,name),no_end_newline=True),
+                        }
+            else:
+                for dev in dirnames:
+                    drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,dev))
+                    if drv is False:
+                        drv='unknown'
+                    else:
+                        drv=drv[0].split(':')[1]
+                    net_dev[dev]={
+                        'mac':cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True),
+                        'duplex':cat('{}/{}/duplex'.format(dirpath,dev),no_end_newline=True),
+                        'mtu':cat('{}/{}/mtu'.format(dirpath,dev),no_end_newline=True),
+                        'state':cat('{}/{}/operstate'.format(dirpath,dev),no_end_newline=True),
+                        'speed':cat('{}/{}/speed'.format(dirpath,dev),no_end_newline=True),
+                        'id':cat('{}/{}/ifindex'.format(dirpath,dev),no_end_newline=True),
+                        'driver':drv,
+                        'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,dev),no_end_newline=True),
+                        }
+            return net_dev
+        else:
+            return False
+
+    def Alive(self,ip,keep=20,interval=3,timeout=1800,default=False,log=None,cancel_func=None):
+        return IP(ip).Online(keep=keep,interval=interval,timeout=timeout,default=default,log=log,cancel_func=cancel_func)[1]
+
+    def Ping(self,ip):
+        return IP(ip).Ping()
+
+class FILE:
+    '''
+    sub_dir  : True (Get files in recuring directory)
+    data     : True (Get File Data)
+    md5sum   : True (Get File's MD5 SUM)
+    link2file: True (Make a real file instead sym-link file)
+    '''
+    def __init__(self,*inp,**opts):
+        self.root_path=opts.get('root_path',None)
+        #if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
+        if self.root_path is None: self.root_path=self.Path()
+        info=opts.get('info',None)
+        if isinstance(info,dict):
+            self.info=info
+        else:
+            self.info={}
+            sub_dir=opts.get('sub_dir',opts.get('include_sub_dir',opts.get('include_dir',False)))#???
+            data=opts.get('data',False)
+            md5sum=opts.get('md5sum',False)
+            link2file=opts.get('link2file',False) # If True then copy file-data of sym-link file, so get it real file instead of sym-link file
+            self.filelist={}
+            for filename in inp:
+                root,flist=self.FileList(filename,sub_dir=sub_dir,dirname=True)
+                if root not in self.filelist: self.filelist[root]=[]
+                self.filelist[root]=self.filelist[root]+flist
+            for ff in self.filelist:
+                self.info.update(self.Get(ff,*self.filelist[ff],data=data,md5sum=md5sum,link2file=link2file))
+
+    def FileList(self,name,sub_dir=False,dirname=False,default=[]):
+        if isinstance(name,str):
+            if name[0] == '/':  # Start from root path
+                if os.path.isfile(name) or os.path.islink(name): return os.path.dirname(name),[os.path.basename(name)]
+                if os.path.isdir(name):
+                    if sub_dir:
+                        rt = []
+                        pwd=os.getcwd()
+                        os.chdir(name)
+                        for base, dirs, files in os.walk('.'): 
+                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
+                            rt.extend(os.path.join(base[2:], f) for f in files)
+                        os.chdir(pwd)
+                        return Path(name),rt
+                    else:
+                        return Path(name),[f for f in os.listdir(name)]
+            elif self.root_path: # start from defined root path
+                #chk_path=os.path.join(self.root_path,name)
+                chk_path=Path(self.root_path,name)
+                if os.path.isfile(chk_path) or os.path.islink(chk_path): return Path(self.root_path),[name]
+                if os.path.isdir(chk_path):
+                    if sub_dir:
+                        rt = []
+                        pwd=os.getcwd()
+                        os.chdir(self.root_path) # Going to defined root path
+                        # Get recuring file list of the name (when current dir then '.')
+                        for base, dirs, files in os.walk(name):
+                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
+                            rt.extend(os.path.join(base[2:], f) for f in files)
+                        os.chdir(pwd) # recover to the original path
+                        return Path(self.root_path),rt 
+                    else:
+                        if name == '.': name=''
+                        return Path(self.root_path),[os.path.join(name,f) for f in os.listdir('{}/{}'.format(self.root_path,name))]
+        return default
+
+    def CdPath(self,base,path):
+        rt=base
+        for ii in path.split('/'):
+            if ii not in rt: return False
+            rt=rt[ii]
+        return rt
+            
+    def FileName(self,filename):
+        if isinstance(filename,str):
+            filename_info=os.path.basename(filename).split('.')
+            if 'tar' in filename_info:
+                idx=filename_info.index('tar')
+            else:
+                idx=-1
+            return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+        return None,None
+
+    def FileType(self,filename,default=False):
+        if not isinstance(filename,str) or not os.path.isfile(filename): return default
+        aa=magic.from_buffer(open(filename,'rb').read(2048))
+        if aa: return aa.split()[0].lower()
+        return 'unknown'
+
+    def GetInfo(self,path=None,*inps):
+        if isinstance(path,str):
+            if not self.info and os.path.exists(path):
+                data={}
+                self.MkInfo(data,path)
+            else:
+                data=self.CdPath(path)
+            if isinstance(data,dict):
+                if not inps and ' i ' in data: return data[' i ']
+                rt=[]
+                for ii in inps:
+                    if ii == 'data' and ii in data: rt.append(data[ii])
+                    if ' i ' in data and ii in data[' i ']: rt.append(data[' i '][ii])
+                return rt
+
+    def Get(self,root_path,*filenames,**opts):
+        data=opts.get('data',False)
+        md5sum=opts.get('md5sum',False)
+        link2file=opts.get('link2file',False)
+        base={}
+
+        def MkInfo(rt,filename=None,**opts):
+            #if not isinstance(rt,dict) or not isinstance(filename,str): return default
+            if ' i ' not in rt: rt[' i ']={}
+            if filename:
+                state=os.stat(filename)
+                rt[' i ']['exist']=True
+                rt[' i ']['size']=state.st_size
+                rt[' i ']['mode']=oct(state.st_mode)[-4:]
+                rt[' i ']['atime']=state.st_atime
+                rt[' i ']['mtime']=state.st_mtime
+                rt[' i ']['ctime']=state.st_ctime
+                rt[' i ']['gid']=state.st_gid
+                rt[' i ']['uid']=state.st_uid
+            if opts: rt[' i '].update(opts)
+
+        def MkPath(base,path,root_path):
+            rt=base
+            chk_dir='{}'.format(root_path)
+            for ii in path.split('/'):
+                if ii:
+                    chk_dir=Path(chk_dir,ii)
+                    if ii not in rt:
+                        rt[ii]={}
+                        if os.path.isdir(chk_dir): MkInfo(rt[ii],chk_dir,type='dir')
+                    rt=rt[ii]
+            return rt
+
+        for filename in filenames:
+            tfilename=Path(root_path,filename)
+            if os.path.exists(tfilename):
+                rt=MkPath(base,filename,root_path)
+                if os.path.islink(tfilename): # it is a Link File
+                    if os.path.isfile(filename): # it is a File
+                        if link2file:
+                            name,ext=self.FileName(tfilename)
+                            _md5=None
+                            if data or md5sum: # MD5SUM or Data
+                                filedata=self.Rw(tfilename,out='byte')
+                                if filedata[0]:
+                                    if data: rt['data']=filedata[1]
+                                    if md5sum: _md5=md5(filedata[1])
+                            MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
+                    else:
+                        MkInfo(rt,filename=tfilename,type='link',dest=os.readlink(tfilename))
+                elif os.path.isdir(tfilename): # it is a directory
+                    MkInfo(rt,tfilename,type='dir')
+                elif os.path.isfile(tfilename): # it is a File
+                    name,ext=self.FileName(tfilename)
+                    _md5=None
+                    if data or md5sum: # MD5SUM or Data
+                        filedata=self.Rw(tfilename,out='byte')
+                        if filedata[0]:
+                            if data: rt['data']=filedata[1]
+                            if md5sum: _md5=md5(filedata[1])
+                    MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
+            else:
+                MkInfo(rt,filename,exist=False)
+        if base:
+            return {root_path:base}
+        return {}
+
+    def GetInfoFile(self,name,roots=None): #get file info dict from Filename path
+        if roots is None: roots=self.FindRP()
+        if isinstance(name,str):
+            for root in roots:
+                rt=self.info.get(root,{})
+                for ii in name.split('/'):
+                    if ii not in rt: break
+                    rt=rt[ii]
+                fileinfo=rt.get(' i ',{})
+                if fileinfo: return fileinfo
+        return False
+
+    def GetList(self,name=None,roots=None): #get file info dict from Filename path
+        if roots is None: roots=self.FindRP()
+        for root in roots:
+            if isinstance(root,str):
+                rt=self.info.get(root,{})
+                if name != root:
+                    rt=self.CdPath(rt,name)
+                if isinstance(rt,dict):
+                    for ii in rt:
+                        if ii == ' i ': continue
+                        if rt[ii].get(' i ',{}).get('type') == 'dir':
+                            print(ii+'/')
+                        else:
+                            print(ii)
+        return False
+
+    def GetFileList(self,name=None,roots=None): #get file info dict from Filename path
+        if roots is None: roots=self.FindRP()
+        for root in roots:
+            if isinstance(root,str):
+                rt=self.info.get(root,{})
+                if name != root:
+                    rt=self.CdPath(rt,name)
+                if isinstance(rt,dict):
+                    for ii in rt:
+                        if ii == ' i ': continue
+                        if rt[ii].get(' i ',{}).get('type') == 'dir': continue
+                        print(ii)
+        return False
+
+    def ExecFile(self,filename,bin_name=None,default=None,work_path='/tmp'):
+        # check the filename is excutable in the system bin file then return the file name
+        # if compressed file then extract the file and find bin_name file in the extracted directory
+        #   and found binary file then return then binary file path
+        # if filename is excutable file then return the file path
+        # if not found then return default value
+        exist=self.GetInfoFile(filename)
+        if exist:
+            if exist['type'] in ['elf'] and exist['mode'] == 33261:return filename
+            if self.Extract(filename,work_path=work_path):
+                if bin_name:
+                    rt=[]
+                    for ff in self.Find(work_path,filename=bin_name):
+                        if self.Info(ff).get('mode') == 33261:
+                            rt.append(ff)
+                    return rt
+        else:
+            if find_executable(filename): return filename
+        return default
+
+    def Basename(self,filename,default=False):
+        if isinstance(filename,str):return os.path.basename(filename)
+        return default
+        
+    def Dirname(self,filename,bin_name=None,default=False):
+        if not isinstance(filename,str): return default
+        if bin_name is None: return os.path.dirname(filename)
+        if not isinstance(bin_name,str): return default
+        bin_info=bin_name.split('/')
+        bin_n=len(bin_info)
+        filename_info=filename.split('/')
+        filename_n=len(filename_info)
+        for ii in range(0,bin_n):
+            if filename_info[filename_n-1-ii] != bin_info[bin_n-1-ii]: return default
+        return '/'.join(filename_info[:-bin_n])
+
+    def Find(self,filename,default=[]):
+        if not isinstance(filename,str): return default
+        filename=os.path.basename(filename)
+        if os.path.isdir(self.root_path):
+            rt = []
+            for base, dirs, files in os.walk(self.root_path):
+                found = fnmatch.filter(files, filename)
+                rt.extend(os.path.join(base, f) for f in found)
+            return rt
+        return default
+ 
+#    def Decompress(self,filename,work_path='/tmp',info={},del_org_file=False):
+#        if not info and isinstance(filename,str) and os.path.isfile(filename): info=self.Get(filename)
+#        filetype=info.get('type',None)
+#        fileext=info.get('ext',None)
+#        if filetype and fileext:
+#            # Tar stuff
+#            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
+#                tf=tarfile.open(filename)
+#                tf.extractall(work_path)
+#                tf.close()
+#            elif fileext in ['zip'] and filetype in ['compress']:
+#                with zipfile.ZipFile(filename,'r') as zf:
+#                    zf.extractall(work_path)
+#            if del_org_file: os.unline(filename)
+#            return True
+#        return False
+
+    def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={}):
+        if isinstance(name,str):
+            if data is None: # Read from file
+                if os.path.isfile(name):
+                    try:
+                        if read in ['firstread','firstline','first_line','head','readline']:
+                            with open(name,'rb') as f:
+                                data=f.readline()
+                        else:
+                            with open(name,'rb') as f:
+                                data=f.read()
+                        if out in ['string','str']:
+                            return True,CONVERT(data).Str()
+                        else:
+                            return True,data
+                    except:
+                        pass
+                return False,'File({}) not found'.format(name)
+            else: # Write to file
+                file_path=os.path.dirname(name)
+                if not file_path or os.path.isdir(file_path): # current dir or correct directory
+#                    try:
+                        if append:
+                            with open(name,'ab') as f:
+                                f.write(CONVERT(data).Bytes())
+                        else:
+                            with open(name,'wb') as f:
+                                f.write(CONVERT(data).Bytes())
+                            if isinstance(finfo,dict) and finfo: self.SetIdentity(name,**finfo)
+                            #mode=self.Mode(mode)
+                            #if mode: os.chmod(name,int(mode,base=8))
+                            #if uid and gid: os.chown(name,uid,gid)
+                            #if mtime and atime: os.utime(name,(atime,mtime))# Time update must be at last order
+                        return True,None
+#                    except:
+#                        pass
+                return False,'Directory({}) not found'.format(file_path)
+        return False,'Unknown type({}) filename'.format(name)
+
+    def Mode(self,val,default=False):
+        if isinstance(val,int):
+            #if val >= 32768:  # stat
+            if val > 511:
+                return oct(val)[-4:]
+            elif val > 63:    # mask
+                return oct(val)
+        elif isinstance(val,str):
+            try:
+                cnt=len(val)
+                val=int(val)
+                if cnt >=3 and cnt <=4 and val >= 100 and val <= 777: # string type of permission number 
+                    return '%04d'%(val)
+                    #return int(val,8)
+            except:           # permission string
+                if len(val) != 9: return 'Bad permission length'
+                if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]): return 'Bad permission format (read-write)'
+                if not all(val[k] in 'xs-' for k in [2,5]): return 'Bad permission format (execute)'
+                if val[8] not in 'xt-': return 'Bad permission format (execute other)'
+
+                m = 0
+
+                if val[0] == 'r': m |= stat.S_IRUSR
+                if val[1] == 'w': m |= stat.S_IWUSR
+                if val[2] == 'x': m |= stat.S_IXUSR
+                if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
+
+                if val[3] == 'r': m |= stat.S_IRGRP
+                if val[4] == 'w': m |= stat.S_IWGRP
+                if val[5] == 'x': m |= stat.S_IXGRP
+                if val[5] == 's': m |= stat.S_IXGRP | stat.S_ISGID
+
+                if val[6] == 'r': m |= stat.S_IROTH
+                if val[7] == 'w': m |= stat.S_IWOTH
+                if val[8] == 'x': m |= stat.S_IXOTH
+                if val[8] == 't': m |= stat.S_IXOTH | stat.S_ISVTX
+                return oct(m)
+        return default
+
+    # Find filename's root path and filename according to the db
+    def FindRP(self,filename=None,default=None):
+        if isinstance(filename,str) and self.info:
+            info_keys=list(self.info.keys())
+            info_num=len(info_keys)
+            if filename[0] != '/': 
+                if info_num == 1: return info_keys[0]
+                return self.root_path
+            aa='/'
+            filename_a=filename.split('/')
+            for ii in range(1,len(filename_a)):
+                aa=Path(aa,filename_a[ii]) 
+                if aa in info_keys:
+                    remain_path='/'.join(filename_a[ii+1:])
+                    if info_num == 1: return aa,remain_path
+                    # if info has multi root path then check filename in the db of each root_path
+                    if self.GetInfoFile(remain_path,aa): return aa,remain_path
+        elif self.info:
+            return list(self.info.keys())
+        return default
+            
+    def ExtractRoot(self,**opts):
+        root_path=opts.get('root_path',[])
+        dirpath=opts.get('dirpath')
+        sub_dir=opts.get('sub_dir',False)
+        if isinstance(root_path,str):
+            root_path=[root_path]
+        #if not os.path.isdir(opts.get('dest')): os.makedirs(opts.get('dest'))
+        if self.Mkdir(opts.get('dest'),force=True) is False: return False
+        for rp in root_path:
+            new_dest=opts.get('dest')
+            if dirpath:
+                rt=self.CdPath(self.info[rp],dirpath)
+                if rt is False: 
+                    print('{} not found'.format(dirpath))
+                    return
+            else:
+                dirpath=''
+                rt=self.info[rp]
+
+            rinfo=rt.get(' i ',{})
+            rtype=rinfo.get('type')
+            #dir:directory,None:root directory
+            if rtype not in ['dir',None]: # File / Link
+                mydest=os.path.dirname(dirpath)
+                myname=os.path.basename(dirpath)
+                if mydest:
+                    mydest=os.path.join(new_dest,mydest)
+                else:
+                    mydest=new_dest
+                #if not os.path.isdir(mydest): os.makedirs(mydest)
+                if self.Mkdir(mydest,force=True,info=rinfo) is False: return False
+                if rtype == 'link':
+                    os.symlink(rinfo['dest'],os.path.join(mydest,myname))
+                    self.SetIdentity(os.path.join(mydest,myname),**rinfo)
+                else: # File
+                    if 'data' in rt: self.Rw(Path(mydest,myname),data=rt['data'],finfo=rinfo)
+                    else: print('{} file have no data'.format(dirpath))
+#                self.SetIdentity(os.path.join(mydest,myname),**rinfo)
+            else: # directory or root DB
+                for ii in rt:
+                    if ii == ' i ': continue
+                    finfo=rt[ii].get(' i ',{})
+                    ftype=finfo.get('type')
+                    if ftype == 'dir': 
+                        mydir=os.path.join(new_dest,ii)
+                        self.Mkdir(mydir,force=True,info=finfo)
+                        #self.SetIdentity(mydir,**finfo)
+                        # Sub directory
+                        if sub_dir: self.ExtractRoot(dirpath=os.path.join(dirpath,ii),root_path=rp,dest=os.path.join(new_dest,ii),sub_dir=sub_dir)
+                        #if dmtime and datime: os.utime(mydir,(datime,dmtime)) # Time update must be at last order
+                    elif ftype == 'link':
+                        iimm=os.path.join(new_dest,ii)
+                        if not os.path.exists(iimm):
+                            os.symlink(finfo['dest'],iimm)
+                            self.SetIdentity(iimm,**finfo)
+                    else: # File
+                        if 'data' in rt[ii]: self.Rw(os.path.join(new_dest,ii),data=rt[ii]['data'],finfo=finfo)
+                        else: print('{} file have no data'.format(ii))
+
+    def Mkdir(self,path,force=False,info={}):
+        if not isinstance(path,str): return None
+        if os.path.exists(path): return None
+        if force:
+            try:
+                os.makedirs(path)
+                if isinstance(info,dict) and info: self.SetIdentity(path,**info)
+            except:
+                return False
+        else:
+            try:
+                os.mkdir(path)
+                if isinstance(info,dict) and info: self.SetIdentity(path,**info)
+            except:
+                return False
+        return True
+
+    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
+        if filename is None:
+            filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
+        dir_name=os.path.dirname(filename)
+        file_name=os.path.basename(filename)
+        name, ext = os.path.splitext(file_name)
+        if type(suffix) is not str:
+            suffix='-XXXXXXXX'
+        num_type='.%0{}d'.format(len(suffix)-1)
+        if dir_name == '.':
+            dir_name=os.path.dirname(os.path.realpath(__file__))
+        elif dir_name == '':
+            dir_name=base_dir
+        def new_name(name,ext=None,ext2=None):
+            if ext:
+                if ext2:
+                    return '{}{}{}'.format(name,ext,ext2)
+                return '{}{}'.format(name,ext)
+            if ext2:
+                return '{}{}'.format(name,ext2)
+            return name
+        def new_dest(dest_dir,name,ext=None):
+            if os.path.isdir(dest_dir) is False:
+                return False
+            i=0
+            new_file=new_name(name,ext)
+            while True:
+                rfile=os.path.join(dest_dir,new_file)
+                if os.path.exists(rfile) is False:
+                    return rfile
+                if suffix:
+                    if '0' in suffix or 'n' in suffix or 'N' in suffix:
+                        if suffix[-1] not in ['0','n']:
+                            new_file=new_name(name,num_type%i,ext)
+                        else:
+                            new_file=new_name(name,ext,num_type%i)
+                    elif 'x' in suffix or 'X' in suffix:
+                        rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
+                        if suffix[-1] not in ['X','x']:
+                            new_file=new_name(name,rnd_str,ext)
+                        else:
+                            new_file=new_name(name,ext,rnd_str)
+                    else:
+                        if i == 0:
+                            new_file=new_name(name,ext,'.{}'.format(suffix))
+                        else:
+                            new_file=new_name(name,ext,'.{}.{}'.format(suffix,i))
+                else:
+                    new_file=new_name(name,ext,'.{}'.format(i))
+                i+=1
+        new_dest_file=new_dest(dir_name,name,ext)
+        if opt in ['file','f']:
+           os.mknode(new_dest_file)
+        elif opt in ['dir','d','directory']:
+           os.mkdir(new_dest_file)
+        else:
+           return new_dest_file
+
+    def SetIdentity(self,path,**opts):
+        if os.path.exists(path):
+            chmod=self.Mode(opts.get('mode',None))
+            uid=opts.get('uid',None)
+            gid=opts.get('gid',None)
+            atime=opts.get('atime',None)
+            mtime=opts.get('mtime',None)
+            try:
+                if chmod: os.chmod(path,int(chmod,base=8))
+                if uid and gid: os.chown(path,uid,gid)
+                if mtime and atime: os.utime(path,(atime,mtime)) # Time update must be at last order
+            except:
+                pass
+
+    def Extract(self,*path,**opts):
+        dest=opts.get('dest',None)
+        root_path=opts.get('root_path',None)
+        sub_dir=opts.get('sub_dir',False)
+        if dest is None: return False
+        if not path: 
+            self.ExtractRoot(root_path=self.FindRP(),dest=dest,sub_dir=sub_dir)
+        else:
+            for filepath in path:
+                fileRF=self.FindRP(filepath)
+                if isinstance(fileRF,tuple):
+                    root_path=[fileRF[0]]
+                    filename=fileRF[1]
+                    self.ExtractRoot(root_path=root_path,dirpath=filename,dest=dest,sub_dir=sub_dir)
+                elif isinstance(fileRF,list):
+                    self.ExtractRoot(root_path=fileRF,dest=dest,sub_dir=sub_dir)
+
+    def Save(self,filename):
+        pv=b'3'
+        if PyVer(2): pv=b'2'
+        #self.Rw(filename,data=pv+bz2.compress(pickle.dumps(self.info,protocol=2)))
+        self.Rw(filename,data=pv+Compress(pickle.dumps(self.info,protocol=2),mode='lz4'))
+
+    def Open(self,filename):
+        if not os.path.isfile(filename):
+            print('{} not found'.format(filename))
+            return False
+        data=self.Rw(filename)
+        if data[0]:
+            pv=data[1][0]
+            if pv == '3' and PyVer(2):
+                print('The data version is not matched. Please use Python3')
+                return False
+            # decompress data
+            try:
+                #dcdata=bz2.BZ2Decompressor().decompress(data[1][1:])
+                dcdata=Decompress(data[1][1:],mode='lz4')
+            except:
+                print('This is not KFILE format')
+                return False
+            try:
+                self.info=pickle.loads(dcdata) # Load data
+            except:
+                try:
+                    self.info=pickle.loads(dcdata,encoding='latin1') # Convert 2 to 3 format
+                except:
+                    print('This is not KFILE format')
+                    return False
+        else:
+            print('Can not read {}'.format(filename))
+            return False
+
+    def Cd(self,data,path,sym='/'):
+        if Type(data,'module') and data == os:
+            if isinstance(path,str):
+                data.chdir(path)
+                return data
+        else:
+            if isinstance(path,int): path='{}'.format(path)
+            for ii in path.split(sym):
+                if isinstance(data,dict):
+                    if ii in data:
+                        data=data[ii]
+                elif isinstance(data,(list,tuple)):
+                    if not isinstance(ii,str) or not ii.isdigit(): continue
+                    ii=int(ii)
+                    if len(data) > ii:
+                        data=data[ii]
+            return data
+
+    def Path(self,filanem=None):
+        if filanem:
+            return os.path.dirname(os.path.realpath(filename))
+        return os.path.dirname(os.path.realpath((inspect.stack()[-1])[1]))
+        #if '__file__' in globals() : return os.path.dirname(os.path.realpath(__file__))
+
+    def Rm(self,filelist):
+        if isinstance(filelist,str):
+            filelist=filelist.split(',')
+        if isinstance(filelist,(list,tuple)):
+            for ii in list(filelist):
+                if os.path.isfile(ii):
+                    os.unlink(ii)
+                else:
+                    print('not found {0}'.format(ii))
+
+class WEB:
+    def __init__(self,request=None):
+        if request:
+            self.requests=request
+        else:
+            self.requests=requests
+
+    def Session(self):
+        return self.requests.session._get_or_create_session_key()
+
+    def ClientIp(self):
+        x_forwarded_for = self.requests.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = self.requests.META.get('REMOTE_ADDR')
+        return ip
+
+    def ServerIp(self):
+        return self.requests.get_host().split(':')
+
+    def Request(self,host_url,**opts):
+        # remove SSL waring error message (test)
+        self.requests.packages.urllib3.disable_warnings()
+
+        mode=opts.get('mode','get')
+        max_try=opts.get('max_try',3)
+        auth=opts.get('auth',None)
+        user=opts.get('user',None)
+        ip=opts.get('ip',None)
+        port=opts.get('port',None)
+        passwd=opts.get('passwd',None)
+        timeout=opts.get('timeout',None)
+        https=opts.get('https',False)
+        verify=opts.get('verify',True)
+        request_url=opts.get('request_url',None)
+        log=opts.get('log',None)
+        log_level=opts.get('log_level',8)
+        logfile=opts.get('logfile',None)
+        ping=opts.get('ping',False)
+        if https:
+            verify=False
+        if auth is None and user and passwd:
+            if type(user) is not str or type(passwd) is not str:
+                printf("user='<user>',passwd='<pass>' : format(each string)",dsp='e',log=log,log_level=log_level,logfile=logfile)
+                return False,"user='<user>',passwd='<pass>' : format(each string)"
+            auth=(user,passwd)
+        if auth and type(auth) is not tuple:
+            printf("auth=('<user>','<pass>') : format(tuple)",dsp='e',log=log,log_level=log_level,logfile=logfile)
+            return False,"auth=('<user>','<pass>') : format(tuple)"
+        data=opts.get('data',None) # dictionary format
+        if data and type(data) is not dict:
+            printf("data={'<key>':'<val>',...} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
+            return False,"data={'<key>':'<val>',...} : format(dict)"
+        json_data=opts.get('json',None) # dictionary format
+        if json_data and type(json_data) is not dict:
+            printf("data={'<key>':'<val>',...} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
+            return False,"json={'<key>':'<val>',...} : format(dict)"
+        files=opts.get('files',None) # dictionary format
+        if files and type(files) is not dict:
+            printf("files = { '<file parameter name>': (<filename>, open(<filename>,'rb'))} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
+            return False,"files = { '<file parameter name>': (<filename>, open(<filename>,'rb'))} : format(dict)"
+        if type(host_url) is str:
+            chk_dest=re.compile('http[s]://([a-zA-Z0-9.]*)[:/]').findall(host_url)
+            if len(chk_dest): chk_dest=chk_dest[0]
+            if host_url.find('https://') == 0:
+                verify=False
+        elif ip:
+            chk_dest='{}'.format(ip)
+            if verify:
+                host_url='http://{}'.format(ip)
+            else:
+                host_url='https://{}'.format(ip)
+            if port:
+                host_url='{}:{}'.format(host_url,port)
+            if request_url:
+                host_url='{}/{}'.format(host_url,request_url)
+        else:
+            return False,'host_url or ip not found'
+        if ping and chk_dest:
+            if not ping(chk_dest,timeout_sec=3):
+                return False,'Can not access to destination({})'.format(chk_dest)
+        ss = self.requests.Session()
+        for j in range(0,max_try):
+            if mode == 'post':
+                try:
+                    r =ss.post(host_url,verify=verify,auth=auth,data=data,files=files,timeout=timeout,json=json_data)
+                    return True,r
+                except:
+                    pass
+            else:
+                try:
+                    r =ss.get(host_url,verify=verify,auth=auth,data=data,files=files,timeout=timeout,json=json_data)
+                    return True,r
+                except:
+                    pass
+            #except requests.exceptions.RequestException as e:
+            host_url_a=host_url.split('/')[2]
+            server_a=host_url_a.split(':')
+            if len(server_a) == 1:
+                printf("Server({}) has no response (wait {}/{} (10s))".format(server_a[0],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
+            else:
+                printf("Server({}:{}) has no response (wait {}/{} (10s))".format(server_a[0],server_a[1],j,max_try),dsp='e',log=log,log_level=log_level,logfile=logfile)
+            TIME().Sleep(10)
+        return False,'TimeOut'
+
+    def str2url(self,string):
+        if string is None: return ''
+        if type(string) is str:
+            return string.replace('+','%2B').replace('?','%3F').replace('/','%2F').replace(':','%3A').replace('=','%3D').replace(' ','+')
+        return string
+
+
+####################################STRING##################################################
+def Cut(src,head_len=None,body_len=None,new_line='\n',out=str):
+    if not isinstance(src,str): return False
+#    if not isinstance(src,str):
+#       src='''{}'''.format(src)
+    source=src.split(new_line)
+    if len(source) == 1 and not head_len or head_len >= len(src):
+       return [src]
+    rt=[]
+    for src_idx in range(0,len(source)):
+        str_len=len(source[src_idx])
+
+        if not body_len:
+            rt=rt+[source[src_idx][i:i + head_len] for i in range(0, str_len, head_len)]
+        else:
+            if src_idx == 0:
+                rt.append(source[src_idx][0:head_len]) # Take head
+                if str_len > head_len:
+                    rt=rt+[source[src_idx][head_len:][i:i + body_len] for i in range(0, str_len-head_len, body_len)]
+                ## Cut body
+                #string_tmp=self.src[head_len:]
+                #string_tmp_len=len(string_tmp)
+                #for i in range(0, int(string_tmp_len/body_len)+1):
+                #    if (i+1)*body_len > string_tmp_len:
+                #       rt.append(string_tmp[body_len*i:])
+                #    else:
+                #       rt.append(string_tmp[body_len*i:(i+1)*body_len])
+            else:
+                rt=rt+[source[src_idx][i:i + body_len] for i in range(0, str_len, body_len)]
+    if rt and out in ['str',str]: return new_line.join(rt)
+    return rt
+
+def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,out_format=list):
+    rc=[]
+    if not isinstance(string,str):
+        string='{0}'.format(string)
+    if new_line:
+        string_a=string.split(new_line)
+    else:
+        string_a=[string]
+    if max_len is None or (max_len is None and sub_len is None):
+        if new_line and out_format in [str,'str','string']:
+            return string
+        return [string]
+    max_num=len(string_a)
+    space=''
+    if sub_len and front_space:
+        for ii in range(0,max_len-sub_len):
+            space=space+' '
+    elif sub_len is None:
+        sub_len=max_len
+    for ii in range(0,max_num):
+        str_len=len(string_a[ii])
+        if max_num == 1:
+            if max_len is None or max_len >= str_len:
+                if new_line and out_format in [str,'str','string']:
+                    return string_a[ii]
+                return [string_a[ii]]
+            if sub_len is None:
+                rc=[string_a[i:i + max_len] for i in range(0, str_len, max_len)]
+                if new_line and out_format in [str,'str','string']:
+                    return new_line.join(rc)
+                return rc
+        rc.append(string_a[ii][0:max_len])
+        string_tmp=string_a[ii][max_len:]
+        string_tmp_len=len(string_tmp)
+        if string_tmp_len > 0:
+            for i in range(0, (string_tmp_len//sub_len)+1):
+                if (i+1)*sub_len > string_tmp_len:
+                    rc.append(space+string_tmp[sub_len*i:])
+                else:
+                    rc.append(space+string_tmp[sub_len*i:(i+1)*sub_len])
+#        else:
+#            rc.append('')
+    if new_line and out_format in [str,'str','string']:
+        return new_line.join(rc)
+    return rc
+
+def Path(*inp,**opts):
+    sym=opts.get('sym','/')
+    out=opts.get('out','str')
+    if inp:
+        full_path=[]
+        if isinstance(inp[0],str):
+            root_a=inp[0].split(sym)
+            if len(root_a):
+                if root_a[0] == '~': 
+                    full_path=os.environ['HOME'].split(sym)
+                else:
+                    full_path=[root_a[0]]
+            for zz in range(1,len(root_a)):
+                if full_path and not root_a[zz]: continue
+                full_path.append(root_a[zz])
+        for ii in inp[1:]:
+            if isinstance(ii,str):
+                for zz in ii.split(sym):
+                    if full_path and not zz: continue
+                    if zz == '.': continue
+                    if full_path and full_path[-1] != '..' and zz == '..':
+                        del full_path[-1]
+                        continue
+                    full_path.append(zz)
+        if full_path:
+            if out in [str,'str']:return sym.join(full_path)
+            return full_path
+    return os.path.dirname(os.path.abspath(__file__)) # Not input then get current path
+
+####################################KEYS##################################################
+def Get(*inps,**opts):
+    key=None
+    if len(inps) >= 2:
+        src=inps[0]
+        key=inps[1:]
+    elif len(inps) == 1:
+        src=inps[0]
+        key=opts.get('key',None)
+        if isinstance(key,list):
+            key=tuple(key)
+        elif key is not None:
+            key=(key,)
+        else: #None key
+            return GET(src).Value(**opts)
+    return GET(src).Value(*key,**opts)
+
+def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error','error','erro','ERRO',{'ERR'}],'WARN':['Warn','warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}],'TOUT':['timeout','TimeOut','time out','Time Out','TMOUT','TOUT',{'TOUT'}],'REVD':['cancel','Cancel','CANCEL','REV','REVD','Revoked','revoked','revoke','Revoke',{'REVD'}],'LOST':['lost','connection lost','Connection Lost','Connection lost','CONNECTION LOST',{'LOST'}]},default=False):
+    def trans(irt):
+        type_irt=type(irt)
+        for ii in rtd:
+            for jj in rtd[ii]:
+                if type(jj) == type_irt and ((type_irt is str and jj.lower() == irt.lower()) or jj == irt):
+                    return ii
+        return 'UNKN'
+    rtc=Get(rt,'0|rc',out='raw',err='ignore',check=(list,tuple,dict))
+    nrtc=trans(rtc)
+    if chk != '_':
+        if not isinstance(chk,list): chk=[chk]
+        for cc in chk:
+            if trans(cc) == nrtc:
+                return True
+            if nrtc == 'UNKN' and default == 'org':
+                return rtc
+        if default == 'org': return rt
+        return default
+    return nrtc
+
+def Delete(*inps,**opts):
+    if len(inps) >= 2:
+        obj=inps[0]
+        keys=inps[1:]
+    elif len(inps) == 1:
+        obj=inps[0]
+        keys=opts.get('key',None)
+        if isinstance(keys,list):
+            keys=tuple(keys)
+        elif keys is not None:
+            keys=(keys,)
+    default=opts.get('default',None)
+    _type=opts.get('type','index')
+   
+    if isinstance(obj,(list,tuple)):
+        nobj=len(obj)
+        rt=[]
+        if _type == 'index':
+            nkeys=Abs(*tuple(keys),obj=obj,out=list)
+            for i in range(0,len(obj)):
+                if i not in nkeys:
+                    rt.append(obj[i])
+        else:
+            for i in obj:
+                if i not in keys:
+                    rt.append(i)
+        return rt
+    elif isinstance(obj,dict):
+        if isinstance(keys,(list,tuple,dict)):
+            for key in keys:
+                obj.pop(key,default)
+        else:
+            obj.pop(keys,default)
+        return obj
+    elif isinstance(obj,str):
+        nkeys=[]
+        for i in keys:
+            if isinstance(i,(tuple,str,int)):
+                tt=Abs(i,obj=obj,out=list)
+                if tt:
+                    nkeys=nkeys+tt
+        rt=''
+        for i in range(0,len(obj)):
+            if i in nkeys:
+                continue
+            rt=rt+obj[i]
+        return rt
+    return default
+
+def Replace(src,replace_what,replace_to,default=None):
+    if isinstance(src,str):
+        if replace_what[-1] == '$' or replace_what[0] == '^':
+            return re.sub(replace_what, replace_to, src)
+        else:
+            head, _sep, tail = src.rpartition(replace_what)
+            return head + replace_to + tail
+    if default == {'org'}: return src
+    return default
+
+def Insert(src,*inps,**opts):
+    start=opts.pop('at',0)
+    default=opts.pop('default',False)
+    err=opts.pop('err',False)
+    force=opts.pop('force',False)
+    uniq=opts.pop('uniq',False)
+    if isinstance(src,(list,tuple,str)):
+        tuple_out=False
+        if isinstance(src,tuple) and force:
+            src=list(src)
+            tuple_out=True
+        if uniq:
+            new=[]
+            for ii in inps:
+                if ii not in src:
+                    new.append(ii)
+            inps=tuple(new)
+        if isinstance(at,str):
+            if at in ['start','first']: src=list(inps)+src
+            if at in ['end','last']: src=src+list(inps)
+        elif len(src) == 0:
+            src=list(inps)
+        elif isinstance(start,int) and len(src) > start:
+            src=src[:start]+list(inps)+src[start:]
+        else:
+            if err:
+                return default
+            src=src+list(inps)
+        if tuple_out: return tuple(src)
+    elif isinstance(src,dict):
+        for ii in inps:
+            if isinstance(ii,dict):
+                 src.update(ii)
+        if opts:
+            src.update(opts)
+    return src
+
+def FirstKey(src,default=None):
+    if src:
+        if isinstance(src,(list,tuple)): return 0
+        try:
+            return next(iter(src))
+        except:
+            return default
+    return default
+
+####################################FUNCTION##################################################
+def argtype(arg,want='_',get_data=['_']):
+    type_arg=type(arg)
+    if want in get_data:
+        if type_arg.__name__ == 'Request':
+            return arg.method.lower()
+        return type_arg.__name__.lower()
+    if type(want) is str:
+        if type_arg.__name__ == 'Request':
+            if want.upper() == 'REQUEST' or want.upper() == arg.method:
+                return True
+            return False
+        else:
+            if type_arg.__name__.lower() == want.lower():
+                return True
+    else:
+        if type_arg == want:
+            return True
+    return False
+
+def get_function_name():
+    return traceback.extract_stack(None, 2)[0][2]
+
+def get_pfunction_name():
+    return traceback.extract_stack(None, 3)[0][2]
+
+def get_function_args(func,mode='defaults'):
+    rc={}
+    args, varargs, keywords, defaults = inspect.getargspec(func)
+    if defaults is not None:
+        defaults=dict(zip(args[-len(defaults):], defaults))
+        del args[-len(defaults):]
+        rc['defaults']=defaults
+    if args:
+        rc['args']=args
+    if varargs:
+        rc['varargs']=varargs
+    if keywords:
+        rc['keywards']=keywords
+    if mode in ['*','all']:
+        return rc
+    if mode in rc:
+        return rc[mode]
+
+def get_function_list(objName=None,obj=None):
+    aa={}
+    if obj is None and objName is not None:
+       obj=sys.modules[objName]
+    if obj is not None:
+        for name,fobj in inspect.getmembers(obj):
+            if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
+                aa.update({name:fobj})
+    return aa
+
+def get_caller_fcuntion_name(detail=False):
+    try:
+        dep=len(inspect.stack())-2
+        if detail:
+            return sys._getframe(dep).f_code.co_name,sys._getframe(dep).f_lineno,sys._getframe(dep).f_code.co_filename
+        else:
+            name=sys._getframe(dep).f_code.co_name
+            if name == '_bootstrap_inner' or name == '_run_code':
+                return sys._getframe(3).f_code.co_name
+            return name
+    except:
+        return False
+
+
+def is_function(find,src=None):
+    if src is None:
+        if isinstance(find,str):
+            find=sys.modules.get(find)
+        return inspect.isfunction(find)
+    aa=[]
+    if not isinstance(find,str): find=find.__name__
+    if isinstance(src,str):
+        src=sys.modules.get(src)
+    if inspect.ismodule(src) or inspect.isclass(src):
+        for name,fobj in inspect.getmembers(src):
+            if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
+                aa.append(name)
+    else:
+        for name,fobj in inspect.getmembers(src):
+            if inspect.ismethod(fobj): # inspect.ismodule(obj) check the obj is module or not
+                aa.append(name)
+    if find in aa: return True
+    return False
+
+def code_error(email_func=None,email=None,email_title=None,email_server=None,log=None,log_msg='',default=None):
+    e=sys.exc_info()[0]
+    er=traceback.format_exc()
+    if log_msg:
+        log_msg='{}\n\n*SYS ERR:\n{}\n\n*FORM ERR:\n{}'.format(log_msg,e,er)
+    else:
+        log_msg='*SYS ERR:\n{}\n\n*FORM ERR:\n{}'.format(e,er)
+    if log: log('\n!!ERROR!!: {}'.format(log_msg),log_level=1)
+    if email_func and email and email_title:
+        a=email_func(email,email_title,log_msg,dj_ip=email_server)
+    TIME().Sleep(5)
+    return default
+
+
+def printf(*msg,**opts):
+    log_p=False
+    log=opts.get('log',None)
+    log_level=opts.get('log_level',8)
+    dsp=opts.get('dsp','a')
+    func_name=opts.get('func_name',None)
+    date=opts.get('date',False)
+    date_format=opts.get('date_format','[%m/%d/%Y %H:%M:%S]')
+    intro=opts.get('intro',None)
+    caller=opts.get('caller',False)
+    caller_detail=opts.get('caller_detail',False)
+    msg=list(msg)
+    direct=opts.get('direct',False)
+    color=opts.get('color',None)
+    color_db=opts.get('color_db',{'blue': 34, 'grey': 30, 'yellow': 33, 'green': 32, 'cyan': 36, 'magenta': 35, 'white': 37, 'red': 31})
+    bg_color=opts.get('bg_color',None)
+    bg_color_db=opts.get('bg_color_db',{'cyan': 46, 'white': 47, 'grey': 40, 'yellow': 43, 'blue': 44, 'magenta': 45, 'red': 41, 'green': 42})
+    attr=opts.get('attr',None)
+    attr_db=opts.get('attr_db',{'reverse': 7, 'blink': 5,'concealed': 8, 'underline': 4, 'bold': 1})
+    syslogd=opts.get('syslogd',None)
+
+    if direct:
+        new_line=opts.get('new_line','')
+    else:
+        new_line=opts.get('new_line','\n')
+    logfile=opts.get('logfile',None)
+    logfile_type=type(logfile)
+    if logfile_type is str:
+        logfile=logfile.split(',')
+    elif logfile_type in [list,tuple]:
+        logfile=list(logfile)
+    else:
+        logfile=[]
+    for ii in msg:
+        if type(ii) is str and ':' in ii:
+            logfile_list=ii.split(':')
+            if logfile_list[0] in ['log_file','logfile']:
+                if len(logfile_list) > 2:
+                    for jj in logfile_list[1:]:
+                        logfile.append(jj)
+                else:
+                    logfile=logfile+logfile_list[1].split(',')
+                msg.remove(ii)
+    if os.getenv('ANSI_COLORS_DISABLED') is None and (color or bg_color or attr):
+        reset='''\033[0m'''
+        fmt_msg='''\033[%dm%s'''
+        if color and color in color_db:
+            msg=fmt_msg % (color_db[color],msg)
+        if bg_color and bg_color in bg_color_db:
+            msg=fmt_msg % (color_db[bg_color],msg)
+        if attr and attr in attr_db:
+            msg=fmt_msg % (attr_db[attr],msg)
+        msg=msg+reset
+
+    # Make a Intro
+    intro_msg=''
+    if date and syslogd is False:
+        intro_msg='[{0}] '.format(datetime.now().strftime(date_format))
+    if caller:
+        call_name=get_caller_fcuntion_name(detail=caller_detail)
+        if call_name:
+            if len(call_name) == 3:
+                intro_msg=intro_msg+'{}({}:{}): '.format(call_name[0],call_name[1],call_name[2])
+            else:
+                intro_msg=intro_msg+'{}(): '.format(call_name)
+    if intro is not None:
+        intro_msg=intro_msg+intro+': '
+
+    # Make a Tap
+    tap=''
+    for ii in range(0,len(intro_msg)):
+        tap=tap+' '
+
+    # Make a msg
+    msg_str=''
+    for ii in msg:
+        if msg_str:
+            if new_line:
+                msg_str=msg_str+new_line+tap+'{}'.format(ii)
+            else:
+                msg_str=msg_str+'{}'.format(ii)
+        else:
+            msg_str=intro_msg+'{}'.format(ii)
+
+    # save msg to syslogd
+    if syslogd:
+        if syslogd in ['INFO','info']:
+            syslog.syslog(syslog.LOG_INFO,msg)
+        elif syslogd in ['KERN','kern']:
+            syslog.syslog(syslog.LOG_KERN,msg)
+        elif syslogd in ['ERR','err']:
+            syslog.syslog(syslog.LOG_ERR,msg)
+        elif syslogd in ['CRIT','crit']:
+            syslog.syslog(syslog.LOG_CRIT,msg)
+        elif syslogd in ['WARN','warn']:
+            syslog.syslog(syslog.LOG_WARNING,msg)
+        elif syslogd in ['DBG','DEBUG','dbg','debug']:
+            syslog.syslog(syslog.LOG_DEBUG,msg)
+        else:
+            syslog.syslog(msg)
+
+    # Save msg to file
+    if type(logfile) is str:
+        logfile=logfile.split(',')
+    if type(logfile) in [list,tuple] and ('f' in dsp or 'a' in dsp):
+        for ii in logfile:
+            if ii and os.path.isdir(os.path.dirname(ii)):
+                log_p=True
+                with open(ii,'a+') as f:
+                    f.write(msg_str+new_line)
+    #if type(log).__name__ == 'function':
+    if Type(log,'function'):
+         log_func_arg=get_function_args(log,mode='all')
+         if 'args' in log_func_arg or 'varargs' in log_func_arg:
+             log_p=True
+             args=log_func_arg.get('args',[])
+             if args and len(args) <= 4 and ('direct' in args or 'log_level' in args or 'func_name' in args):
+                 tmp=[]
+                 for i in range(0,len(args)):
+                     tmp.append(i)
+                 if 'direct' in args:
+                     didx=args.index('direct')
+                     del tmp[didx]
+                     args[didx]=direct
+                 if 'log_level' in args:
+                     lidx=args.index('log_level')
+                     del tmp[lidx]
+                     args[lidx]=log_level
+                 if 'func_name' in args:
+                     lidx=args.index('func_name')
+                     del tmp[lidx]
+                     args[lidx]=func_name
+                 if 'date_format' in args:
+                     lidx=args.index('date_format')
+                     del tmp[lidx]
+                     args[lidx]=date_format
+                 args[tmp[0]]=msg_str
+                 log(*args)
+             elif 'keywards' in log_func_arg:
+                 log(msg_str,direct=direct,log_level=log_level,func_name=func_name,date_format=date_format)
+             elif 'defaults' in log_func_arg:
+                 if 'direct' in log_func_arg['defaults'] and 'log_level' in log_func_arg['defaults']:
+                     log(msg_str,direct=direct,log_level=log_level)
+                 elif 'log_level' in log_func_arg['defaults']:
+                     log(msg_str,log_level=log_level)
+                 elif 'direct' in log_func_arg['defaults']:
+                     log(msg_str,direct=direct)
+                 else:
+                     log(msg_str)
+             else:
+                 log(msg_str)
+    # print msg to screen
+    if (log_p is False and 'a' in dsp) or 's' in dsp or 'e' in dsp:
+         if 'e' in dsp:
+             sys.stderr.write(msg_str+new_line)
+             sys.stderr.flush()
+         else:
+             sys.stdout.write(msg_str+new_line)
+             sys.stdout.flush()
+    # return msg
+    if 'r' in dsp:
+         return msg_str
+
+def printf2(*msg,**opts):
+    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+    color_db=opts.get('color_db',{'blue': 34, 'grey': 30, 'yellow': 33, 'green': 32, 'cyan': 36, 'magenta': 35, 'white': 37, 'red': 31})
+    bg_color_db=opts.get('bg_color_db',{'cyan': 46, 'white': 47, 'grey': 40, 'yellow': 43, 'blue': 44, 'magenta': 45, 'red': 41, 'green': 42})
+    attr_db=opts.get('attr_db',{'reverse': 7, 'blink': 5,'concealed': 8, 'underline': 4, 'bold': 1})
+    dsp=opts.get('dsp','s')
+    limit=opts.get('limit',None)
+    if isinstance(limit,int):
+        level=opts.get('level',1)
+        if limit < level:
+            return
+    if not isinstance(dsp,str):
+        dsp='s'
+    filename=opts.get('filename',None)
+    color=opts.get('color',None)
+    bgcolor=opts.get('bgcolor',None)
+    color_mode=opts.get('color_mode','shell')
+    wrap=opts.get('wrap',None)
+    length=opts.get('length',None)
+    form=opts.get('form',False)
+
+    if opts.get('direct',False):
+        new_line=''
+        start_new_line=''
+    else:
+        start_new_line=opts.get('start_new_line','')
+        new_line=opts.get('new_line','\n')
+    filename=opts.get('filename',None)
+
+    msg_str=''
+    for ii in msg:
+        if msg_str:
+            msg_str='''{}{}{}'''.format(msg_str,new_line,ii)
+        else:
+            msg_str='''{}'''.format(ii)
+
+    #New line
+    if new_line:
+        msg_str=msg_str.split(new_line)
+    # Cut each line
+    if isinstance(length,int):
+        length=(length,)
+    if isinstance(length,(tuple,list)):
+        new_msg_str=[]
+        if len(length) == 1:
+            for mm in range(0,len(msg_str)):
+                new_msg_str=new_msg_str+STR(msg_str[mm]).Cut(head_len=length[0])
+        elif  len(length) == 2 and len(msg_str):
+            new_msg_str=new_msg_str+STR(msg_str[0]).Cut(head_len=length[0],body_len=length[1])
+            if len(msg_str) > 1:
+                for mm in range(1,len(msg_str)):
+                    new_msg_str=new_msg_str+STR(msg_str[mm]).Cut(head_len=length[1])
+        msg_str=new_msg_str
+    # wrap each line
+    if isinstance(wrap,int):
+        wrap=(wrap,)
+    if isinstance(wrap,(tuple,list)):
+        if len(wrap) == 1:
+            for mm in range(0,len(msg_str)):
+                msg_str[mm]=tap[0]+msg_str[mm]
+        elif  len(wrap) == 2 and len(msg_str):
+            msg_str[0]=tap[0]+msg_str[0]
+            if len(msg_str) > 1:
+                for mm in range(1,len(msg_str)):
+                    msg_str[mm]=tap[1]+msg_str[mm]
+    msg_str=new_line.join(msg_str)
+    if color in ['clear','clean','remove','del','delete','mono']:
+        if color_mode == 'shell':
+            msg_str=ansi_escape.sub('',msg_str)
+    elif color:
+        msg_str=COLOR().String(msg_str,color,bg=False,attr=False,mode=color_mode)
+    elif bgcolor:
+        msg_str=COLOR().String(msg_str,bgcolor,bg=True,mode=color_mode)
+    # return msg
+    if 'f' in dsp:
+        if isinstance(filename,(str,list,tuple)):
+             if isinstance(filename,str):filename=filename.split(',')
+             for ff in filename:
+                 if GET(ff).Dirname():
+                     with open(ff,filemode) as f:
+                         f.write(msg_str+new_line)
+        else:
+            dsp=dsp+'s' # if nothing filename then display it on screen
+    if 's' in dsp or 'a' in dsp:
+         if form:
+             try:
+                 msg_str=ast.literal_eval(msg_str)
+                 pprint(msg_str)
+             except:
+                 sys.stdout.write(start_new_line+msg_str+new_line)
+                 sys.stdout.flush()
+         else:
+             sys.stdout.write(start_new_line+msg_str+new_line)
+             sys.stdout.flush()
+    if 'e' in dsp:
+         sys.stderr.write(start_new_line+msg_str+new_line)
+         sys.stderr.flush()
+    if 'r' in dsp:
+         if form:
+             try:
+                 return ast.literal_eval(msg_str)
+             except:
+                 return start_new_line+msg_str+new_line
+         else:
+             return start_new_line+msg_str+new_line
+
+def sprintf(string,*inps,**opts):
+    if not isinstance(string,str): return False,string
+    #"""ipmitool -H %(ipmi_ip)s -U %(ipmi_user)s -P '%(ipmi_pass)s' """%(**opts)
+    #"""{app} -H {ipmi_ip} -U {ipmi_user} -P '{ipmi_pass}' """.format(**opts)
+    #"""{} -H {} -U {} -P '{}' """.format(*inps)
+    #"""{0} -H {1} -U {2} -P '{3}' """.format(*inps)
+    ffall=[re.compile('\{(\d*)\}').findall(string),re.compile('\{(\w*)\}').findall(string),re.compile('\%\((\w*)\)s').findall(string),re.compile('\{\}').findall(string)]
+    i=0
+    for tmp in ffall:
+        if i in [0,1]: tmp=[ j  for j in tmp if len(j) ]
+        if tmp:
+            if i == 0:
+                mx=0
+                for z in tmp:
+                    if int(z) > mx: mx=int(z)
+                if inp:
+                    if len(inp) > mx: return string.format(*inp)
+                elif opts:
+                    if len(opts) > mx: return string.format(*opts.values())
+                return False,"Need more input (tuple/list) parameters(require {})".format(mx)
+            elif 0< i < 2:
+                new_str=''
+                string_a=string.split()
+                oidx=0
+                for ii in tmp:
+                    idx=None
+                    if '{%s}'%(ii) in string_a:
+                        idx=string_a.index('{%s}'%(ii))
+                    elif "'{%s}'"%(ii) in string_a:
+                        idx=string_a.index("'{%s}'"%(ii))
+                    if isinstance(idx,int):
+                        if ii in opts:
+                            string_a[idx]=string_a[idx].format(**opts)
+                    elif ii in opts:
+                        for jj in range(0,len(string_a)):
+                           if '{%s}'%(ii) in string_a[jj]:
+                               string_a[jj]=string_a[jj].format(**opts)
+                return True,' '.join(string_a)
+            elif i == 2:
+                new_str=''
+                string_a=string.split()
+                oidx=0
+                for ii in tmp:
+                    idx=None
+                    if '%({})s'.format(ii) in string_a:
+                        idx=string_a.index('%({})s'.format(ii))
+                    elif "'%({})'".format(ii) in string_a:
+                        idx=string_a.index("'%({})s'".format(ii))
+                    if isinstance(idx,int):
+                        if ii in opts:
+                            string_a[idx]=string_a[idx]%(opts)
+                    elif ii in opts:
+                        for jj in range(0,len(string_a)):
+                           if '%({})s'.format(ii) in string_a[jj]:
+                               string_a[jj]=string_a[jj]%(opts)
+                return True,' '.join(string_a)
+            elif i == 3:
+                if inp:
+                    if len(tmp) == len(inp): return string.format(*inp)
+                    return False,"Mismatched input (tuple/list) number (require:{}, input:{})".format(len(tmp),len(inp))
+                elif opts:
+                    if len(tmp) == len(opts): return string.format(*opts.values())
+                    return False,"Mismatched input (tuple/list) number (require:{}, input:{})".format(len(tmp),len(opts))
+        i+=1
+    return True,string
+
+
+def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
+    string_type=type(string)
+    rc_str=''
+    chk=None
+    bspace=space(num)
+
+    # Start Symbol
+    if string_type is tuple:
+        if bstr is None:
+            if NFLT:
+                rc_str='%s('%(rc_str)
+            else:
+                rc_str='%s%s('%(bspace,rc_str)
+        else:
+            rc_str='%s,\n%s%s('%(bstr,bspace,rc_str)
+    elif string_type is list:
+        if bstr is None:
+            if NFLT:
+                rc_str='%s['%(rc_str)
+            else:
+                rc_str='%s%s['%(bspace,rc_str)
+        else:
+            rc_str='%s,\n%s%s['%(bstr,bspace,rc_str)
+    elif string_type is dict:
+        if bstr is None:
+            rc_str='%s{'%(rc_str)
+        else:
+            rc_str='%s,\n%s %s{'%(bstr,bspace,rc_str)
+    rc_str='%s\n%s '%(rc_str,bspace)
+
+    # Print string
+    if string_type is list or string_type is tuple:
+       for ii in list(string):
+           ii_type=type(ii)
+           if ii_type is tuple or ii_type is list or ii_type is dict:
+               if not ii_type is dict:
+                  num=num+1
+               rc_str=format_print(ii,num=num,bstr=rc_str,rc=True)
+           else:
+               if chk == None:
+                  rc_str='%s%s'%(rc_str,STR(str_format_print(ii,rc=True)).Tap())
+                  chk='a'
+               else:
+                  rc_str='%s,\n%s'%(rc_str,STR(str_format_print(ii,rc=True)).Tap(space=bspace+' '))
+    elif string_type is dict:
+       for ii in string.keys():
+           ii_type=type(string[ii])
+           if ii_type is dict or ii_type is tuple or ii_type is list:
+               num=num+1
+               if ii_type is dict:
+                   tmp=format_print(string[ii],num=num,rc=True)
+               else:
+                   tmp=format_print(string[ii],num=num,rc=True,NFLT=True)
+               rc_str="%s,\n%s %s:%s"%(rc_str,bspace,str_format_print(ii,rc=True),tmp)
+           else:
+               if chk == None:
+                  rc_str='%s%s'%(rc_str,STR("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True))).Tap())
+                  chk='a'
+               else:
+                  rc_str='%s,\n%s'%(rc_str,STR("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True))).Tap(space=bspace+' '))
+
+    # End symbol
+    if string_type is tuple:
+        rc_str='%s\n%s)'%(rc_str,bspace)
+    elif string_type is list:
+        rc_str='%s\n%s]'%(rc_str,bspace)
+    elif string_type is dict:
+        if bstr is None:
+            rc_str='%s\n%s}'%(rc_str,bspace)
+        else:
+            rc_str='%s\n%s }'%(rc_str,bspace)
+
+    else:
+       rc_str=string
+
+    # Output
+    if rc:
+       return rc_str
+    else:
+       print(rc_str)
+
+def format_string(string,inps):
+    cmd=''
+    if isinstance(string,dict):
+        cmd=string['cmd']
+        string=string['base']
+    type_inps=type(inps)
+    if type_inps is dict:
+        if '%(' in string:
+            if '%s' in string:
+                return False,"name placehoder can't get %s format"
+            try:
+                return True,string % inps + ' '+cmd
+            except:
+                return False,"""string:{} input:{}""".format(string,inps)
+        elif re.compile('{(\w.*)}').findall(string):
+            if re.compile('{\d*}').findall(string):
+                return False,"name placehoder can't get {} format"
+            return True,string.format(**inps) + ' '+cmd
+    else:
+        if '%s' in string and type_inps in [tuple,list]:
+            if '%(' in string:
+                return False,"%s format string can't get name placeholder format"
+            return True,string % tuple(inps) + ' '+cmd
+        elif re.compile('{\d*}').findall(string) and type_inps in [tuple,list]:
+            if re.compile('{(\w.*)}').findall(string):
+                return False,"{} format string can't get name placeholder format"
+            return True,string.format(*tuple(inps)) + ' '+cmd
+        else:
+            return None,string+' '+cmd
+
+def format_string_dict(string):
+    if isinstance(string,dict):
+        string='''{}'''.format(string['base'])
+    if '%(' in string or re.compile('{(\w.*)}').findall(string):
+        return True
+    return False
+
+
+
+def Sort(src,reverse=False,func=None,order=None,field=None,base='key',sym=None):
+    if isinstance(src,str) and sym is not None: src=src.split(sym)
+    if isinstance(src,dict) and base == 'data':
+        field=1
+    def _cint_(e):
+        try:
+            if isinstance(field,int):
+                if isinstance(e,(list,tuple)) and len(e) > field:
+                    return int(e[field])
+                else:
+                    return 9999999
+            return int(e)
+        except:
+            return e
+    def _cstr_(e):
+        if isinstance(field,int):
+            if isinstance(e,(list,tuple)) and len(e) > field:
+                return '''{}'''.format(e[field])
+            else:
+                return 'zzzzzzzzz'
+        return '''{}'''.format(e)
+    if isinstance(src,(list,tuple)):
+        if order in [int,'int','digit','number']:
+            #def _cint_(e):
+            #    try:
+            #        if isinstance(field,int):
+            #            if isinstance(e,(list,tuple)) and len(e) > field:
+            #                return int(e[field])
+            #            else:
+            #                return 9999999
+            #        return int(e)
+            #    except:
+            #        return e
+            return self.root.sort(reverse=reverse,key=_cint_)
+        elif order in [str,'str']:
+            #def _cint_(e):
+            #    if isinstance(field,int):
+            #        if isinstance(e,(list,tuple)) and len(e) > field:
+            #            return '''{}'''.format(e[field])
+            #        else:
+            #            return 'zzzzzzzzz'
+            #    return '''{}'''.format(e)
+            #return self.root.sort(reverse=reverse,key=_cint_)
+            return self.root.sort(reverse=reverse,key=_cstr_)
+        else:
+            if isinstance(field,int):
+                #def _cint_(e):
+                #    if isinstance(e,(list,tuple)) and len(e) > field:
+                #        return e[field]
+                return self.root.sort(reverse=reverse,key=_cint_)
+            else:
+                return self.root.sort(reverse=reverse,key=func)
+    elif isinstance(src,dict):
+        lst=[]
+        if base == 'key':
+            lst=list(self.keys())
+            if order in [int,'int','digit','number']:
+                #def _cint_(e):
+                #    try:
+                #        return int(e)
+                #    except:
+                #        return e
+                return lst.sort(reverse=reverse,key=_cint_)
+            elif order in [str,'str']:
+                #def _cint_(e):
+                #    return '''{}'''.format(e)
+                #return lst.sort(reverse=reverse,key=_cint_)
+                return lst.sort(reverse=reverse,key=_cstr_)
+            else:
+                return lst.sort(reverse=reverse,func=func)
+        elif base == 'value':
+            lst=self.items()
+            if order in [int,'int','digit','number']:
+                #def _cint_(e):
+                #    try:
+                #        return int(e[1])
+                #    except:
+                #        return e[1]
+                lst.sort(reverse=reverse,key=_cint_)
+            elif order in [str,'str']:
+                #def _cint_(e):
+                #    return '''{}'''.format(e[1])
+                #lst.sort(reverse=reverse,key=_cint_)
+                lst.sort(reverse=reverse,key=_cstr_)
+            else:
+                lst.sort(reverse=reverse,func=func)
+            return [i[0] for i in lst]
+
+
+def Update(src,*inps,**opts):
+    at=opts.pop('at',0)
+    err=opts.pop('err',False)
+    default=opts.pop('default',False)
+    force=opts.pop('force',False)
+    sym=opts.pop('sym',None)
+    if isinstance(src,(list,tuple,str)):
+        if isinstance(src,str) and sym: src=src.split(sym)
+        tuple_out=False
+        if isinstance(src,tuple) and force:
+            src=list(src)
+            tuple_out=True
+        n=len(src)
+        if n == 0:
+            if err is True:
+                return default
+            else:
+                src=list(inps)
+        elif isinstance(at,int) and n > at:
+            for i in range(0,len(inps)):
+                if n > at+i:
+                    src[at+i]=inps[i]
+                elif err is True:
+                    return default
+                else:
+                    src=src+list(inps)[i:]
+                    break
+        elif isinstance(at,(tuple,list)):
+            if len(inps) == len(at):
+                for i in range(0,len(at)):
+                    if isinstance(at[i],int) and n > at[i]:
+                        src[at[i]]=inps[i]
+                    elif err is True:
+                        return default
+                    else:
+                        src.append(inps[i])
+        if tuple_out: return tuple(src)
+        return src
+    elif isinstance(src,dict):
+        for ii in inps:
+           if isinstance(ii,dict):
+               src.update(ii)
+        if opts:
+           src.update(opts)
+    return src
+
+def Wrap(src,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
+    return STR(src).Wrap(space=space,space_mode=space_mode,sym=sym,default=default,NFLT=NFLT,out=out)
+
+def Split(src,sym,default=None):
+    return STR(src).Split(sym,default=default)
+
+def Random(length=8,strs=None,mode='*',letter='*',default=1):
+    if mode in [int,'int','num','number']:
+        if isinstance(strs,(list,tuple)) and len(strs) == 2:
+            try:
+                s=int(strs[0])
+                n=int(strs[1])
+                return random.randint(s,n)
+            except:
+                pass
+        s=0
+        n=''
+        for i in range(0,length):
+            n=n+'9'
+        if n:
+            return random.randint(s,int(n))
+        return default
+    new=''
+#    if mode in [int,'int','num']:
+#        for i in range(0,length):
+#            new='{0}{1}'.format(new,random.randint(0,9))
+#        return int(num)
+    if not isinstance(strs,str) or not str:
+        strs=''
+        if 'alpha' in mode or mode in ['all','*']:
+            if letter == 'upper':
+                strs=string.ascii_uppercase
+            elif letter == 'lower':
+                strs=string.ascii_lowercase
+            elif letter in ['*','all']:
+                strs=string.ascii_letters
+        if 'num' in mode or mode in ['all','*']:
+            strs=strs+string.digits
+        if 'char' in mode or 'sym' in mode or mode in ['all','*']:
+            strs=strs+string.punctuation
+#        if mode in ['all','*','alphanumchar']:
+#            strs='0aA-1b+2Bc=C3d_D,4.eE?5"fF6g7G!h8H@i9#Ij$JkK%lLmMn^N&oO*p(Pq)Q/r\Rs:St;TuUv{V<wW}x[Xy>Y]z|Z'
+#        elif mode in ['alphachar']:
+#            strs='aA-b+Bc=Cd_D,.eE?"fFgG!hH@i#Ij$JkK%lLmMn^N&oO*p(Pq)Q/r\Rs:St;TuUv{V<wW}x[Xy>Y]z|Z'
+#        elif mode in ['alphanum']:
+#            strs='aA1b2BcC3dD4eE5fF6g7Gh8Hi9IjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
+#        elif mode in ['char']:
+#            strs='-+=_,.?"!@#$%^&*()/\:;{<}x[>]|'
+#        else:
+#            strs='aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
+    strn=len(strs)-1
+    for i in range(0,length):
+        new='{0}{1}'.format(new,strs[random.randint(0,strn)])
+    return new
+
+
+def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
+    rt=[]
+    if isinstance(src,str,list,tuple) and find:
+        if isinstance(src,str): src=src.split(sym)
+        
+        for row in range(0,len(src)):
+            for ff in FIND().Find(find,src=src[row],pattern=pattern,word=word,findall=findall,default=[],out=list):
+                if findall:
+                    rt=rt+[(row,[m.start() for m in re.finditer(ff,src[row])])]
+                else:
+                    idx=src[row].index(ff,start,end)
+                    if idx >= 0:
+                        rt.append((row,idx))
+    elif isinstance(src,dict):
+        if find is None: 
+            if out in ['raw',None] and len(src.keys()) == 1 : return list(src.keys())[0]
+            if out in ['tuple',tuple]: return tuple(list(src.keys()))
+            return list(src.keys())
+        # if it has found need code for recurring search at each all data and path of keys
+        # return [ (keypath,[found data]), .... ]
+    #elif Type(src,'instance','classobj'):
+    # if src is instance or classobj then search in description and made function name at key
+    if rt:
+        if out in ['tuple',tuple]: return tuple(rt)
+        if out not in ['list',list] and len(rt) == 1 and rt[0][0] == 0:
+            if len(rt[0][1]) == 1:return rt[0][1][0]
+            return rt[0][1]
+        return rt
+    return default
+
+
+def screen_kill(self,title):
+    return SCREEN().Kill(title)
+
+def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
+    return SCREEN().Monitor(title,ip,ipmi_user,ipmi_pass,find=find,timeout=timeout_sec)
+
+def screen_id(title=None):
+    return SCREEN().Id(title)
+
+def screen_logging(title,cmd):
+    return SCREEN().Log(title,cmd)
+
+class SCREEN:
+    def Kill(self,title):
+        ids=self.Id(title)
+        if len(ids) == 1:
+            rc=rshell('''screen -X -S {} quit'''.format(ids[0]))
+            if rc[0] == 0:
+                return True
+            return False
+
+    def Monitor(self,title,ip,ipmi_user,ipmi_pass,find=[],timeout=600):
+        if type(title) is not str or not title:
+            print('no title')
+            return False
+        scr_id=self.Id(title)
+        if scr_id:
+            print('Already has the title at {}'.format(scr_id))
+            return False
+        cmd="ipmitool -I lanplus -H {} -U {} -P {} sol activate".format(ip,ipmi_user,ipmi_pass)
+        # Linux OS Boot (Completely kernel loaded): find=['initrd0.img','\xff']
+        # PXE Boot prompt: find=['boot:']
+        # PXE initial : find=['PXE ']
+        # DHCP initial : find=['DHCP']
+        # ex: aa=screen_monitor('test','ipmitool -I lanplus -H <bmc ip> -U ADMIN -P ADMIN sol activate',find=['initrd0.img','\xff'],timeout=300)
+        log_file=self.Log(title,cmd)
+        init_time=TIME().Int()
+        if log_file:
+            mon_line=0
+            old_mon_line=-1
+            found=0
+            find_num=len(find)
+            cnt=0
+            while True:
+                if TIME().Int() - init_time > timeout_sec :
+                    print('Monitoring timeout({} sec)'.format(timeout_sec))
+                    if self.Kill(title):
+                        os.unlink(log_file)
+                    break
+                with open(log_file,'rb') as f:
+                    tmp=f.read()
+                #tmp=_u_byte2str(tmp)
+                tmp=CONVERT(tmp).Str()
+                if '\x1b' in tmp:
+                    tmp_a=tmp.split('\x1b')
+                elif '\r\n' in tmp:
+                    tmp_a=tmp.split('\r\n')
+                elif '\r' in tmp:
+                    tmp_a=tmp.split('\r')
+                else:
+                    tmp_a=tmp.split('\n')
+                tmp_n=len(tmp_a)
+                for ss in tmp_a[tmp_n-2:]:
+                    if 'SOL Session operational' in ss:
+                        # control+c : "^C", Enter: "^M", any command "<linux command> ^M"
+                        rshell('screen -S {} -p 0 -X stuff "^M"'.format(title))
+                        cnt+=1
+                        if cnt > 5:
+                            print('maybe not activated SOL or BMC issue')
+                            if self.Kill(title):
+                                os.unlink(log_file)
+                            return False
+                        continue
+                if find:
+                    for ii in tmp_a[mon_line:]:
+                        if find_num == 0:
+                            print(ii)
+                        else:
+                            for ff in range(0,find_num):
+                                find_i=find[found]
+                                if ii.find(find_i) < 0:
+                                    break
+                                found=found+1
+                                if found >= find_num:
+                                    if self.Kill(title):
+                                        os.unlink(log_file)
+                                    return True
+                    if tmp_n > 1:
+                        mon_line=tmp_n -1
+                    else:
+                        mon_line=tmp_n
+                else:
+                    if self.Kill(title):
+                        os.unlink(log_file)
+                    return True
+                TIME().Sleep(1)
+        return False
+
+
+    def Id(self,title=None):
+        scs=[]
+        rc=rshell('''screen -ls''')
+        if rc[0] == 1:
+            for ii in rc[1].split('\n')[1:]:
+                jj=ii.split()
+                if len(jj) == 2:
+                    if title:
+                        zz=jj[0].split('.')
+                        if zz[1] == title:
+                            scs.append(jj[0])
+                    else:
+                        scs.append(jj[0])
+        return scs
+
+    def Log(self,title,cmd):
+        # ipmitool -I lanplus -H 172.16.114.80 -U ADMIN -P ADMIN sol activate
+        pid=os.getpid()
+        tmp_file=FILE().MkTemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
+        log_file=FILE().MkTemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
+        if os.path.isfile(log_file):
+            log_file=''
+        with open(tmp_file,'w') as f:
+            f.write('''logfile {}\nlogfile flush 0\nlog on\n'''.format(log_file))
+        if os.path.isfile(tmp_file):
+            rc=rshell('''screen -c {} -dmSL "{}" {}'''.format(tmp_file,title,cmd))
+            if rc[0] == 0:
+                for ii in range(0,50):
+                    if os.path.isfile(log_file):
+                        os.unlink(tmp_file)
+                        return log_file
+                    TIME().Sleep(0.1)
+
+def findXML(xmlfile,find_name=None,find_path=None):
+    tree=ET.parse(xmlfile)
+    #root=ET.fromstring(data)
+    root=tree.getroot()
+    def find(tr,find_name):
+        for x in tr:
+            if x.attrib.get('name') == find_name:
+                return x,x.tag
+            rt,pp=find(x,find_name)
+            if rt:
+                return rt,'{}/{}'.format(x.tag,pp)
+        return None,None
+    found_root=None
+    if find_name:
+        found=find(root,find_name)
+        if found[0]:
+             found_root=found[0]
+    if find_path and isinstance(find_path,str):
+        #ex: root.findall('./Menu/Setting/[@name="Administrator Password"]/Information/HasPassword'):
+        if not found_root: found_root=root
+        return found_root.findall(find_path)
+        # <element>.tag: name, .text: data, .attrib: dict
+
+def get_iso_uid(filename):
+    if type(filename) is not str:
+        return False,None,None
+    if os.path.exists(filename):
+        uid_cmd='''sudo /usr/sbin/blkid {}'''.format(filename)
+        rc=rshell(uid_cmd)
+        if rc[0] == 0:
+            uid_str='{0}_{1}'.format(findstr(rc[1],'UUID="(\w.*)" L')[0],findstr(rc[1],'LABEL="(\w.*)" T')[0]).replace(' ','_')
+            file_info=get_file(filename)
+            file_size=file_info.get('size',None)
+            return True,uid_str,file_size
+        return False,rc[1],None
+    return False,'{} not found'.format(filename),None
+
+def git_ver(git_dir=None):
+    if git_dir is not None and os.path.isdir('{0}/.git'.format(git_dir)):
+        gver=rshell('''cd {0} && git describe --tags'''.format(git_dir))
+        if gver[0] == 0:
+            return gver[1]
+
+
+def Compress(data,mode='lz4'):
+    if mode == 'lz4':
+        return frame.compress(data)
+    elif mode == 'bz2':
+        return bz2.compress(data)
+
+def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={}):
+    def FileName(filename):
+        if isinstance(filename,str):
+            filename_info=os.path.basename(filename).split('.')
+            if 'tar' in filename_info:
+                idx=filename_info.index('tar')
+            else:
+                idx=-1
+            return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+        return None,None
+
+    def FileType(filename,default=False):
+        if not isinstance(filename,str) or not os.path.isfile(filename): return default
+        aa=magic.from_buffer(open(filename,'rb').read(2048))
+        if aa: return aa.split()[0].lower()
+        return 'unknown'
+
+    if mode == 'lz4':
+        return frame.decompress(data)
+    elif mode == 'bz2':
+        return bz2.BZ2Decompressor().decompress(data)
+    elif mode == 'file' and isinstance(data,str) and os.path.isfile(data):
+        filename,fileextfile_info=FileName(data)
+        filetype=FileType(data)
+        if filetype and fileext:
+            # Tar stuff
+            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
+                tf=tarfile.open(data)
+                tf.extractall(work_path)
+                tf.close()
+            elif fileext in ['zip'] and filetype in ['compress']:
+                with zipfile.ZipFile(data,'r') as zf:
+                    zf.extractall(work_path)
+            if del_org_file: os.unline(data)
+            return True
+
+
+def get_dev_name_from_mac(mac):
+    net_dir='/sys/class/net'
+    if type(mac) is str and os.path.isdir(net_dir):
+        dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+        for dev in dirnames:
+            fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
+            if type(fmac) is str and fmac.strip().lower() == mac.lower():
+                return dev
+
+def get_dev_mac(ifname):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
+        return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+    except:
+        return
+
+def get_net_device(name=None):
+    net_dev={}
+    net_dir='/sys/class/net'
+    if os.path.isdir(net_dir):
+        dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+        if name:
+            if name in dirnames:
+                drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,name))
+                if drv is False:
+                    drv='unknown'
+                else:
+                    drv=drv[0].split(':')[1]
+                net_dev[name]={
+                    'mac':cat('{}/{}/address'.format(dirpath,name),no_end_newline=True),
+                    'duplex':cat('{}/{}/duplex'.format(dirpath,name),no_end_newline=True),
+                    'mtu':cat('{}/{}/mtu'.format(dirpath,name),no_end_newline=True),
+                    'state':cat('{}/{}/operstate'.format(dirpath,name),no_end_newline=True),
+                    'speed':cat('{}/{}/speed'.format(dirpath,name),no_end_newline=True),
+                    'id':cat('{}/{}/ifindex'.format(dirpath,name),no_end_newline=True),
+                    'driver':drv,
+                    'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,name),no_end_newline=True),
+                    }
+        else:
+            for dev in dirnames:
+                drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,dev))
+                if drv is False:
+                    drv='unknown'
+                else:
+                    drv=drv[0].split(':')[1]
+                net_dev[dev]={
+                    'mac':cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True),
+                    'duplex':cat('{}/{}/duplex'.format(dirpath,dev),no_end_newline=True),
+                    'mtu':cat('{}/{}/mtu'.format(dirpath,dev),no_end_newline=True),
+                    'state':cat('{}/{}/operstate'.format(dirpath,dev),no_end_newline=True),
+                    'speed':cat('{}/{}/speed'.format(dirpath,dev),no_end_newline=True),
+                    'id':cat('{}/{}/ifindex'.format(dirpath,dev),no_end_newline=True),
+                    'driver':drv,
+                    'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,dev),no_end_newline=True),
+                    }
+        return net_dev
+    else:
+        return False
+
+def find_cdrom_dev(size=None):
+    load_kmod(['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage'])
+    if os.path.isdir('/sys/block') is False:
+        return
+    for r, d, f in os.walk('/sys/block'):
+        for dd in d:
+            for rrr,ddd,fff in os.walk(os.path.join(r,dd)):
+                if 'removable' in fff:
+                    with open('{0}/removable'.format(rrr),'r') as fp:
+                        removable=fp.read()
+                    if '1' in removable:
+                        if os.path.isfile('{0}/device/model'.format(rrr)):
+                            with open('{0}/device/model'.format(rrr),'r') as fpp:
+                                model=fpp.read()
+                            for ii in ['CDROM','DVD-ROM','DVD-RW']:
+                                if ii in model:
+                                    if size is None:
+                                        return '/dev/{0}'.format(dd)
+                                    else:
+                                        if os.path.exists('{}/size'.format(rrr)):
+                                            with open('{}/size'.format(rrr),'r') as fss:
+                                                block_size=fss.read()
+                                                dev_size=int(block_size) * 512
+                                                if dev_size == int(size):
+                                                    return '/dev/{0}'.format(dd)
+
+def find_usb_dev(size=None,max_size=None):
+    rc=[]
+    load_kmod(modules=['usb-storage'])
+    if os.path.isdir('/sys/block') is False:
+        return
+    for r, d, f in os.walk('/sys/block'):
+        for dd in d:
+            for rrr,ddd,fff in os.walk(os.path.join(r,dd)):
+                if 'removable' in fff:
+                    removable=cat('{0}/removable'.format(rrr))
+                    if removable:
+                        if '1' in removable:
+                            if size is None:
+                                if max_size:
+                                    file_size=cat('{0}/size'.format(rrr))
+                                    if file_size:
+                                        dev_size=int(file_size) * 512
+                                        if dev_size <= int(max_size):
+                                            rc.append('/dev/{0}'.format(dd))
+                                else:
+                                    rc.append('/dev/{0}'.format(dd))
+                            else:
+                                file_size=cat('{0}/size'.format(rrr))
+                                if file_size:
+                                    dev_size=int(file_size) * 512
+                                    if dev_size == int(size):
+                                        rc.append('/dev/{0}'.format(dd))
+    return rc
+##########################################################################################
 def mac2str(mac,case='lower'):
     return MAC(mac).ToStr(case=case)
 
@@ -76,20 +4630,8 @@ def web_session(request):
 def web_req(host_url=None,**opts):
     return WEB().Request(host_url,**opts)
 
-def printf(*msg,**opts):
-    return Print.printf(*msg,**opts)
-
-def sprintf(string,*inps,**opts):
-    return Print.sprintf(string,*inps,**opts)
-
-def format_string(string,inps):
-    return Print.format_string(string,inps)
-
-def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
-    return Print.format_print(string,rc=rc,num=num,bstr=bstr,NFLT=NFLT)
-
 def logging(*msg,**opts):
-    return Print.printf(*msg,**opts)
+    return printf(*msg,**opts)
 
 def is_py3():
     return PyVer(3)
@@ -150,24 +4692,54 @@ def integer(a,default=0):
     except:
         return default
 
-def argtype(arg,want='_',get_data=['_']):
-    type_arg=type(arg)
-    if want in get_data:
-        if type_arg.__name__ == 'Request':
-            return arg.method.lower()
-        return type_arg.__name__.lower()
-    if type(want) is str:
-        if type_arg.__name__ == 'Request':
-            if want.upper() == 'REQUEST' or want.upper() == arg.method:
-                return True
-            return False
+def Delete(*inps,**opts):
+    if len(inps) >= 2:
+        obj=inps[0]
+        keys=inps[1:]
+    elif len(inps) == 1:
+        obj=inps[0]
+        keys=opts.get('key',None)
+        if isinstance(keys,list):
+            keys=tuple(keys)
+        elif keys is not None:
+            keys=(keys,)
+    default=opts.get('default',None)
+    _type=opts.get('type','index')
+
+    if isinstance(obj,(list,tuple)):
+        nobj=len(obj)
+        rt=[]
+        if _type == 'index':
+            nkeys=Abs(*tuple(keys),obj=obj,out=list)
+            for i in range(0,len(obj)):
+                if i not in nkeys:
+                    rt.append(obj[i])
         else:
-            if type_arg.__name__.lower() == want.lower():
-                return True
-    else:
-        if type_arg == want:
-            return True
-    return False
+            for i in obj:
+                if i not in keys:
+                    rt.append(i)
+        return rt
+    elif isinstance(obj,dict):
+        if isinstance(keys,(list,tuple,dict)):
+            for key in keys:
+                obj.pop(key,default)
+        else:
+            obj.pop(keys,default)
+        return obj
+    elif isinstance(obj,str):
+        nkeys=[]
+        for i in keys:
+            if isinstance(i,(tuple,str,int)):
+                tt=Abs(i,obj=obj,out=list)
+                if tt:
+                    nkeys=nkeys+tt
+        rt=''
+        for i in range(0,len(obj)):
+            if i in nkeys:
+                continue
+            rt=rt+obj[i]
+        return rt
+    return default
 
 def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[],out_form=str):
     if argtype(data,'Request'):
@@ -212,19 +4784,33 @@ def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[]
             return data.get(key,default)
     return default
 
+def check_value(src,find,idx=None):
+    '''Check key or value in the dict, list or tuple then True, not then False'''
+    if isinstance(src, (list,tuple,str,dict)):
+        if idx is None:
+            for i in src:
+                if IsSame(i,find): return True
+        else:
+            if isinstance(src,str):
+                if idx < 0:
+                    if src[idx-len(find):idx] == find:
+                        return True
+                else:
+                    if src[idx:idx+len(find)] == find:
+                        return True
+            else:
+                if Get(src,idx,out='raw') == find:
+                    return True
+    return False
+
+def get_value(src,key=None,default=None,check=[str,list,tuple,dict],err=False):
+    return Get(src,key,default=default,check=check,err=err)
+
 def file_rw(name,data=None,out='string',append=False,read=None,overwrite=True):
     return FILE().Rw(name,data=data,out=out,append=append,read=read,overwrite=overwrite,finfo={})
 
 def rm_file(filelist):
-    if type(filelist) == type([]):
-       filelist_tmp=filelist
-    else:
-       filelist_tmp=filelist.split(',')
-    for ii in list(filelist_tmp):
-        if os.path.isfile(ii):
-            os.unlink(ii)
-        else:
-            print('not found {0}'.format(ii))
+    return FILE().Rm(filelist)
 
 def append2list(*inps,**opts):
     return LIST(inps[0]).Append(*inps[1:],**opts)
@@ -343,25 +4929,18 @@ def Lower(src):
     if isinstance(src,str): return src.lower()
     return src
 
-ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
-#log_file=None
-log_intro=3
-log_new_line='\n'
-pipe_file=None
-
-cdrom_ko=['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage']
-
-def clean_ansi(data):
-    if data:
-        if isinstance(data,str):
-            return ansi_escape.sub('',data)
-        elif isinstance(data,list):
-            new_data=[]
-            for ii in data:
-                new_data.append(ansi_escape.sub('',ii))
-            return new_data
-    return data
+class ANSI:
+    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+    def Clean(self,data):
+        if data:
+            if isinstance(data,str):
+                return self.ansi_escape.sub('',data)
+            elif isinstance(data,list):
+                new_data=[]
+                for ii in data:
+                    new_data.append(self.ansi_escape.sub('',ii))
+                return new_data
+        return data
 
 def cat(filename,no_end_newline=False):
     tmp=FILE().Rw(filename)
@@ -625,7 +5204,7 @@ def get_host_ip(ifname=None,mac=None):
 
 def get_default_route_dev():
     #for ii in cat('/proc/net/route').split('\n'):
-    for ii in Split(cat('/proc/net/route'),'\n'):
+    for ii in STR(cat('/proc/net/route')).Split('\n'):
         ii_a=ii.split()
         if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
 
@@ -1756,28 +6335,6 @@ def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],
     return [False,'Send fail({}) :\n{}'.format(sent[1],data)]
 
 
-def check_value(src,find,idx=None):
-    '''Check key or value in the dict, list or tuple then True, not then False'''
-    if isinstance(src, (list,tuple,str,dict)):
-        if idx is None:
-            for i in src:
-                if IsSame(i,find): return True
-        else:
-            if isinstance(src,str):
-                if idx < 0:
-                    if src[idx-len(find):idx] == find:
-                        return True
-                else:
-                    if src[idx:idx+len(find)] == find:
-                        return True
-            else:
-                if Get(src,idx,out='raw') == find:
-                    return True
-    return False
-
-def get_value(src,key=None,default=None,check=[str,list,tuple,dict],err=False):
-    return Get(src,key,default=default,check=check,err=err)
-
 def encode(string):
     enc='{0}'.format(string)
     tmp=zlib.compress(enc.encode("utf-8"))
@@ -1835,7 +6392,25 @@ def is_xml(filename):
     return False
 
 def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error','error','erro','ERRO',{'ERR'}],'WARN':['Warn','warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}],'TOUT':['timeout','TimeOut','time out','Time Out','TMOUT','TOUT',{'TOUT'}],'REVD':['cancel','Cancel','CANCEL','REV','REVD','Revoked','revoked','revoke','Revoke',{'REVD'}],'LOST':['lost','connection lost','Connection Lost','Connection lost','CONNECTION LOST',{'LOST'}]},default=False):
-    return Crc(rt,chk=chk,rtd=rtd,default=default)
+    def trans(irt):
+        type_irt=type(irt)
+        for ii in rtd:
+            for jj in rtd[ii]:
+                if type(jj) == type_irt and ((type_irt is str and jj.lower() == irt.lower()) or jj == irt):
+                    return ii
+        return 'UNKN'
+    rtc=Get(rt,'0|rc',out='raw',err='ignore',check=(list,tuple,dict))
+    nrtc=trans(rtc)
+    if chk != '_':
+        if not isinstance(chk,list): chk=[chk]
+        for cc in chk:
+            if trans(cc) == nrtc:
+                return True
+            if nrtc == 'UNKN' and default == 'org':
+                return rtc
+        if default == 'org': return rt
+        return default
+    return nrtc
 
 def replacestr(data,org,new):
     if isinstance(data,str):
@@ -1904,62 +6479,6 @@ def Pwd(cwd=None):
 def get_my_directory(cwd=None):
     return FILE().Path(cwd)
 
-def is_json_format(data):
-    try:
-        json.loads(data)
-        return True
-    except:
-        return False
-
-def Delete(*inps,**opts):
-    if len(inps) >= 2:
-        obj=inps[0]
-        keys=inps[1:]
-    elif len(inps) == 1:
-        obj=inps[0]
-        keys=opts.get('key',None)
-        if isinstance(keys,list):
-            keys=tuple(keys)
-        elif keys is not None:
-            keys=(keys,)
-    default=opts.get('default',None)
-    _type=opts.get('type','index')
-   
-    if isinstance(obj,(list,tuple)):
-        nobj=len(obj)
-        rt=[]
-        if _type == 'index':
-            nkeys=Abs(*tuple(keys),obj=obj,out=list)
-            for i in range(0,len(obj)):
-                if i not in nkeys:
-                    rt.append(obj[i])
-        else:
-            for i in obj:
-                if i not in keys:
-                    rt.append(i)
-        return rt
-    elif isinstance(obj,dict):
-        if isinstance(keys,(list,tuple,dict)):
-            for key in keys:
-                obj.pop(key,default)
-        else:
-            obj.pop(keys,default)
-        return obj
-    elif isinstance(obj,str):
-        nkeys=[]
-        for i in keys:
-            if isinstance(i,(tuple,str,int)):
-                tt=Abs(i,obj=obj,out=list)
-                if tt:
-                    nkeys=nkeys+tt
-        rt=''
-        for i in range(0,len(obj)):
-            if i in nkeys:
-                continue
-            rt=rt+obj[i]
-        return rt
-    return default
-
 def alive(out=None):
     aa=rshell('uptime')
     if aa[0] == 0:
@@ -2018,63 +6537,6 @@ class Multiprocessor():
             self.processes.remove(p)
         return rets
 
-def IsSame(src,chk_val,sense=False):
-    def _IsSame_(src,chk,sense):
-        src_type=type(src).__name__
-        chk_type=type(chk).__name__
-        if src_type == 'bytes' or chk_type == 'bytes':
-            if chk_type=='int': chk='{}'.format(chk)
-            if isinstance(chk,str):
-                if sense:
-                    chk=_u_bytes(chk)
-                else:
-                    chk=_u_bytes(chk).lower()
-            elif not sense:
-                chk=chk.lower()
-            if src_type=='int': src='{}'.format(src)
-            if isinstance(src,str):
-                if sense:
-                    src=_u_bytes(src)
-                else:
-                    src=_u_bytes(src).lower()
-            elif not sense:
-                src=src.lower()
-            if src == chk: return True
-        else:
-            if src_type == 'str' and src.isdigit(): src=int(src)
-            if chk_type == 'str' and chk.isdigit(): chk=int(chk)
-            if not sense and isinstance(src,str) and isinstance(chk,str):
-                if src.lower() == chk.lower(): return True
-            elif src == chk:
-                return True
-        return False
-    if isinstance(src,(list,tuple)) and isinstance(chk_val,(list,tuple)):
-        for j in src:
-            ok=False
-            for i in chk_val:
-                aa=_IsSame_(j,i,sense)
-                if aa is True:
-                    ok=True
-                    break
-            if ok is False: return False
-        for j in chk_val:
-            ok=False
-            for i in src:
-                aa=_IsSame_(j,i,sense)
-                if aa is True:
-                    ok=True
-                    break
-            if ok is False: return False
-        return True
-    else:
-        if isinstance(chk_val,(list,tuple)):
-            for i in chk_val:
-                aa=_IsSame_(src,i,sense)
-                if aa is True: return True
-            return False
-        else:
-            return _IsSame_(src,chk_val,sense)
-
 def ddict(*inps,**opts):
     out={}
     for ii in inps:
@@ -2104,9 +6566,9 @@ def pipe_msg(**opts):
     else:
         return m
 
-def is_same(a,b,sense=False):
-    return IsSame(a,b,sense=sense)
-    
+def IsSame(src,chk_val,sense=False):
+    return IS().Same(src,chk_val,sense=sense)
+
 def Try(cmd):
     try:
         return True,cmd
@@ -2114,27 +6576,27 @@ def Try(cmd):
         e=sys.exc_info()[0]
         return False,{'err':e}
 
-def list_index(src,step):
-    if isinstance(src,(list,tuple,str,dict)) and isinstance(step,int):
-        if step < 0:
-            if len(src) > abs(step):
-                step=len(src)-abs(step)
+def FixIndex(src,idx,default=0):
+    if isinstance(src,(list,tuple,str,dict)) and isinstance(idx,int):
+        if idx < 0:
+            if len(src) > abs(idx):
+                idx=len(src)-abs(idx)
             else:
-                step=0
+                idx=0
         else:
-            if len(src) <= step: step=len(src)-1
-        return step
-    return 0
+            if len(src) <= idx: idx=len(src)-1
+        return idx
+    return default
 
 def Next(src,step=0,out=None,default='org'):
     if isinstance(src,(list,tuple,dict)):
-        step=list_index(src,step)
+        step=FixIndex(src,step)
         iterator=iter(src)
         for i in range(-1,step):
             rt=next(iterator)
         return OutFormat(rt,out=out)
     elif isinstance(src,str):
-        step=list_index(src,step)
+        step=FixIndex(src,step)
         if len(src) == 0:
             return ''
         elif len(src) >= 0 or len(src) <= step:
@@ -2144,15 +6606,6 @@ def Next(src,step=0,out=None,default='org'):
 
 def move2first(item,pool):
     return LIST(pool).Move2first(item)
-
-def FirstKey(src,default=None):
-    if src:
-        if isinstance(src,(list,tuple,str)): return 0
-        try:
-            return next(iter(src))
-        except:
-            return default
-    return default
 
 def now():
     return TIME().Int()

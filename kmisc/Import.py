@@ -119,7 +119,7 @@ def Install(module,install_account='',mode=None,upgrade=False,version=None,force
     return False
 
 
-def ModLoad(inp,force=False,globalenv=dict(getmembers(stack()[1][0]))["f_globals"],unload=False):
+def ModLoad(inp,force=False,globalenv=dict(getmembers(stack()[1][0]))["f_globals"],unload=False,re_load=False):
     def Reload(name):
         if isinstance(name,str):
             globalenv[name]=reload(globalenv[name])
@@ -149,9 +149,20 @@ def ModLoad(inp,force=False,globalenv=dict(getmembers(stack()[1][0]))["f_globals
         if '*' not in inp and name in globalenv: # already loaded
             Unload(name) #Unload
         return 2,module #Not loaded
+
+#    import inspect,sys
+#    print(inspect.stack())
+#    dep=len(inspect.stack())-1
+#    fname=sys._getframe(dep).f_code.co_name
+#    if fname == '_bootstrap_inner' or name == '_run_code':
+#        fname=sys._getframe(2).f_code.co_name
+#    print('>>',fname,':::',name,class_name,module)
     if '*' not in inp and name in globalenv: # already loaded
-        if force: Reload(name) # if force then reload
-        return 0,module
+        if re_load:
+            Reload(name) # if force then reload
+            return 0,module
+        elif force:
+            Unload(name) #if force then unload and load again
     if 'import' in inp_a:
         import_idx=inp_a.index('import')
         if len(inp_a) > import_idx+1:
@@ -180,8 +191,9 @@ def Import(*inps,**opts):
     '''
     inps has "require <require file>" then install the all require files in <require file>
     '''
-    globalenv=dict(getmembers(stack()[1][0]))["f_globals"] # Get my parent's globals()
-    force=opts.get('force',None) # reload when already loaded (force=True)
+    globalenv=opts.get('globalenv',dict(getmembers(stack()[1][0]))["f_globals"]) # Get my parent's globals()
+    force=opts.get('force',None) # unload and load again when already loaded (force=True)
+    re_load=opts.get('reload',None) #  run reload when already loaded
     unload=opts.get('unload',False) # unload module when True
     err=opts.get('err',False) # show install or loading error when True
     default=opts.get('default',False)
@@ -230,9 +242,9 @@ def Import(*inps,**opts):
                     else:
                         ic=Install(ii_a[0],install_account,version=version)
                     if ic:
-                        loaded,module=ModLoad(ii_a[0],force=force,globalenv=globalenv)
+                        loaded,module=ModLoad(ii_a[0],force=force,globalenv=globalenv,re_load=re_load)
             continue
-        loaded,module=ModLoad(inp,force=force,globalenv=globalenv,unload=unload)
+        loaded,module=ModLoad(inp,force=force,globalenv=globalenv,unload=unload,re_load=re_load)
         if loaded == 2: #unloaded
             continue
         if loaded == 1:
@@ -246,9 +258,9 @@ def Import(*inps,**opts):
                     for ii in path:
                         if isinstance(ii,str) and os_path.isdir(ii):
                             mod_path.append(ii)
-                loaded,module=ModLoad(inp,force=force,globalenv=globalenv)
+                loaded,module=ModLoad(inp,force=force,globalenv=globalenv,re_load=re_load)
             elif Install(module,install_account):
-                loaded,module=ModLoad(inp,force=force,globalenv=globalenv)
+                loaded,module=ModLoad(inp,force=force,globalenv=globalenv,re_load=re_load)
             else:
                 if dbg:
                     print('*** Import Error or Need install with SUDO or ROOT or --user permission')
