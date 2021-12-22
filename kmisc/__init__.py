@@ -4216,7 +4216,6 @@ def Random(length=8,strs=None,mode='*',letter='*',default=1):
 #            strs='aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
     if not strs: strs=string.ascii_letters
     strn=len(strs)-1
-    if strn < 1:
     for i in range(0,length):
         new='{0}{1}'.format(new,strs[random.randint(0,strn)])
     return new
