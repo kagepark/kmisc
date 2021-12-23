@@ -11,6 +11,7 @@ import ssl
 import stat
 import time
 import uuid
+import smtplib
 import tarfile
 import zipfile
 import random
@@ -30,6 +31,7 @@ import subprocess
 import traceback
 import fcntl,socket,struct
 import json as _json
+import email.utils
 import xml.etree.ElementTree as ET
 from sys import modules
 from sys import path as mod_path
@@ -37,6 +39,10 @@ from sys import version_info
 from pprint import pprint
 from threading import Thread
 from datetime import datetime
+from email import encoders
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
 from multiprocessing import Process, Queue
 from distutils.spawn import find_executable
 from distutils.version import LooseVersion
@@ -1327,7 +1333,7 @@ class VERSION:
         pass
 
     def Clear(self,string,sym='.'):
-        if type(string) in [int,str]:
+        if isinstance(string,(int,str)) and string:
             string='{}'.format(string)
         else:
             return False
@@ -2950,7 +2956,7 @@ class FILE:
                 return False
         return True
 
-    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
+    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None):
         if filename is None:
             filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
         dir_name=os.path.dirname(filename)
@@ -3220,6 +3226,125 @@ class WEB:
             return string.replace('+','%2B').replace('?','%3F').replace('/','%2F').replace(':','%3A').replace('=','%3D').replace(' ','+')
         return string
 
+class EMAIL:
+    # Port Info
+    # GMAIL TTLS : 587
+    # Postfix    : 25
+    def __init__(self,server='127.0.0.1',port=25,user=None,password=None,ssl=False,tls=False):
+        self.server=server
+        self.port=port
+        self.user=user
+        self.password=password
+        self.ssl=ssl
+        self.tls=tls
+
+    def Body(self,sender,receivers,title,msg,filename=None,html=False):
+        if isinstance(receivers,str):
+            receivers=receivers.split(',')
+        if not isinstance(receivers,list):
+            print('To mailing list issue')
+            return False
+        if filename:
+            _body=MIMEMultipart()
+            if isinstance(sender,tuple) and len(sender) == 2:
+                #format: ('NAME',EMAIL)
+                _body['From'] = email.utils.formataddr(sender)
+            else:
+                _body['From'] = sender
+            if isinstance(receivers[0],tuple) and len(receivers[0]) == 2:
+                #format: ('NAME',EMAIL)
+                _body['To'] = email.utils.formataddr(receivers[0])
+            else:
+                _body['To'] = receivers[0]
+            _body['Subject'] = title
+            if html:
+                _body.attach(MIMEText(msg, "html"))
+            else:
+                _body.attach(MIMEText(msg, "plain"))
+            with open(filename,'rb') as attachment:
+                part=MIMEBase("application", "octet-stream")
+                part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition",f"attachment; filename= {filename}",)
+            _body.attach(part)
+        else:
+            if html:
+                _body=MIMEMultipart('alternative')
+                _body.attach(MIMEText(msg,'html'))
+            else:
+                _body = MIMEText(msg)
+            _body['Subject'] = title
+            if isinstance(sender,tuple) and len(sender) == 2:
+                #format: ('NAME',EMAIL)
+                _body['From'] = email.utils.formataddr(sender)
+            else:
+                _body['From'] = sender
+            if isinstance(receivers[0],tuple) and len(receivers[0]) == 2:
+                #format: ('NAME',EMAIL)
+                _body['To'] = email.utils.formataddr(receivers[0])
+            else:
+                _body['To'] = receivers[0]
+        return _body.as_string()
+
+    def Server(self):
+        if self.ssl:
+            if not self.password:
+                print('It required mail server({}) login password'.format(self.server))
+                return False
+            context = ssl.create_default_context()
+            if self.user is None: self.user=sender
+            try:
+                server=smtplib.SMTP_SSL(self.server,self.port,context=context)
+                server.login(self.user, self.password)
+            except:
+                print('Login fail at the server({})'.format(self.server))
+                return False
+        else:
+            server=smtplib.SMTP(self.server,self.port)
+            if self.tls:
+                if not self.password:
+                    print('It required mail server({}) login password'.format(self.server))
+                    return False
+                if self.ssl:
+                    context = ssl.create_default_context()
+                    server.starttls(context=context)
+                else:
+                    server.starttls()
+                if self.user is None: self.user=sender
+                server.login(self.user, self.password)
+        return server
+
+    #def Send(self,sender,receivers,title='Subject',msg='MSG',dbg=False,filename=None,html=False):
+    def Send(self,*receivers,**opts):
+        sender=opts.get('sender',opts.get('from','root@localhost'))
+        title=opts.get('title',opts.get('subject','Unknown Subject'))
+        msg=opts.get('msg',opts.get('body','No body'))
+        dbg=opts.get('dbg',False)
+        filename=opts.get('filename')
+        html=opts.get('html',False)
+        server=self.Server()
+        if not server: return False
+        if dbg: server.set_debuglevel(True)
+        if len(receivers) == 1 and isinstance(receivers[0],str):
+            receivers=receivers[0].split(',')
+        elif receivers:
+            receivers=list(receivers)
+        else:
+            receivers=opts.get('to',opts.get('recievers'))
+            if isinstance(receivers,str):
+                receivers=receivers.split(',')
+            elif isinstance(receivers,tuple) and len(receivers) == 2 and isinstance(receivers[0],str) and '@' not in receivers[0]:
+                receivers=[receivers]
+        email_body=self.Body(sender,receivers,title,msg,filename=filename,html=html)
+        if email_body:
+            try:
+                server.sendmail(sender, receivers, email_body)
+                server.quit()
+                return True
+            except:
+                return False
+        else:
+            print('something wrong input')
 
 ####################################STRING##################################################
 def Cut(src,head_len=None,body_len=None,new_line='\n',out=str):
@@ -4191,7 +4316,7 @@ def Random(length=8,strs=None,mode='*',letter='*',default=1):
 #        for i in range(0,length):
 #            new='{0}{1}'.format(new,random.randint(0,9))
 #        return int(num)
-    if not isinstance(strs,str) or not str:
+    if not isinstance(strs,str) or not strs:
         strs=''
         if 'alpha' in mode or mode in ['all','*']:
             if letter == 'upper':
@@ -4296,8 +4421,8 @@ class SCREEN:
             find_num=len(find)
             cnt=0
             while True:
-                if TIME().Int() - init_time > timeout_sec :
-                    print('Monitoring timeout({} sec)'.format(timeout_sec))
+                if TIME().Int() - init_time > timeout :
+                    print('Monitoring timeout({} sec)'.format(timeout))
                     if self.Kill(title):
                         os.unlink(log_file)
                     break
@@ -4912,13 +5037,115 @@ def _u_byte2str(val,encode='latin1'):
     return CONVERT(val).Str(encode=encode)
 
 def file_mode(val):
-    return FILE().Mode(val)
+    #return FILE().Mode(val)
+    if isinstance(val,int):
+        if val > 511:
+            return oct(val)[-4:]
+        elif val > 63:
+            return oct(val)
+    else:
+        val=_u_bytes2str(val)
+        if val:
+            cnt=len(val)
+            num=int(val)
+            if cnt >=3 and cnt <=4 and num >= 100 and num <= 777:
+                return int(val,8)
 
 def get_file(filename,**opts):
-    return FILE(filename,**opts)
+    #return FILE(filename,**opts)
+    md5sum=opts.get('md5sum',False)
+    data=opts.get('data',False)
+    include_dir=opts.get('include_dir',False)
+    include_sub_dir=opts.get('include_sub_dir',False)
+
+    def get_file_data(filename,root_path=None):
+        rc={'name':os.path.basename(filename),'path':os.path.dirname(filename),'exist':False,'dir':False,'link':False}
+        if root_path:
+            in_filename=os.path.join(root_path,filename)
+        else:
+            in_filename=filename
+        if os.path.exists(in_filename):
+            fstat=os.stat(in_filename)
+            rc['uid']=fstat.st_uid
+            rc['gid']=fstat.st_gid
+            rc['size']=fstat.st_size
+            rc['atime']=fstat.st_atime
+            rc['mtime']=fstat.st_mtime
+            rc['ctime']=fstat.st_ctime
+            rc['inod']=fstat.st_ino
+            rc['mode']=oct(fstat.st_mode)[-4:]
+            rc['exist']=True
+            if os.path.islink(in_filename):
+                rc['link']=True
+            else:
+                rc['link']=False
+                if os.path.isdir(in_filename):
+                    rc['dir']=True
+                    rc['path']=in_filename
+                    rc['name']=''
+                else:
+                    rc['dir']=False
+                    if md5sum or data:
+                        with open(in_filename,'rb') as f:
+                            fdata=f.read()
+                        if md5sum:
+                            rc['md5']=md5(fdata)
+                        if data:
+                            rc['data']=fdata
+        return rc
+
+    rc={'exist':False,'includes':[]}
+    if type(filename) is str:
+        rc.update(get_file_data(filename))
+        if rc['dir']:
+            root_path=filename
+            real_filename=None
+        else:
+            root_path=os.path.dirname(filename)
+            real_filename=os.path.basename(filename)
+        if include_dir:
+            pwd=os.getcwd()
+            os.chdir(root_path)
+            for dirPath, subDirs, fileList in os.walk('.'):
+                for sfile in fileList:
+                    curFile=os.path.join(dirPath.replace('./',''),sfile)
+                    if curFile != real_filename:
+                        rc['includes'].append(get_file_data(curFile,root_path))
+                if include_sub_dir is False:
+                    break
+            os.chdir(pwd)
+    return rc
 
 def save_file(data,dest):
-    return data.Extract(dest=dest,sub_dir=True)
+#    return data.Extract(dest=dest,sub_dir=True)
+    if not isinstance(data,dict) or not isinstance(dest,str) : return False
+    if os.path.isdir(dest) is False: os.system('mkdir -p {0}'.format(dest))
+    if data.get('dir'):
+        fmode=file_mode(data.get('mode'))
+        if fmode:
+            os.chmod(dest,fmode)
+    else:
+        # if file then save
+        new_file=os.path.join(dest,data['name'])
+        if 'data' in data:
+            with open(new_file,'wb') as f:
+                f.write(data['data'])
+        chmod_mode=file_mode(data.get('mode'))
+        if chmod_mode:
+            os.chmod(new_file,chmod_mode)
+    if 'includes' in data and data['includes']: # If include directory or files 
+        for ii in data['includes']:
+            if ii['path']:
+                sub_dir=os.path.join(dest,ii['path'])
+            else:
+                sub_dir='{}'.format(dest)
+            if os.path.isdir(sub_dir) is False: os.system('mkdir -p {}'.format(sub_dir))
+            sub_file=os.path.join(sub_dir,ii['name'])
+            with open(sub_file,'wb') as f:
+                f.write(ii['data'])
+            chmod_mode=file_mode(ii.get('mode'))
+            if chmod_mode:
+                os.chmod(sub_file,chmod_mode)
 
 def CompVersion(src,compare_symbol,dest,compare_range='dest',version_symbol='.'):
     return VERSION().Compare(src,compare_symbol,dest,compare_range=compare_range,version_symbol=version_symbol)
@@ -5092,23 +5319,25 @@ def dput(dic=None,keys=None,val=None,force=False,safe=True):
     return False
 
 def sendanmail(to,subj,msg,html=True):
-    msg='''{}'''.format(msg)
-    msg=msg.replace('"','\\"')
-    if html:
-        email_msg='''To: {0}
-Subject: {1}  
-Content-Type: text/html
-<html>
-<body>
-<pre>
-{2}
-</pre>
-</body>
-</html>'''.format(to,subj,msg)
-    else:
-        email_msg=''
-    cmd='''echo "{0}" | sendmail -t'''.format(email_msg)
-    return rshell(cmd)
+    Email=EMAIL()
+    Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
+#    msg='''{}'''.format(msg)
+#    msg=msg.replace('"','\\"')
+#    if html:
+#        email_msg='''To: {0}
+#Subject: {1}  
+#Content-Type: text/html
+#<html>
+#<body>
+#<pre>
+#{2}
+#</pre>
+#</body>
+#</html>'''.format(to,subj,msg)
+#    else:
+#        email_msg=''
+#    cmd='''echo "{0}" | sendmail -t'''.format(email_msg)
+#    return rshell(cmd)
 
 #def mac2str(mac,case='lower'):
 #    if is_mac4(mac):
@@ -6051,101 +6280,6 @@ def check_work_dir(work_dir,make=False,ntry=1,try_wait=[1,3]):
                 except:
                     TIME().Sleep(try_wait)
     return False
-
-#def get_file(filename,**opts):
-#    md5sum=opts.get('md5sum',False)
-#    data=opts.get('data',False)
-#    include_dir=opts.get('include_dir',False)
-#    include_sub_dir=opts.get('include_sub_dir',False)
-# 
-#    def get_file_data(filename,root_path=None):
-#        rc={'name':os.path.basename(filename),'path':os.path.dirname(filename),'exist':False,'dir':False,'link':False}
-#        if root_path:
-#            in_filename=os.path.join(root_path,filename)
-#        else:
-#            in_filename=filename
-#        if os.path.exists(in_filename):
-#            fstat=os.stat(in_filename)
-#            rc['uid']=fstat.st_uid
-#            rc['gid']=fstat.st_gid
-#            rc['size']=fstat.st_size
-#            rc['atime']=fstat.st_atime
-#            rc['mtime']=fstat.st_mtime
-#            rc['ctime']=fstat.st_ctime
-#            rc['inod']=fstat.st_ino
-#            rc['mode']=oct(fstat.st_mode)[-4:]
-#            rc['exist']=True
-#            if os.path.islink(in_filename):
-#                rc['link']=True
-#            else:
-#                rc['link']=False
-#                if os.path.isdir(in_filename):
-#                    rc['dir']=True
-#                    rc['path']=in_filename
-#                    rc['name']=''
-#                else:
-#                    rc['dir']=False
-#                    if md5sum or data:
-#                        with open(in_filename,'rb') as f:
-#                            fdata=f.read()
-#                        if md5sum:
-#                            rc['md5']=md5(fdata)
-#                        if data:
-#                            rc['data']=fdata
-#        return rc
-# 
-#    rc={'exist':False,'includes':[]}
-#    if type(filename) is str:
-#        rc.update(get_file_data(filename))
-#        if rc['dir']:
-#            root_path=filename
-#            real_filename=None
-#        else:
-#            root_path=os.path.dirname(filename)
-#            real_filename=os.path.basename(filename)
-#        if include_dir:
-#            pwd=os.getcwd()
-#            os.chdir(root_path)
-#            for dirPath, subDirs, fileList in os.walk('.'):
-#                for sfile in fileList:
-#                    curFile=os.path.join(dirPath.replace('./',''),sfile)
-#                    if curFile != real_filename:
-#                        rc['includes'].append(get_file_data(curFile,root_path))
-#                if include_sub_dir is False:
-#                    break
-#            os.chdir(pwd)
-#    return rc
-        
-#def save_file(data,dest):
-#    if not isinstance(data,dict) or not isinstance(dest,str) : return False
-#    if os.path.isdir(dest) is False: os.system('mkdir -p {0}'.format(dest))
-#    if data.get('dir'):
-#        fmode=file_mode(data.get('mode'))
-#        if fmode:
-#            os.chmod(dest,fmode)
-#    else:
-#        # if file then save
-#        new_file=os.path.join(dest,data['name'])
-#        if 'data' in data:
-#            with open(new_file,'wb') as f:
-#                f.write(data['data'])
-#        chmod_mode=file_mode(data.get('mode'))
-#        if chmod_mode:
-#            os.chmod(new_file,chmod_mode)
-#    if 'includes' in data and data['includes']: # If include directory or files 
-#        for ii in data['includes']:
-#            if ii['path']:
-#                sub_dir=os.path.join(dest,ii['path'])
-#            else:
-#                sub_dir='{}'.format(dest)
-#            if os.path.isdir(sub_dir) is False: os.system('mkdir -p {}'.format(sub_dir))
-#            sub_file=os.path.join(sub_dir,ii['name'])
-#            with open(sub_file,'wb') as f:
-#                f.write(ii['data'])
-#            chmod_mode=file_mode(ii.get('mode'))
-#            if chmod_mode:
-#                os.chmod(sub_file,chmod_mode)
-
 
 def get_node_info():
     host_ip=get_host_ip()
