@@ -1123,17 +1123,16 @@ class SHELL:
         else:
             return p.returncode, ansi_escape.sub('',out).rstrip(), ansi_escape.sub('',err).rstrip(),start_time.Init(),start_time.Now(int),cmd,path
 
-class CONVERT:
-    def __init__(self,src):
+class BYTES:
+    def __init__(self,src=None,encode='utf-8',default='org'):
+        '''encode: utf-8(basic),latin1(enhance),windows-1252'''
         self.src=src
+        self.encode=encode
+        self.default=default
 
-    def Int(self,default=False):
-        if isinstance(self.src,int): return self.src
-        if Type(self.src,('float','long','str')):
-            try:return int(self.src)
-            except: pass
-        if default == 'org' or default == {'org'}: return self.src
-        return default
+    def From(self,src):
+        self.src=src
+        return self.Bytes(encode=self.encode,default=self.default)
 
     def Bytes(self,encode='utf-8',default='org'):
         def _bytes_(src,encode,default='org'):
@@ -1196,6 +1195,29 @@ class CONVERT:
             else:
                 return int(self.Bytes(encode=encode).hex(),16)
         return int(self.src.encode('hex'),16)
+
+
+class CONVERT:
+    def __init__(self,src):
+        self.src=src
+
+    def Int(self,default=False):
+        if isinstance(self.src,int): return self.src
+        if Type(self.src,('float','long','str')):
+            try:return int(self.src)
+            except: pass
+        if default == 'org' or default == {'org'}: return self.src
+        return default
+
+    def Str(self,default='org'):
+        if isinstance(self.src,bytes):
+            return BYTES(self.src).Str()
+        else:
+            try:
+                return '{}'.format(self.src)
+            except:
+                if default == 'org' or default == {'org'}: return self.src
+                return default
 
     def Ast(self,default=False,want_type=None):
         if isinstance(self.src,str):
@@ -1333,7 +1355,7 @@ class VERSION:
         pass
 
     def Clear(self,string,sym='.'):
-        if isinstance(string,(int,str)) and string:
+        if isinstance(string,(int,str,float)) and string:
             string='{}'.format(string)
         else:
             return False
@@ -5025,16 +5047,16 @@ def list2str(arr):
 
 
 def _u_str2int(val,encode='utf-8'):
-    return CONVERT(val).Str2Int(encode)
+    return BYTES(val).Str2Int(encode)
 
 def _u_bytes(val,encode='utf-8'):
-    return CONVERT(val).Bytes(encode)
+    return BYTES(encode=encode).From(val)
 
 def _u_bytes2str(val,encode='latin1'):
-    return _u_byte2str(val,encode=encode)
+    return BYTES(val).Str(encode=encode)
 
 def _u_byte2str(val,encode='latin1'):
-    return CONVERT(val).Str(encode=encode)
+    return _u_bytes2str(val,encode=encode)
 
 def file_mode(val):
     #return FILE().Mode(val)
