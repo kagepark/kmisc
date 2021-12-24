@@ -1350,6 +1350,30 @@ class MAC:
             return self.src
         return default
 
+    def GetIfname(self):
+        if not self.FromStr(): return False
+        net_dir='/sys/class/net'
+        if os.path.isdir(net_dir):
+            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+            for dev in dirnames:
+                fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
+                if type(fmac) is str and fmac.strip().lower() == self.src.lower():
+                    return dev
+
+    def FromIfname(self,ifname,default=None):
+        if isinstance(ifname,str):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                if PyVer(3):
+                    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', BYTES(encode='utf-8').From(ifname[:15])))
+                    return ':'.join(['%02x' % char for char in info[18:24]])
+                else:
+                    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
+                    return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+            except:
+                pass
+        return default
+
 class VERSION:
     def __init__(self):
         pass
@@ -2387,21 +2411,29 @@ class HOST:
     def Name(self):
         return socket.gethostname()
 
-    def NetIp(self,ifname):
+    def NetIp(self,ifname,default=None):
         if os.path.isdir('/sys/class/net/{}'.format(ifname)) is False:
             return False
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            return socket.inet_ntoa(fcntl.ioctl(
-                s.fileno(),
-                0x8915,  # SIOCGIFADDR
-                struct.pack('256s', ifname[:15])
-            )[20:24])
+            if PyVer(3):
+                return socket.inet_ntoa(fcntl.ioctl(
+                    s.fileno(),
+                    0x8915,  # SIOCGIFADDR
+                    struct.pack('256s', BYTES(encode='utf-8').From(ifname[:15]))
+                )[20:24])
+            else:
+                return socket.inet_ntoa(fcntl.ioctl(
+                    s.fileno(),
+                    0x8915,  # SIOCGIFADDR
+                    struct.pack('256s', ifname[:15])
+                )[20:24])
         except:
             try:
                 return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
             except:
-                return
+                pass
+        return default
 
     def Ip(self,ifname=None,mac=None,default=None):
         if mac is None : mac=self.Mac()
@@ -2451,23 +2483,6 @@ class HOST:
                 fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
                 if isinstance(fmac,str) and fmac.strip().lower() == mac.lower():
                     return dev
-        return default
-
-    def NetIP(ifname,default=None):
-        if not os.path.isdir('/sys/class/net/{}'.format(ifname)):
-            return default
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            return socket.inet_ntoa(fcntl.ioctl(
-                s.fileno(),
-                0x8915,  # SIOCGIFADDR
-                struct.pack('256s', ifname[:15])
-            )[20:24])
-        except:
-            try:
-                return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
-            except:
-                pass
         return default
 
     def Info(self):
@@ -4199,66 +4214,29 @@ def Sort(src,reverse=False,func=None,order=None,field=None,base='key',sym=None):
         return '''{}'''.format(e)
     if isinstance(src,(list,tuple)):
         if order in [int,'int','digit','number']:
-            #def _cint_(e):
-            #    try:
-            #        if isinstance(field,int):
-            #            if isinstance(e,(list,tuple)) and len(e) > field:
-            #                return int(e[field])
-            #            else:
-            #                return 9999999
-            #        return int(e)
-            #    except:
-            #        return e
-            return self.root.sort(reverse=reverse,key=_cint_)
+            return src.sort(reverse=reverse,key=_cint_)
         elif order in [str,'str']:
-            #def _cint_(e):
-            #    if isinstance(field,int):
-            #        if isinstance(e,(list,tuple)) and len(e) > field:
-            #            return '''{}'''.format(e[field])
-            #        else:
-            #            return 'zzzzzzzzz'
-            #    return '''{}'''.format(e)
-            #return self.root.sort(reverse=reverse,key=_cint_)
-            return self.root.sort(reverse=reverse,key=_cstr_)
+            return src.sort(reverse=reverse,key=_cstr_)
         else:
             if isinstance(field,int):
-                #def _cint_(e):
-                #    if isinstance(e,(list,tuple)) and len(e) > field:
-                #        return e[field]
-                return self.root.sort(reverse=reverse,key=_cint_)
+                return src.sort(reverse=reverse,key=_cint_)
             else:
-                return self.root.sort(reverse=reverse,key=func)
+                return src.sort(reverse=reverse,key=func)
     elif isinstance(src,dict):
         lst=[]
         if base == 'key':
             lst=list(self.keys())
             if order in [int,'int','digit','number']:
-                #def _cint_(e):
-                #    try:
-                #        return int(e)
-                #    except:
-                #        return e
                 return lst.sort(reverse=reverse,key=_cint_)
             elif order in [str,'str']:
-                #def _cint_(e):
-                #    return '''{}'''.format(e)
-                #return lst.sort(reverse=reverse,key=_cint_)
                 return lst.sort(reverse=reverse,key=_cstr_)
             else:
                 return lst.sort(reverse=reverse,func=func)
         elif base == 'value':
             lst=self.items()
             if order in [int,'int','digit','number']:
-                #def _cint_(e):
-                #    try:
-                #        return int(e[1])
-                #    except:
-                #        return e[1]
                 lst.sort(reverse=reverse,key=_cint_)
             elif order in [str,'str']:
-                #def _cint_(e):
-                #    return '''{}'''.format(e[1])
-                #lst.sort(reverse=reverse,key=_cint_)
                 lst.sort(reverse=reverse,key=_cstr_)
             else:
                 lst.sort(reverse=reverse,func=func)
@@ -4619,21 +4597,10 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
 
 
 def get_dev_name_from_mac(mac):
-    net_dir='/sys/class/net'
-    if type(mac) is str and os.path.isdir(net_dir):
-        dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-        for dev in dirnames:
-            fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
-            if type(fmac) is str and fmac.strip().lower() == mac.lower():
-                return dev
+    return MAC(mac).GetIfname()
 
 def get_dev_mac(ifname):
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-        return ':'.join(['%02x' % ord(char) for char in info[18:24]])
-    except:
-        return
+    return MAC().FromIfname(ifname)
 
 def get_net_device(name=None):
     net_dev={}
@@ -5195,6 +5162,7 @@ class ANSI:
 def cat(filename,no_end_newline=False):
     tmp=FILE().Rw(filename)
     tmp=Get(tmp,1)
+    tmp=BYTES(tmp).Str()
     if isinstance(tmp,str) and no_end_newline:
         tmp_a=tmp.split('\n')
         ntmp=''
@@ -5474,8 +5442,9 @@ def get_dev_name_from_mac(mac=None):
 def get_dev_mac(ifname):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-        return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+        info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', BYTES(encode='utf-8').From(ifname[:15])))
+        #return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+        return ':'.join(['%02x' % char for char in info[18:24]])
     except:
         return
 
