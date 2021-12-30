@@ -1358,7 +1358,7 @@ class VERSION:
     def Clear(self,string,sym='.'):
         if isinstance(string,(int,str,float)) and string:
             string='{}'.format(string)
-        else:
+        if not isinstance(string,str):
             return False
         arr=string.split(sym)
         for ii in range(len(arr)-1,0,-1):
