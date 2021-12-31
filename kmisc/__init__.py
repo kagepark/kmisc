@@ -60,6 +60,9 @@ pipe_file=None
 
 cdrom_ko=['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage']
 
+def Global():
+    return dict(inspect.getmembers(inspect.stack()[-1][0]))["f_globals"]
+
 def OutFormat(data,out=None):
     if out in [tuple,'tuple']:
         if not isinstance(data,tuple):
@@ -547,50 +550,6 @@ class LIST(list):
                         continue
                 self.root.append(rp)
         return self.root
-
-
-#def append2list(*inp,**cond):
-#   org=[]
-#   add_num=len(inp)
-#   uniq=cond.get('uniq',False)
-#   if add_num == 0:
-#       return []
-#   src=inp[0]
-#   src_type=type(inp)
-#   if add_num == 1:
-#       if src_type in [list,tuple,str]:
-#           return list(src)
-#       else:
-#           org.append(src)
-#           return org
-#   add=inp[1:]
-#   if src_type is str:
-#      for jj in src.split(','):
-#         if uniq and jj in org: continue
-#         org.append(jj)
-#   elif src_type in [list,tuple]:
-#      for jj in src:
-#          if uniq and jj in org: continue
-#          org.append(jj)
-#   else:
-#      org.append(src)
-# 
-#   for ii in add:
-#      ii_type=type(ii)
-#      if ii_type in [list,tuple]:
-#         for jj in ii:
-#             if uniq and jj in org: continue
-#             org.append(jj)
-#      elif ii_type is str:
-#         for jj in ii.split(','):
-#            if uniq and jj in org: continue
-#            org.append(jj)
-#      else:
-#         if uniq and ii in org: continue
-#         org.append(ii)
-#   return org
-
-
 
     def append(self,inp):
         self.root.append(inp)
@@ -1357,16 +1316,18 @@ class VERSION:
 
     def Clear(self,string,sym='.'):
         if isinstance(string,(int,str,float)) and string:
-            string='{}'.format(string)
-        if not isinstance(string,str):
-            return False
-        arr=string.split(sym)
-        for ii in range(len(arr)-1,0,-1):
-            if arr[ii].replace('0','') == '':
-                arr.pop(-1)
+            if isinstance(string,str):
+                string=string.strip()
             else:
-                break
-        return sym.join(arr)
+                string='{}'.format(string)
+            arr=string.split(sym)
+            for ii in range(len(arr)-1,0,-1):
+                if arr[ii].replace('0','') == '':
+                    arr.pop(-1)
+                else:
+                    break
+            return sym.join(arr)
+        return False
 
     def Check(self,a,sym,b):
         a=self.Clear(a)
@@ -1524,7 +1485,7 @@ class IP:
         log=opts.get('log',None)
         init_time=None
         if self.IsV4(ip):
-            if not self.Ping(ip,count=3):
+            if not self.Ping(ip,count=5):
                 if not self.Ping(ip,count=0,timeout=timeout_sec,keep_good=keep_good,interval=interval,cancel_func=cancel_func,log=log):
                     return True
             return False
@@ -1606,7 +1567,7 @@ class IP:
             return False,'Timeout/Unknown issue'
         return default,'IP format error'
 
-    def Ping(self,host=None,count=3,interval=1,keep_good=0, timeout=60,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
+    def Ping(self,host=None,count=0,interval=1,keep_good=0, timeout=0,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
         if host is None: host=self.ip
         ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
         ICMP_CODE = socket.getprotobyname('icmp')
@@ -1704,28 +1665,26 @@ class IP:
 
 
         if log_format=='ping':
+            if not count: count=1
             if find_executable('ping'):
                 os.system("ping -c {0} {1}".format(count,host))
             else:
                 do_ping(host,timeout=timeout,size=64,count=count,log_format='ping',cancel_func=cancel_func)
         else:
             Time=TIME()
-            init_sec=Time.Init()
+            init_sec=0
+            infinit=False
+            if not count and not timeout:
+                count=1
+                infinit=True
+            if not infinit and not count:
+                init_sec=Time.Init()
+                if keep_good and keep_good > timeout:
+                    timeout=keep_good + timeout
+                count=timeout
             chk_sec=Time.Init()
             log_type=type(log).__name__
             found_lost=False
-            if keep_good > 0 or not count:
-               try:
-                   timeout=int(timeout)
-               except:
-                   timeout=1
-               if timeout < keep_good:
-                   count=keep_good+(2*interval)
-                   timeout=keep_good+5
-               elif not count:
-                   count=timeout//interval + 3
-               elif count * interval > timeout:
-                   timeout=count*interval+timeout
             good=False
             while count > 0:
                if is_cancel(cancel_func):
@@ -1748,15 +1707,22 @@ class IP:
                       return True
                   if log_type == 'function':
                       log('.',direct=True,log_level=1)
+                  else:
+                      sys.stdout.write('.')
+                      sys.stdout.flush()
                else:
                   good=False
                   chk_sec=TIME().Now(int)
                   if log_type == 'function':
                       log('x',direct=True,log_level=1)
-               if TIME().Now(int) - init_sec > timeout:
-                   return False
+                  else:
+                      sys.stdout.write('.')
+                      sys.stdout.flush()
+               if init_sec:
+                   count=count-(TIME().Now(int)-init_sec)
+               elif not infinit:
+                   count-=1
                TIME().Sleep(interval)
-               count-=1
             return good
 
 class GET:
@@ -2526,8 +2492,8 @@ class HOST:
     def Alive(self,ip,keep=20,interval=3,timeout=1800,default=False,log=None,cancel_func=None):
         return IP(ip).Online(keep=keep,interval=interval,timeout=timeout,default=default,log=log,cancel_func=cancel_func)[1]
 
-    def Ping(self,ip):
-        return IP(ip).Ping()
+    def Ping(self,ip,keep_good=10,timeout=3600):
+        return IP(ip).Ping(keep_good=10,timeout=timeout)
 
 class FILE:
     '''
@@ -3620,6 +3586,83 @@ def FirstKey(src,default=None):
     return default
 
 ####################################FUNCTION##################################################
+class FUNCTION:
+    def __init__(self,func=None):
+        if func:
+            if isinstance(func,str):
+                func=Global(func)
+            self.func=func
+
+    def Name(self):
+        return traceback.extract_stack(None, 2)[0][2]
+
+    def ParentName(self):
+        return traceback.extract_stack(None, 3)[0][2]
+
+    def Args(self,func=None,mode='defaults'):
+        if func is None: func=self.func
+        rc={}
+        args, varargs, keywords, defaults = inspect.getargspec(func)
+        if defaults is not None:
+            defaults=dict(zip(args[-len(defaults):], defaults))
+            del args[-len(defaults):]
+            rc['defaults']=defaults
+        if args:
+            rc['args']=args
+        if varargs:
+            rc['varargs']=varargs
+        if keywords:
+            rc['keywards']=keywords
+        if mode in ['*','all']:
+            return rc
+        if mode in rc:
+            return rc[mode]
+
+    def List(self,obj=None):
+        aa={}
+        if isinstance(obj,str):
+           obj=sys.modules.get(str)
+        if obj is not None:
+            for name,fobj in inspect.getmembers(obj):
+                if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
+                    aa.update({name:fobj})
+        return aa
+
+    def CallerName(self,detail=False):
+        try:
+            dep=len(inspect.stack())-2
+            if detail:
+                return sys._getframe(dep).f_code.co_name,sys._getframe(dep).f_lineno,sys._getframe(dep).f_code.co_filename
+            else:
+                name=sys._getframe(dep).f_code.co_name
+                if name == '_bootstrap_inner' or name == '_run_code':
+                    return sys._getframe(3).f_code.co_name
+                return name
+        except:
+            return False
+
+    def Is(self,find=None,src=None):
+        if find is None: find=self.func
+        if src is None:
+            if isinstance(find,str):
+                #find=sys.modules.get(find)
+                find=Global().get(find)
+            return inspect.isfunction(find)
+        aa=[]
+        if not isinstance(find,str): find=find.__name__
+        if isinstance(src,str):
+            src=sys.modules.get(src)
+        if inspect.ismodule(src) or inspect.isclass(src):
+            for name,fobj in inspect.getmembers(src):
+                if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
+                    aa.append(name)
+        else:
+            for name,fobj in inspect.getmembers(src):
+                if inspect.ismethod(fobj): # inspect.ismodule(obj) check the obj is module or not
+                    aa.append(name)
+        if find in aa: return True
+        return False
+
 def argtype(arg,want='_',get_data=['_']):
     type_arg=type(arg)
     if want in get_data:
@@ -4312,12 +4355,6 @@ def Update(src,*inps,**opts):
            src.update(opts)
     return src
 
-def Wrap(src,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
-    return STR(src).Wrap(space=space,space_mode=space_mode,sym=sym,default=default,NFLT=NFLT,out=out)
-
-def Split(src,sym,default=None):
-    return STR(src).Split(sym,default=default)
-
 def Random(length=8,strs=None,mode='*',letter='*',default=1):
     if mode in [int,'int','num','number']:
         if isinstance(strs,(list,tuple)) and len(strs) == 2:
@@ -4398,19 +4435,6 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
             return rt[0][1]
         return rt
     return default
-
-
-def screen_kill(self,title):
-    return SCREEN().Kill(title)
-
-def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
-    return SCREEN().Monitor(title,ip,ipmi_user,ipmi_pass,find=find,timeout=timeout_sec)
-
-def screen_id(title=None):
-    return SCREEN().Id(title)
-
-def screen_logging(title,cmd):
-    return SCREEN().Log(title,cmd)
 
 class SCREEN:
     def Kill(self,title):
@@ -4734,69 +4758,6 @@ def find_usb_dev(size=None,max_size=None):
                                         rc.append('/dev/{0}'.format(dd))
     return rc
 ##########################################################################################
-def mac2str(mac,case='lower'):
-    return MAC(mac).ToStr(case=case)
-
-def str2mac(mac,sym=':',case='lower',chk=False):
-    return MAC(mac).FromStr(case=case,sym=sym,chk=chk)
-
-def is_mac4(mac=None,symbol=':',convert=True):
-    return MAC(mac).IsV4(symbol=symbol)
-
-def str2url(string):
-    return WEB().str2url(string)
-
-def is_bmc_ipv4(ipaddr,port=(623,664,443)):
-    return IP(ipaddr).IsBmcIp(port=port)
-
-def is_port_ip(ipaddr,port):
-    return IP(ipaddr).IsOpenPort(port)
-
-def ipv4(ipaddr=None,chk=False):
-    return IP(ipaddr).V4(out='str',default=False)
-
-def ip_in_range(ip,start,end):
-    return IP(ip).InRange(start,end)
-
-def is_ipv4(ipaddr=None):
-    return IP(ipaddr).IsV4()
-
-def ip2num(ip):
-    return IP(ip).Ip2Num()
-
-def web_server_ip(request):
-    web=WEB(request)
-    return web.ServerIp()
-
-def web_client_ip(request):
-    web=WEB(request)
-    return web.ClientIp()
-
-def web_session(request):
-    web=WEB(request)
-    return web.Session()
-
-def web_req(host_url=None,**opts):
-    return WEB().Request(host_url,**opts)
-
-def logging(*msg,**opts):
-    return printf(*msg,**opts)
-
-def is_py3():
-    return PyVer(3)
-
-def rshell(cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5):
-    return SHELL().Run(cmd,timeout=timeout,ansi=ansi,path=path,progress=progress,progress_pre_new_line=progress_pre_new_line,progress_post_new_line=progress_post_new_line,log=log,progress_interval=progress_interval)
-
-def gen_random_string(length=8,letter='*',digits=True,symbols=True,custom=''):
-    mode='alpha'
-    if digits:mode=mode+'num'
-    if symbols:mode=mode+'char'
-    return Random(length=length,strs=custom,mode=mode,letter=letter)
-
-def string2data(string,default='org',want_type=None):
-    return CONVERT(string).Ast(default=default,want_type=want_type)
-
 def append(src,addendum):
     type_src=type(src)
     type_data=type(addendum)
@@ -4952,20 +4913,8 @@ def check_value(src,find,idx=None):
                     return True
     return False
 
-def get_value(src,key=None,default=None,check=[str,list,tuple,dict],err=False):
-    return Get(src,key,default=default,check=check,err=err)
-
-def file_rw(name,data=None,out='string',append=False,read=None,overwrite=True):
-    return FILE().Rw(name,data=data,out=out,append=append,read=read,overwrite=overwrite,finfo={})
-
-def rm_file(filelist):
-    return FILE().Rm(filelist)
-
-def append2list(*inps,**opts):
-    return LIST(inps[0]).Append(*inps[1:],**opts)
-
 def ping(host,**opts):
-    count=opts.get('count',3)
+    count=opts.get('count',0)
     interval=opts.get('interval',1)
     keep_good=opts.get('keep_good',0)
     timeout=opts.get('timeout',opts.get('timeout_sec',5))
@@ -5027,9 +4976,6 @@ def is_comeback(ip,**opts):
         log(']\n',direct=True,log_level=1)
     return False,'Timeout/Unknown issue'
 
-def sizeConvert(sz=None,unit='b:g'):
-    return CONVERT(sz).Size(unit=unit)
-
 def Join(*inps,symbol=''):
     if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
         src=inps[0]
@@ -5042,22 +4988,6 @@ def Join(*inps,symbol=''):
         else:
             rt='{}'.format(i)
     return rt
-
-def list2str(arr):
-    return Join(arr,symbol=' ')
-
-
-def _u_str2int(val,encode='utf-8'):
-    return BYTES(val).Str2Int(encode)
-
-def _u_bytes(val,encode='utf-8'):
-    return BYTES(encode=encode).From(val)
-
-def _u_bytes2str(val,encode='latin1'):
-    return BYTES(val).Str(encode=encode)
-
-def _u_byte2str(val,encode='latin1'):
-    return _u_bytes2str(val,encode=encode)
 
 def file_mode(val):
     #return FILE().Mode(val)
@@ -5169,16 +5099,6 @@ def save_file(data,dest):
             chmod_mode=file_mode(ii.get('mode'))
             if chmod_mode:
                 os.chmod(sub_file,chmod_mode)
-
-def CompVersion(src,compare_symbol,dest,compare_range='dest',version_symbol='.'):
-    return VERSION().Compare(src,compare_symbol,dest,compare_range=compare_range,version_symbol=version_symbol)
-
-def Int(i,default={'org'}):
-    return CONVERT(i,default=default)
-
-def Lower(src):
-    if isinstance(src,str): return src.lower()
-    return src
 
 class ANSI:
     ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
@@ -5340,70 +5260,6 @@ def dput(dic=None,keys=None,val=None,force=False,safe=True):
                 tmp.update({keys_arr[keys_num-1]:val})
                 return True
     return False
-
-def sendanmail(to,subj,msg,html=True):
-    Email=EMAIL()
-    Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
-#    msg='''{}'''.format(msg)
-#    msg=msg.replace('"','\\"')
-#    if html:
-#        email_msg='''To: {0}
-#Subject: {1}  
-#Content-Type: text/html
-#<html>
-#<body>
-#<pre>
-#{2}
-#</pre>
-#</body>
-#</html>'''.format(to,subj,msg)
-#    else:
-#        email_msg=''
-#    cmd='''echo "{0}" | sendmail -t'''.format(email_msg)
-#    return rshell(cmd)
-
-#def mac2str(mac,case='lower'):
-#    if is_mac4(mac):
-#        if case == 'lower':
-#            mac=mac.strip().replace(':','').replace('-','').lower()
-#        else:
-#            mac=mac.strip().replace(':','').replace('-','').upper()
-#        return mac
-#    return False
-
-#def str2mac(mac,sym=':',case='lower',chk=False):
-#    if type(mac) is str:
-#        cmac=mac.strip()
-#        if len(cmac) in [12,17]:
-#            cmac=cmac.replace(':','').replace('-','')
-#            if len(cmac) == 12:
-#                cmac=sym.join(cmac[i:i+2] for i in range(0,12,2))
-#            if case == 'lower':
-#                mac=cmac.lower()
-#            else:
-#                mac=cmac.upper()
-#    if chk:
-#        if is_mac4(mac,convert=False):
-#            return mac
-#        else:
-#            return False
-#    return mac
-
-#def is_mac4(mac=None,symbol=':',convert=True):
-#    if convert:
-#        mac=str2mac(mac,sym=symbol)
-#    if mac is None or type(mac) is not str:
-#        return False
-#    octets = mac.split(symbol)
-#    if len(octets) != 6:
-#        return False
-#    for i in octets:
-#        try:
-#           if len(i) != 2 or int(i, 16) > 255:
-#               return False
-#        except:
-#           return False
-#    return True
 
 def sreplace(pattern,sub,string):
     return re.sub('^%s' % pattern, sub, string)
@@ -5614,65 +5470,6 @@ def is_tempfile(filepath,tmp_dir='/tmp'):
    return True
 
 
-def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
-    return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir)
-#   if filename is None:
-#       filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
-#   dir_name=os.path.dirname(filename)
-#   file_name=os.path.basename(filename)
-#   name, ext = os.path.splitext(file_name)
-#   if type(suffix) is not str:
-#       suffix='-XXXXXXXX'
-#   num_type='.%0{}d'.format(len(suffix)-1)
-#   if dir_name == '.':
-#       dir_name=os.path.dirname(os.path.realpath(__file__))
-#   elif dir_name == '':
-#       dir_name=base_dir
-#   def new_name(name,ext=None,ext2=None):
-#       if ext:
-#           if ext2:
-#               return '{}{}{}'.format(name,ext,ext2)
-#           return '{}{}'.format(name,ext)
-#       if ext2:
-#           return '{}{}'.format(name,ext2)
-#       return name
-#   def new_dest(dest_dir,name,ext=None):
-#       if os.path.isdir(dest_dir) is False:
-#           return False
-#       i=0
-#       new_file=new_name(name,ext)
-#       while True:
-#           rfile=os.path.join(dest_dir,new_file)
-#           if os.path.exists(rfile) is False:
-#               return rfile
-#           if suffix:
-#               if '0' in suffix or 'n' in suffix or 'N' in suffix:
-#                   if suffix[-1] not in ['0','n']:
-#                       new_file=new_name(name,num_type%i,ext)
-#                   else:
-#                       new_file=new_name(name,ext,num_type%i)
-#               elif 'x' in suffix or 'X' in suffix:
-#                   rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
-#                   if suffix[-1] not in ['X','x']:
-#                       new_file=new_name(name,rnd_str,ext)
-#                   else:
-#                       new_file=new_name(name,ext,rnd_str)
-#               else:
-#                   if i == 0:
-#                       new_file=new_name(name,ext,'.{}'.format(suffix))
-#                   else:
-#                       new_file=new_name(name,ext,'.{}.{}'.format(suffix,i))
-#           else:
-#               new_file=new_name(name,ext,'.{}'.format(i))
-#           i+=1
-#   new_dest_file=new_dest(dir_name,name,ext)
-#   if opt in ['file','f']:
-#      os.mknode(new_dest_file)
-#   elif opt in ['dir','d','directory']:
-#      os.mkdir(new_dest_file)
-#   else:
-#      return new_dest_file
-
 def isfile(filename=None):
    if filename is None:
       return False
@@ -5681,163 +5478,6 @@ def isfile(filename=None):
    if os.path.isfile(filename):
       return True
    return False
-
-
-#def ping(host,count=3,interval=1,keep_good=0, timeout_sec=5,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
-#    ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
-#    ICMP_CODE = socket.getprotobyname('icmp')
-#    ERROR_DESCR = {
-#        1: ' - Note that ICMP messages can only be '
-#           'sent from processes running as root.',
-#        10013: ' - Note that ICMP messages can only be sent by'
-#               ' users or processes with administrator rights.'
-#        }
-# 
-#    def checksum(msg):
-#        sum = 0
-#        size = (len(msg) // 2) * 2
-#        for c in range(0,size, 2):
-#            sum = (sum + ord(msg[c + 1])*256+ord(msg[c])) & 0xffffffff
-#        if size < len(msg):
-#            sum = (sum+ord(msg[len(msg) - 1])) & 0xffffffff
-#        ra = ~((sum >> 16) + (sum & 0xffff) + (sum >> 16)) & 0xffff
-#        ra = ra >> 8 | (ra << 8 & 0xff00)
-#        return ra
-# 
-#    def mk_packet(size):
-#        """Make a new echo request packet according to size"""
-#        # Header is type (8), code (8), checksum (16), id (16), sequence (16)
-#        header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0, 0, size, 1)
-#        #data = struct.calcsize('bbHHh') * 'Q'
-#        data = size * 'Q'
-#        my_checksum = checksum(_u_bytes2str(header) + data)
-#        header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0,
-#                             socket.htons(my_checksum), size, 1)
-#        return header + _u_bytes(data)
-# 
-#    def receive(my_socket, ssize, stime, timeout_sec):
-#        while True:
-#            if timeout_sec <= 0:
-#                return
-#            ready = select.select([my_socket], [], [], timeout_sec)
-#            if ready[0] == []: # Timeout
-#                return
-#            received_time = time.time()
-#            packet, addr = my_socket.recvfrom(1024)
-#            type, code, checksum, gsize, seq = struct.unpack('bbHHh', packet[20:28]) # Get Header
-#            if gsize == ssize:
-#                return received_time - stime
-#            timeout_sec -= received_time - stime
-# 
-#    def pinging(ip,timeout_sec=1,size=64):
-#        try:
-#            my_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, ICMP_CODE)
-#        except socket.error as e:
-#            if e.errno in ERROR_DESCR:
-#                raise socket.error(''.join((e.args[1], ERROR_DESCR[e.errno])))
-#            raise
-#        if size in ['rnd','random']:
-#            # Maximum size for an unsigned short int c object(65535)
-#            size = int((id(timeout_sec) * random.random()) % 65535)
-#        packet = mk_packet(size)
-#        while packet:
-#            sent = my_socket.sendto(packet, (ip, 1)) # ICMP have no port, So just put dummy port 1
-#            packet = packet[sent:]
-#        delay = receive(my_socket, size, time.time(), timeout_sec)
-#        my_socket.close()
-#        if delay:
-#            return delay,size
-# 
-#    def do_ping(ip,timeout_sec=1,size=64,count=None,interval=0.7,log_format='ping',cancel_func=None,timeout_ping=1):
-#        ok=1
-#        i=1
-#        init_time=None
-#        while True:
-#            out,init_time=timeout(timeout_sec,init_time)
-#            if out:
-#                return -1,'Timeout'
-#            if is_cancel(cancel_func):
-#                return -1,'canceled'
-#            delay=pinging(ip,timeout_ping,size)
-#            if delay:
-#                ok=0
-#                if log_format == '.':
-#                    sys.stdout.write('.')
-#                    sys.stdout.flush()
-#                elif log_format == 'ping':
-#                    sys.stdout.write('{} bytes from {}: icmp_seq={} ttl={} time={} ms\n'.format(delay[1],ip,i,size,round(delay[0]*1000.0,4)))
-#                    sys.stdout.flush()
-#            else:
-#                ok=1
-#                if log_format == '.':
-#                    sys.stdout.write('x')
-#                    sys.stdout.flush()
-#                elif log_format == 'ping':
-#                    sys.stdout.write('{} icmp_seq={} timeout ({} second)\n'.format(ip,i,timeout_sec))
-#                    sys.stdout.flush()
-#            if count:
-#                count-=1
-#                if count < 1:
-#                    return ok,'{} is alive'.format(ip)
-#            i+=1
-#            time.sleep(interval)
-# 
-# 
-#    if log_format=='ping':
-#        if find_executable('ping'):
-#            os.system("ping -c {0} {1}".format(count,host))
-#        else:
-#            do_ping(host,timeout_sec=timeout_sec,size=64,count=count,log_format='ping',cancel_func=cancel_func)
-#    else:
-#        chk_sec=int_sec()
-#        log_type=type(log).__name__
-#        found_lost=False
-#        if keep_good > 0 or not count:
-#           try:
-#               timeout_sec=int(timeout_sec)
-#           except:
-#               timeout_sec=1
-#           if timeout_sec < keep_good:
-#               count=keep_good+(2*interval)
-#               timeout_sec=keep_good+5
-#           elif not count:
-#               count=timeout_sec//interval + 3
-#           elif count * interval > timeout_sec:
-#               timeout_sec=count*interval+timeout_sec
-#        good=False
-#        timeoutini=None
-#        while True:
-#           out,timeoutini=timeout(timeout_sec,init_time=timeoutini)
-#           if out:
-#               return False
-#           if is_cancel(cancel_func):
-#               log(' - Canceled ping')
-#               return False
-#           if stop_func:
-#               if log_type == 'function':
-#                   log(' - Stopped ping')
-#               return False
-#           if find_executable('ping'):
-#               rc=rshell("ping -c 1 {}".format(host))
-#           else:
-#               rc=do_ping(host,timeout_sec=1,size=64,count=count,log_format=None)
-#           if rc[0] == 0:
-#              good=True
-#              if keep_good:
-#                  if good and keep_good and int_sec() - chk_sec >= keep_good:
-#                      return True
-#              else:
-#                  return True
-#              if log_type == 'function':
-#                  log('.',direct=True,log_level=1)
-#           else:
-#              good=False
-#              chk_sec=int_sec()
-#              if log_type == 'function':
-#                  log('x',direct=True,log_level=1)
-#           time.sleep(interval)
-#           count-=1
-#        return good
 
 def space(space_num=0,_space_='   '):
     space_str=''
@@ -6024,66 +5664,6 @@ def find_cdrom_dev(size=None):
 #Non-Volatile Bit Rate (kbps)    : 115.2
 #Payload Channel                 : 1 (0x01)
 #Payload Port                    : 623
-
-#def _u_str2int(val,encode='utf-8'):
-#    if is_py3():
-#        if type(val) is bytes:
-#            return int(val.hex(),16)
-#        else:
-#            return int(_u_bytes(val,encode=encode).hex(),16)
-#    return int(val.encode('hex'),16)
-
-#def _u_bytes(val,encode='utf-8'):
-#    def _bytes_(val,encode):
-#        try:
-#            if is_py3():
-#                if type(val) is bytes:
-#                    return val
-#                else:
-#                    return bytes(val,encode)
-#            return bytes(val) # if change to decode then network packet broken
-#        except:
-#            return val
-#    tuple_data=False
-#    if isinstance(val,tuple):
-#        val=list(val)
-#        tuple_data=True
-#    if isinstance(val,list):
-#        for i in range(0,len(val)):
-#            val[i]=_bytes_(val[i],encode)
-#        if tuple_data:
-#            return tuple(val)
-#        else:
-#            return val
-#    else:
-#        return _bytes_(val,encode)
-
-#def _u_bytes2str(val,encode='latin1'):
-#    return _u_byte2str(val,encode=encode)
-
-#def _u_byte2str(val,encode='windows-1252'):
-#def _u_byte2str(val,encode='latin1'):
-#    #return val.decode(encode) # this is original
-#    def _byte2str_(val,encode):
-#        type_val=type(val)
-#        if is_py3() and type_val is bytes:
-#            return val.decode(encode)
-#        elif type_val.__name__ == 'unicode':
-#            return val.encode(encode)
-#        return val
-#    tuple_data=False
-#    if isinstance(val,tuple):
-#        val=list(val)
-#        tuple_data=True
-#    if isinstance(val,list):
-#        for i in range(0,len(val)):
-#            val[i]=_byte2str_(val[i],encode)
-#        if tuple_data:
-#            return tuple(val)
-#        else:
-#            return val
-#    else:
-#        return _byte2str_(val,encode)
 
 def net_send_data(sock,data,key='kg',enc=False,timeout=0):
     if type(sock).__name__ in ['socket','_socketobject','SSLSocket'] and data and type(key) is str and len(key) > 0 and len(key) < 7:
@@ -6585,9 +6165,6 @@ def replacestr(data,org,new):
 #        new=_u_bytes(new)
     return data.replace(org,new)
 
-def check_version(a,sym,b):
-    return VERSION().Check(a,sym,b)
-    
 def get_iso_uid(filename):
     if type(filename) is not str:
         return False,None,None
@@ -6630,12 +6207,6 @@ def find_usb_dev(size=None,max_size=None):
                                     if dev_size == int(size):
                                         rc.append('/dev/{0}'.format(dd))
     return rc
-
-def Pwd(cwd=None):
-    return FILE().Path(cwd)
-
-def get_my_directory(cwd=None):
-    return FILE().Path(cwd)
 
 def alive(out=None):
     aa=rshell('uptime')
@@ -6724,9 +6295,6 @@ def pipe_msg(**opts):
     else:
         return m
 
-def IsSame(src,chk_val,sense=False):
-    return IS().Same(src,chk_val,sense=sense)
-
 def Try(cmd):
     try:
         return True,cmd
@@ -6762,12 +6330,6 @@ def Next(src,step=0,out=None,default='org'):
     if default == 'org': return src
     OutFormat(default,out=out)
 
-def move2first(item,pool):
-    return LIST(pool).Move2first(item)
-
-def now():
-    return TIME().Int()
-
 def Timeout(timeout_sec,init_time=None,default=(24*3600)):
     if timeout_sec == 0: return True,0
     init_time=integer(init_time,default=0)
@@ -6782,3 +6344,152 @@ def Timeout(timeout_sec,init_time=None,default=(24*3600)):
         return True,init_time
     return False,init_time
 
+#################################################################
+def Wrap(src,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
+    return STR(src).Wrap(space=space,space_mode=space_mode,sym=sym,default=default,NFLT=NFLT,out=out)
+
+def Split(src,sym,default=None):
+    return STR(src).Split(sym,default=default)
+
+def screen_kill(self,title):
+    return SCREEN().Kill(title)
+
+def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
+    return SCREEN().Monitor(title,ip,ipmi_user,ipmi_pass,find=find,timeout=timeout_sec)
+
+def screen_id(title=None):
+    return SCREEN().Id(title)
+
+def screen_logging(title,cmd):
+    return SCREEN().Log(title,cmd)
+
+def mac2str(mac,case='lower'):
+    return MAC(mac).ToStr(case=case)
+
+def str2mac(mac,sym=':',case='lower',chk=False):
+    return MAC(mac).FromStr(case=case,sym=sym,chk=chk)
+
+def is_mac4(mac=None,symbol=':',convert=True):
+    return MAC(mac).IsV4(symbol=symbol)
+
+def rshell(cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5):
+    return SHELL().Run(cmd,timeout=timeout,ansi=ansi,path=path,progress=progress,progress_pre_new_line=progress_pre_new_line,progress_post_new_line=progress_post_new_line,log=log,progress_interval=progress_interval)
+
+def gen_random_string(length=8,letter='*',digits=True,symbols=True,custom=''):
+    mode='alpha'
+    if digits:mode=mode+'num'
+    if symbols:mode=mode+'char'
+    return Random(length=length,strs=custom,mode=mode,letter=letter)
+
+def string2data(string,default='org',want_type=None):
+    return CONVERT(string).Ast(default=default,want_type=want_type)
+
+def str2url(string):
+    return WEB().str2url(string)
+
+def is_bmc_ipv4(ipaddr,port=(623,664,443)):
+    return IP(ipaddr).IsBmcIp(port=port)
+
+def is_port_ip(ipaddr,port):
+    return IP(ipaddr).IsOpenPort(port)
+
+def ipv4(ipaddr=None,chk=False):
+    return IP(ipaddr).V4(out='str',default=False)
+
+def ip_in_range(ip,start,end):
+    return IP(ip).InRange(start,end)
+
+def is_ipv4(ipaddr=None):
+    return IP(ipaddr).IsV4()
+
+def ip2num(ip):
+    return IP(ip).Ip2Num()
+
+def web_server_ip(request):
+    web=WEB(request)
+    return web.ServerIp()
+
+def web_client_ip(request):
+    web=WEB(request)
+    return web.ClientIp()
+
+def web_session(request):
+    web=WEB(request)
+    return web.Session()
+
+def web_req(host_url=None,**opts):
+    return WEB().Request(host_url,**opts)
+
+def logging(*msg,**opts):
+    return printf(*msg,**opts)
+
+def is_py3():
+    return PyVer(3)
+
+def get_value(src,key=None,default=None,check=[str,list,tuple,dict],err=False):
+    return Get(src,key,default=default,check=check,err=err)
+
+def file_rw(name,data=None,out='string',append=False,read=None,overwrite=True):
+    return FILE().Rw(name,data=data,out=out,append=append,read=read,overwrite=overwrite,finfo={})
+
+def rm_file(filelist):
+    return FILE().Rm(filelist)
+
+def append2list(*inps,**opts):
+    return LIST(inps[0]).Append(*inps[1:],**opts)
+
+def sizeConvert(sz=None,unit='b:g'):
+    return CONVERT(sz).Size(unit=unit)
+
+def list2str(arr):
+    return Join(arr,symbol=' ')
+
+def _u_str2int(val,encode='utf-8'):
+    return BYTES(val).Str2Int(encode)
+
+def _u_bytes(val,encode='utf-8'):
+    return BYTES(encode=encode).From(val)
+
+def _u_bytes2str(val,encode='latin1'):
+    return BYTES(val).Str(encode=encode)
+
+def _u_byte2str(val,encode='latin1'):
+    return _u_bytes2str(val,encode=encode)
+
+def CompVersion(src,compare_symbol,dest,compare_range='dest',version_symbol='.'):
+    return VERSION().Compare(src,compare_symbol,dest,compare_range=compare_range,version_symbol=version_symbol)
+
+def Int(i,default={'org'}):
+    return CONVERT(i).Int(default=default)
+
+def Lower(src):
+    if isinstance(src,str): return src.lower()
+    return src
+
+def sendanmail(to,subj,msg,html=True):
+    Email=EMAIL()
+    Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
+
+def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
+    return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir)
+
+def check_version(a,sym,b):
+    return VERSION().Check(a,sym,b)
+    
+def Pwd(cwd=None):
+    return FILE().Path(cwd)
+
+def get_my_directory(cwd=None):
+    return FILE().Path(cwd)
+
+def IsSame(src,chk_val,sense=False):
+    return IS().Same(src,chk_val,sense=sense)
+
+def move2first(item,pool):
+    return LIST(pool).Move2first(item)
+
+def now():
+    return TIME().Int()
+
+def clean_ansi(src):
+    return ANSI().Clean(src)
