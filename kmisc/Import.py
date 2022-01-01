@@ -11,7 +11,16 @@ from pkg_resources import working_set
 #import pip
 from subprocess import check_call
 #import git
+from pathlib import Path
+'''
+if you want requests then you need must pre-loaded below module when you use compiled binary file using pyinstaller
 
+example)
+from http.cookies import Morsel
+Import('import requests')
+
+Without build then import requests is ok. but if you build it then it need pre-loaded Morsel module for Import('import requests') command
+'''
 
 def PyVer(main=None,miner=None,msym=None):
     if isinstance(main,int):
@@ -67,11 +76,14 @@ def Install(module,install_account='',mode=None,upgrade=False,version=None,force
     pkg_name=module.split('.')[0]
     install_name=pkg_map.get(pkg_name,pkg_name)
     # Check installed package
-    ipkgs=working_set
-    pkn=ipkgs.__dict__.get('by_key',{}).get(install_name)
     # pip module)
     #install_cmd=['install']
-    install_cmd=[executable,'-m','pip','install']
+    if os_path.basename(executable).startswith('python'):
+        install_cmd=[executable,'-m','pip','install']
+    else:
+        install_cmd=['python3','-m','pip','install']
+    ipkgs=working_set
+    pkn=ipkgs.__dict__.get('by_key',{}).get(install_name)
     if pkn:
         if version:
             chk_ver=version.replace('>',' ').replace('=',' ').replace('<',' ').split()
@@ -200,7 +212,23 @@ def Import(*inps,**opts):
     dbg=opts.get('dbg',False) # show comment when True
     #install_account=opts.get('install_account','--user')
     install_account=opts.get('install_account','') # '--user','user','myaccount','account',myself then install at my local account
+
+    #Append Module Path
+    base_lib_path=['/usr/lib/python3.6/site-packages','/usr/lib64/python3.6/site-packages','/usr/local/python3.6/site-packages','/usr/local/lib/python3.6/site-packages','/usr/local/lib64/python3.6/site-packages']
     path=opts.get('path') # if the module file in a special path then define path
+    if isinstance(path,str):
+        if ',' in path:
+            base_lib_path=base_lib_path+path.split(',')
+        elif ':' in path:
+            base_lib_path=base_lib_path+path.split(':')
+    elif isinstance(path,(list,tuple)):
+        base_lib_path=base_lib_path+list(path)
+    home=str(Path.home())
+    if isinstance(home,str):
+        base_lib_path.append('{}/.local/lib/python3.6/site-packages'.format(home))
+    for ii in base_lib_path:
+        if os_path.isdir(ii) and not ii in mod_path:
+            mod_path.append(ii)
 
     if install_account in ['user','--user','personal','myaccount','account','myself']:
         install_account='--user'
@@ -248,18 +276,7 @@ def Import(*inps,**opts):
         if loaded == 2: #unloaded
             continue
         if loaded == 1:
-            if path:
-                if isinstance(path,str):
-                    if ':' in path:
-                        path=path.split(':')
-                    else:
-                        path=path.split(',')
-                if isinstance(path,(list,tuple)):
-                    for ii in path:
-                        if isinstance(ii,str) and os_path.isdir(ii):
-                            mod_path.append(ii)
-                loaded,module=ModLoad(inp,force=force,globalenv=globalenv,re_load=re_load)
-            elif Install(module,install_account):
+            if Install(module,install_account):
                 loaded,module=ModLoad(inp,force=force,globalenv=globalenv,re_load=re_load)
             else:
                 if dbg:

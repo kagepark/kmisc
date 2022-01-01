@@ -50,6 +50,8 @@ from kmisc.Import import *
 Import('from lz4 import frame')
 Import('import bz2')
 Import('import magic')
+
+from http.cookies import Morsel # This module for requests when you use build by pyinstaller command
 Import('import requests')
 
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
@@ -6489,6 +6491,9 @@ def move2first(item,pool):
     return LIST(pool).Move2first(item)
 
 def now():
+    return TIME().Int()
+
+def int_sec():
     return TIME().Int()
 
 def clean_ansi(src):
