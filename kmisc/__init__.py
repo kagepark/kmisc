@@ -5281,7 +5281,7 @@ def ipmi_cmd(cmd,ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',log=None):
         log(' ipmi_cmd():{}'.format(ipmi_str),log_level=7)
     return rshell(ipmi_str)
 
-def get_ipmi_mac(ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN'):
+def get_ipmi_mac(ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',loop=0):
     ipmi_mac_str=None
     if ipmi_ip is None:
         ipmi_mac_str=""" ipmitool lan print 2>/dev/null | grep "MAC Address" | awk """
@@ -5289,7 +5289,14 @@ def get_ipmi_mac(ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN'):
         ipmi_mac_str=""" ipmitool -I lanplus -H {0} -U {1} -P {2} lan print 2>/dev/null | grep "MAC Address" | awk """.format(ipmi_ip,ipmi_user,ipmi_pass)
     if ipmi_mac_str is not None:
         ipmi_mac_str=ipmi_mac_str + """ '{print $4}' """
-        return rshell(ipmi_mac_str)
+        if not loop:
+            return rshell(ipmi_mac_str)
+        else:
+            for i in range(0,int(loop)):
+                mm=rshell(ipmi_mac_str)
+                if mm[1]:
+                    return mm
+                time.sleep(3)
 
 def get_ipmi_ip():
     return rshell('''ipmitool lan print 2>/dev/null| grep "IP Address" | grep -v Source | awk '{print $4}' ''')
@@ -5886,14 +5893,14 @@ def check_work_dir(work_dir,make=False,ntry=1,try_wait=[1,3]):
                     TIME().Sleep(try_wait)
     return False
 
-def get_node_info():
+def get_node_info(loop=0):
     host_ip=get_host_ip()
     return {
          'host_name':get_host_name(),
          'host_ip':host_ip,
          'host_mac':get_host_mac(ip=host_ip),
+         'ipmi_mac':get_ipmi_mac(loop=loop)[1],
          'ipmi_ip':get_ipmi_ip()[1],
-         'ipmi_mac':get_ipmi_mac()[1],
          }
 
 def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=True,log_raw=False, argv=[],queue=None):
