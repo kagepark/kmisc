@@ -11,6 +11,7 @@ import ssl
 import stat
 import time
 import uuid
+import zlib
 import smtplib
 import tarfile
 import zipfile
@@ -904,6 +905,29 @@ class STR(str):
             except:
                 pass
         return src.split(sym)
+
+    def RemoveNewline(self,src=None,mode='edge',new_line='\n'):
+        if src is None: src=self.src
+        try:
+            src_a=src.split(new_line)
+        except:
+            return src
+        if mode=='edge':
+            if not src_a[0].strip() and not src_a[-1].strip():
+                return new_line.join(src_a[1:-1])
+            elif not src_a[0].strip():
+                return new_line.join(src_a[1:])
+            elif not src_a[-1].strip():
+                return new_line.join(src_a[:-1])
+        elif mode in ['first','start',0]:
+            if not src_a[0].strip():
+                return new_line.join(src_a[1:])
+        elif mode in ['end','last',-1]:
+            if not src_a[-1].strip():
+                return new_line.join(src_a[:-1])
+        elif mode in ['*','all','everything']:
+            return ''.join(src_a)
+        return src
 
 #    def Split(self,sym=None):
 #        if isinstance(self.src,str):
@@ -4595,13 +4619,6 @@ def get_iso_uid(filename):
         return False,rc[1],None
     return False,'{} not found'.format(filename),None
 
-def git_ver(git_dir=None):
-    if git_dir is not None and os.path.isdir('{0}/.git'.format(git_dir)):
-        gver=rshell('''cd {0} && git describe --tags'''.format(git_dir))
-        if gver[0] == 0:
-            return gver[1]
-
-
 def Compress(data,mode='lz4'):
     if mode == 'lz4':
         return frame.compress(data)
@@ -5359,12 +5376,12 @@ def get_host_mac(ip=None,dev=None):
         if isinstance(dev_info,dict):
             for dev in dev_info.keys():
                 if get_net_dev_ip(dev) == ip:
-                    return dev_info[dev]['mac']
+                    return STR(BYTES(dev_info[dev]['mac']).Str()).RemoveNewline(mode='edge')
     elif dev:
-        return get_dev_mac(dev)
+        return STR(get_dev_mac(dev)).RemoveNewline(mode='edge')
     else:
         #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        return str2mac('%012x' % uuid.getnode())
+        return STR(str2mac('%012x' % uuid.getnode())).RemoveNewline(mode='edge')
 
 def get_net_dev_ip(ifname):
     if os.path.isdir('/sys/class/net/{}'.format(ifname)) is False:
@@ -6505,3 +6522,15 @@ def int_sec():
 
 def clean_ansi(src):
     return ANSI().Clean(src)
+
+def _dict(pk={},add=False,**var):
+    for key in var.keys():
+        if key in pk:
+            pk.update({key:var[key]})
+        else:
+            if add:
+                pk[key]=var[key]
+            else:
+                return False
+    return pk
+
