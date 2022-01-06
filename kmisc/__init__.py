@@ -203,7 +203,8 @@ def Abs(*inps,**opts):
     return default
 
 def ObjName(obj,default=None):
-    if isinstance(obj,str):
+    #if isinstance(obj,str) and obj:
+    try:
         if os.path.isfile(obj):
             aa=magic.from_buffer(open(obj,'rb').read(2048))
             if aa: return aa.split()[0].lower()
@@ -214,7 +215,8 @@ def ObjName(obj,default=None):
             except:
                 pass
         return 'str'
-    else:
+    #else:
+    except:
         obj_dir=dir(obj)
         obj_name=type(obj).__name__
         if obj_name in ['function']: return obj_name
@@ -529,7 +531,8 @@ class LIST(list):
                 elif isinstance(symbol,str):
                     return src.split(symbol)
                 elif isinstance(symbol,(tuple,list)):
-                    regexPattern = '|'.join(map(re.escape,tuple(symbol)))
+                    #regexPattern = '|'.join(map(re.escape,tuple(symbol)))
+                    regexPattern = Join(map(re.escape,tuple(symbol)),symbol='|')
                     return re.split(regexPattern,src)
                 return default
         elif isinstance(src,(list,tuple)):
@@ -759,8 +762,14 @@ class LIST(list):
         return default
 
 class STR(str):
-    def __init__(self,src):
-        self.src=src
+    def __init__(self,src,byte=None):
+        if isinstance(byte,bool):
+            if byte:
+                self.src=BYTES().From(src)
+            else:
+                self.src=BYTES(src).Str()
+        else:
+            self.src=src
 
     def Rand(self,length=8,strs=None,mode='*'):
         return Random(length=length,strs=strs,mode=mode)
@@ -795,7 +804,8 @@ class STR(str):
                     #       rt.append(string_tmp[body_len*i:(i+1)*body_len])
                 else:
                     rt=rt+[source[src_idx][i:i + body_len] for i in range(0, str_len, body_len)]
-        if rt and out in ['str',str]: return new_line.join(rt)
+        #if rt and out in ['str',str]: return new_line.join(rt)
+        if rt and out in ['str',str]: return Join(rt,symbol=new_line)
         return rt
 
     def Space(num=1,fill=' ',mode='space'):
@@ -818,7 +828,8 @@ class STR(str):
                 rt.append(self.src.pop(0))
             for ii in self.src:
                 rt.append('%s%s'%(space,ii))
-            if rt and out in [str,'str']: return sym.join(rt)
+            #if rt and out in [str,'str']: return sym.join(rt)
+            if rt and out in [str,'str']: return Join(rt,symbol=sym)
             return rt
         return default
 
@@ -832,7 +843,8 @@ class STR(str):
         if NFLT: rt.append('%s'%(src.pop(0)))
         for ii in src:
             rt.append('%s%s'%(space,ii))
-        if rt and out in [str,'str']: return sym.join(rt)
+        #if rt and out in [str,'str']: return sym.join(rt)
+        if rt and out in [str,'str']: return Join(rt,symbol=sym)
         return rt
 
     def Reduce(self,start=0,end=None,sym=None,default=None):
@@ -840,9 +852,11 @@ class STR(str):
             if sym:
                 arr=self.src.split(sym)
                 if isinstance(end,int):
-                    return sym.join(arr[start:end])
+                    #return sym.join(arr[start:end])
+                    return Join(arr[start:end],symbol=sym)
                 else:
-                    return sym.join(arr[start])
+                    #return sym.join(arr[start])
+                    return Join(arr[start],symbol=sym)
             else:
                 if isinstance(end,int):
                     return self.src[start:end]
@@ -883,15 +897,20 @@ class STR(str):
                 return head + replace_to + tail
         return default
 
-    def Split(self,sym,src=None,default=None):
-        if not isinstance(sym,str): return default
+    def Split(self,sym,src=None,default='org'):
+        if not isinstance(sym,str):
+            if default in ['org',{'org'}]:
+                return src
+            return default
         if src is None: src=self.src
         if isinstance(src,str):
             if isinstance(sym,bytes): sym=CONVERT(sym).Str()
         elif isinstance(src,bytes):
             if isinstance(sym,str): sym=BYTES().From(sym,default={'org'})
         else:
-            return src
+            if default in ['org',{'org'}]:
+                return src
+            return default
         if len(sym) > 2 and '|' in sym:
             try:
                 sym_a=sym.split('|')
@@ -901,32 +920,51 @@ class STR(str):
                         sym_a[x]='\{}'.format(sym_a[x])
                     except:
                         continue
-                return re.split('|'.join(sym_a),src) # splited by '|' or expression
+                #return re.split('|'.join(sym_a),src) # splited by '|' or expression
+                return re.split(Join(sym_a,symbol='|'),src) # splited by '|' or expression
             except:
                 pass
-        return src.split(sym)
-
-    def RemoveNewline(self,src=None,mode='edge',new_line='\n'):
-        if src is None: src=self.src
         try:
-            src_a=src.split(new_line)
+            return src.split(sym)
         except:
+            if default in ['org',{'org'}]:
+                return src
+            return default
+
+    def RemoveNewline(self,src=None,mode='edge',newline='\n',byte=None):
+        if src is None:
+            src=self.src
+        if isinstance(byte,bool):
+            if byte:
+                src=BYTES().From(src)
+            else:
+                src=BYTES(src).Str()
+        src_a=self.Split(newline,src=src,default=False)
+        if src_a is False:
             return src
-        if mode=='edge':
+        #if IS(src).Bytes():
+        #    newline=BYTES().From(newline)
+        if mode in ['edge','both']:
             if not src_a[0].strip() and not src_a[-1].strip():
-                return new_line.join(src_a[1:-1])
+                return Join(src_a[1:-1],symbol=newline)
+#                return newline.join(src_a[1:-1])
             elif not src_a[0].strip():
-                return new_line.join(src_a[1:])
+                return Join(src_a[1:],symbol=newline)
+#                return newline.join(src_a[1:])
             elif not src_a[-1].strip():
-                return new_line.join(src_a[:-1])
+                return Join(src_a[:-1],symbol=newline)
+#                return newline.join(src_a[:-1])
         elif mode in ['first','start',0]:
             if not src_a[0].strip():
-                return new_line.join(src_a[1:])
+                return Join(src_a[1:],symbol=newline)
+#                return newline.join(src_a[1:])
         elif mode in ['end','last',-1]:
             if not src_a[-1].strip():
-                return new_line.join(src_a[:-1])
+                return Join(src_a[:-1],symbol=newline)
+#                return newline.join(src_a[:-1])
         elif mode in ['*','all','everything']:
-            return ''.join(src_a)
+            return Join(src_a,symbol='')
+#            return ''.join(src_a)
         return src
 
 #    def Split(self,sym=None):
@@ -1044,7 +1082,7 @@ class SHELL:
                 sys.stdout.write('\n')
                 sys.stdout.flush()
 
-    def Run(self,cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5):
+    def Run(self,cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5,cd=False):
         start_time=TIME()
         if not isinstance(cmd,str):
             return -1,'wrong command information :{0}'.format(cmd),'',start_time.Init(),start_time.Init(),start_time.Now(int),cmd,path
@@ -1054,10 +1092,11 @@ class SHELL:
         cmd_a=cmd.split()
         cmd_file=cmd_a[0]
         if cmd_a[0] == 'sudo': cmd_file=cmd_a[1]
-        if path and isinstance(path,str) and os.path.isdir(path) and os.path.isfile(os.path.join(path,cmd_file)):
-            cmd_env='''export PATH=%s:${PATH}; '''%(path)
-            if os.path.join(path,cmd_file):
-                cmd_env=cmd_env+'''cd %s && '''%(path)
+        if path and isinstance(path,str) and os.path.isdir(path):
+            if cd or os.path.isfile(os.path.join(path,cmd_file)):
+                cmd_env='''export PATH=%s:${PATH}; '''%(path)
+                if os.path.join(path,cmd_file):
+                    cmd_env=cmd_env+'''cd %s && '''%(path)
         elif cmd_file[0] != '/' and cmd_file == os.path.basename(cmd_file) and os.path.isfile(cmd_file):
             cmd_env='./'
         p = Popen(cmd_env+cmd , shell=True, stdout=PIPE, stderr=PIPE)
@@ -1245,7 +1284,8 @@ class CONVERT:
             if len(self.src) in [12,17]:
                 self.src=self.src.replace(':','').replace('-','')
                 if len(self.src) == 12:
-                    self.src=sym.join(self.src[i:i+2] for i in range(0,12,2))
+                    #self.src=sym.join(self.src[i:i+2] for i in range(0,12,2))
+                    self.src=Join([self.src[i:i+2] for i in range(0,12,2)],symbol=sym)
                 if case == 'lower':
                     self.src=self.src.lower()
                 else:
@@ -1298,7 +1338,8 @@ class MAC:
             if 12 <= len(self.src) <= 17:
                 for i in [':','-']:
                     self.src=self.src.replace(i,'')
-                self.src=symbol.join(self.src[i:i+2] for i in range(0,12,2))
+                #self.src=symbol.join(self.src[i:i+2] for i in range(0,12,2))
+                self.src=Join([self.src[i:i+2] for i in range(0,12,2)],symbol=symbol)
             # Check the normal mac format
             octets = self.src.split(symbol)
             if len(octets) != 6: return False
@@ -1317,7 +1358,8 @@ class MAC:
             if len(self.src) in [12,17]:
                 self.src=self.src.replace(':','').replace('-','')
                 if len(self.src) == 12:
-                    self.src=sym.join(self.src[i:i+2] for i in range(0,12,2))
+                    #self.src=sym.join(self.src[i:i+2] for i in range(0,12,2))
+                    self.src=Join([self.src[i:i+2] for i in range(0,12,2)],symbol=sym)
                 if case == 'lower':
                     self.src=self.src.lower()
                 else:
@@ -1352,7 +1394,8 @@ class VERSION:
                     arr.pop(-1)
                 else:
                     break
-            return sym.join(arr)
+            #return sym.join(arr)
+            return Join(arr,symbol=sym)
         return False
 
     def Check(self,a,sym,b):
@@ -1411,15 +1454,6 @@ class VERSION:
             else:
                  return
         return eval('{} {} {}'.format(src,compare_symbol,dest))
-
-def is_cancel(func):
-    ttt=type(func).__name__
-    if ttt in ['function','instancemethod','method']:
-        if func():
-            return True
-    elif ttt in ['bool','str'] and func in [True,'cancel']:
-        return True
-    return False
 
 class IP:
     def __init__(self,ip=None):
@@ -1645,7 +1679,8 @@ class IP:
                 my_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, ICMP_CODE)
             except socket.error as e:
                 if e.errno in ERROR_DESCR:
-                    raise socket.error(''.join((e.args[1], ERROR_DESCR[e.errno])))
+                    #raise socket.error(''.join((e.args[1], ERROR_DESCR[e.errno])))
+                    raise socket.error(Join((e.args[1], ERROR_DESCR[e.errno]),symbol=''))
                 raise
             if size in ['rnd','random']:
                 # Maximum size for an unsigned short int c object(65535)
@@ -1999,6 +2034,12 @@ class IS:
         except:
             return False
 
+    def Bytes(self):
+        if self.Py3():
+            if isinstance(self.src,bytes):
+                return True
+        return False
+
     def Ipv4(self):
         return IP(self.src).IsV4()
 
@@ -2252,7 +2293,8 @@ class LOG:
     def Syslogd(self,*msg,**opts):
         syslogd=opts.get('syslogd',None)
         if syslogd:
-            syslog_msg=' '.join(msg)
+            #syslog_msg=' '.join(msg)
+            syslog_msg=Join(msg,symbol=' ')
             if syslogd in ['INFO','info']:
                 syslog.syslog(syslog.LOG_INFO,syslog_msg)
             elif syslogd in ['KERN','kern']:
@@ -2316,7 +2358,8 @@ class LOG:
             if func_name in [False,None,'','no','ignore']:
                 func_name=None
             if direct:
-                log_str=' '.join(msg)
+                #log_str=' '.join(msg)
+                log_str=Join(msg,symbol=' ')
             else:
                 log_str=self.Format(*msg,func_name=func_name,date_format=date_format,end_new_line=end_new_line,start_new_line=start_new_line)
 
@@ -2417,7 +2460,8 @@ class HOST:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-            return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+            #return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+            return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
         except:
             return default
 
@@ -2599,7 +2643,8 @@ class FILE:
                 idx=filename_info.index('tar')
             else:
                 idx=-1
-            return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+            #return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+            return Join(filename_info[:idx],symbol='.'),Join(filename_info[idx:],symbol='.')
         return None,None
 
     def FileType(self,filename,default=False):
@@ -2766,7 +2811,8 @@ class FILE:
         filename_n=len(filename_info)
         for ii in range(0,bin_n):
             if filename_info[filename_n-1-ii] != bin_info[bin_n-1-ii]: return default
-        return '/'.join(filename_info[:-bin_n])
+        #return '/'.join(filename_info[:-bin_n])
+        return Join(filename_info[:-bin_n],symbol='/')
 
     def Find(self,filename,default=[]):
         if not isinstance(filename,str): return default
@@ -2887,7 +2933,8 @@ class FILE:
             for ii in range(1,len(filename_a)):
                 aa=Path(aa,filename_a[ii]) 
                 if aa in info_keys:
-                    remain_path='/'.join(filename_a[ii+1:])
+                    #remain_path='/'.join(filename_a[ii+1:])
+                    remain_path=Join(filename_a[ii+1:],symbol='/')
                     if info_num == 1: return aa,remain_path
                     # if info has multi root path then check filename in the db of each root_path
                     if self.GetInfoFile(remain_path,aa): return aa,remain_path
@@ -3280,7 +3327,7 @@ class EMAIL:
                 part=MIMEBase("application", "octet-stream")
                 part.set_payload(attachment.read())
             encoders.encode_base64(part)
-            part.add_header("Content-Disposition",f"attachment; filename= {filename}",)
+            part.add_header('Content-Disposition','attachment; filename="{filename}"')
             _body.attach(part)
         else:
             if html:
@@ -3390,7 +3437,8 @@ def Cut(src,head_len=None,body_len=None,new_line='\n',out=str):
                 #       rt.append(string_tmp[body_len*i:(i+1)*body_len])
             else:
                 rt=rt+[source[src_idx][i:i + body_len] for i in range(0, str_len, body_len)]
-    if rt and out in ['str',str]: return new_line.join(rt)
+    #if rt and out in ['str',str]: return new_line.join(rt)
+    if rt and out in ['str',str]: return Join(rt,symbol=new_line)
     return rt
 
 def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,out_format=list):
@@ -3422,7 +3470,8 @@ def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,
             if sub_len is None:
                 rc=[string_a[i:i + max_len] for i in range(0, str_len, max_len)]
                 if new_line and out_format in [str,'str','string']:
-                    return new_line.join(rc)
+                    #return new_line.join(rc)
+                    return Join(rc,symbol=new_line)
                 return rc
         rc.append(string_a[ii][0:max_len])
         string_tmp=string_a[ii][max_len:]
@@ -3436,7 +3485,8 @@ def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,
 #        else:
 #            rc.append('')
     if new_line and out_format in [str,'str','string']:
-        return new_line.join(rc)
+        #return new_line.join(rc)
+        return Join(rc,symbol=new_line)
     return rc
 
 def Path(*inp,**opts):
@@ -3464,7 +3514,8 @@ def Path(*inp,**opts):
                         continue
                     full_path.append(zz)
         if full_path:
-            if out in [str,'str']:return sym.join(full_path)
+            #if out in [str,'str']:return sym.join(full_path)
+            if out in [str,'str']:return Join(full_path,symbol=sym)
             return full_path
     return os.path.dirname(os.path.abspath(__file__)) # Not input then get current path
 
@@ -3505,55 +3556,6 @@ def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':
         if default == 'org': return rt
         return default
     return nrtc
-
-def Delete(*inps,**opts):
-    if len(inps) >= 2:
-        obj=inps[0]
-        keys=inps[1:]
-    elif len(inps) == 1:
-        obj=inps[0]
-        keys=opts.get('key',None)
-        if isinstance(keys,list):
-            keys=tuple(keys)
-        elif keys is not None:
-            keys=(keys,)
-    default=opts.get('default',None)
-    _type=opts.get('type','index')
-   
-    if isinstance(obj,(list,tuple)):
-        nobj=len(obj)
-        rt=[]
-        if _type == 'index':
-            nkeys=Abs(*tuple(keys),obj=obj,out=list)
-            for i in range(0,len(obj)):
-                if i not in nkeys:
-                    rt.append(obj[i])
-        else:
-            for i in obj:
-                if i not in keys:
-                    rt.append(i)
-        return rt
-    elif isinstance(obj,dict):
-        if isinstance(keys,(list,tuple,dict)):
-            for key in keys:
-                obj.pop(key,default)
-        else:
-            obj.pop(keys,default)
-        return obj
-    elif isinstance(obj,str):
-        nkeys=[]
-        for i in keys:
-            if isinstance(i,(tuple,str,int)):
-                tt=Abs(i,obj=obj,out=list)
-                if tt:
-                    nkeys=nkeys+tt
-        rt=''
-        for i in range(0,len(obj)):
-            if i in nkeys:
-                continue
-            rt=rt+obj[i]
-        return rt
-    return default
 
 def Replace(src,replace_what,replace_to,default=None):
     if isinstance(src,str):
@@ -4018,7 +4020,8 @@ def printf2(*msg,**opts):
             if len(msg_str) > 1:
                 for mm in range(1,len(msg_str)):
                     msg_str[mm]=tap[1]+msg_str[mm]
-    msg_str=new_line.join(msg_str)
+    #msg_str=new_line.join(msg_str)
+    msg_str=Join(msg_str,symbol=new_line)
     if color in ['clear','clean','remove','del','delete','mono']:
         if color_mode == 'shell':
             msg_str=ansi_escape.sub('',msg_str)
@@ -4096,7 +4099,8 @@ def sprintf(string,*inps,**opts):
                         for jj in range(0,len(string_a)):
                            if '{%s}'%(ii) in string_a[jj]:
                                string_a[jj]=string_a[jj].format(**opts)
-                return True,' '.join(string_a)
+                #return True,' '.join(string_a)
+                return True,Join(string_a,symbol=' ')
             elif i == 2:
                 new_str=''
                 string_a=string.split()
@@ -4114,7 +4118,8 @@ def sprintf(string,*inps,**opts):
                         for jj in range(0,len(string_a)):
                            if '%({})s'.format(ii) in string_a[jj]:
                                string_a[jj]=string_a[jj]%(opts)
-                return True,' '.join(string_a)
+                #return True,' '.join(string_a)
+                return True,Join(string_a,symbol=' ')
             elif i == 3:
                 if inp:
                     if len(tmp) == len(inp): return string.format(*inp)
@@ -4605,20 +4610,6 @@ def findXML(xmlfile,find_name=None,find_path=None):
         return found_root.findall(find_path)
         # <element>.tag: name, .text: data, .attrib: dict
 
-def get_iso_uid(filename):
-    if type(filename) is not str:
-        return False,None,None
-    if os.path.exists(filename):
-        uid_cmd='''sudo /usr/sbin/blkid {}'''.format(filename)
-        rc=rshell(uid_cmd)
-        if rc[0] == 0:
-            uid_str='{0}_{1}'.format(findstr(rc[1],'UUID="(\w.*)" L')[0],findstr(rc[1],'LABEL="(\w.*)" T')[0]).replace(' ','_')
-            file_info=get_file(filename)
-            file_size=file_info.get('size',None)
-            return True,uid_str,file_size
-        return False,rc[1],None
-    return False,'{} not found'.format(filename),None
-
 def Compress(data,mode='lz4'):
     if mode == 'lz4':
         return frame.compress(data)
@@ -4633,7 +4624,8 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
                 idx=filename_info.index('tar')
             else:
                 idx=-1
-            return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+            #return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+            return Join(filename_info[:idx],symbol='.'),Join(filename_info[idx:],symbol='.')
         return None,None
 
     def FileType(filename,default=False):
@@ -4662,120 +4654,6 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
             return True
 
 
-def get_dev_name_from_mac(mac):
-    net_dir='/sys/class/net'
-    if type(mac) is str and os.path.isdir(net_dir):
-        dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-        for dev in dirnames:
-            fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
-            if type(fmac) is str and fmac.strip().lower() == mac.lower():
-                return dev
-
-def get_dev_mac(ifname):
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-        return ':'.join(['%02x' % ord(char) for char in info[18:24]])
-    except:
-        return
-
-def get_net_device(name=None):
-    net_dev={}
-    net_dir='/sys/class/net'
-    if os.path.isdir(net_dir):
-        dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-        if name:
-            if name in dirnames:
-                drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,name))
-                if drv is False:
-                    drv='unknown'
-                else:
-                    drv=drv[0].split(':')[1]
-                net_dev[name]={
-                    'mac':cat('{}/{}/address'.format(dirpath,name),no_end_newline=True),
-                    'duplex':cat('{}/{}/duplex'.format(dirpath,name),no_end_newline=True),
-                    'mtu':cat('{}/{}/mtu'.format(dirpath,name),no_end_newline=True),
-                    'state':cat('{}/{}/operstate'.format(dirpath,name),no_end_newline=True),
-                    'speed':cat('{}/{}/speed'.format(dirpath,name),no_end_newline=True),
-                    'id':cat('{}/{}/ifindex'.format(dirpath,name),no_end_newline=True),
-                    'driver':drv,
-                    'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,name),no_end_newline=True),
-                    }
-        else:
-            for dev in dirnames:
-                drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,dev))
-                if drv is False:
-                    drv='unknown'
-                else:
-                    drv=drv[0].split(':')[1]
-                net_dev[dev]={
-                    'mac':cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True),
-                    'duplex':cat('{}/{}/duplex'.format(dirpath,dev),no_end_newline=True),
-                    'mtu':cat('{}/{}/mtu'.format(dirpath,dev),no_end_newline=True),
-                    'state':cat('{}/{}/operstate'.format(dirpath,dev),no_end_newline=True),
-                    'speed':cat('{}/{}/speed'.format(dirpath,dev),no_end_newline=True),
-                    'id':cat('{}/{}/ifindex'.format(dirpath,dev),no_end_newline=True),
-                    'driver':drv,
-                    'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,dev),no_end_newline=True),
-                    }
-        return net_dev
-    else:
-        return False
-
-def find_cdrom_dev(size=None):
-    load_kmod(['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage'])
-    if os.path.isdir('/sys/block') is False:
-        return
-    for r, d, f in os.walk('/sys/block'):
-        for dd in d:
-            for rrr,ddd,fff in os.walk(os.path.join(r,dd)):
-                if 'removable' in fff:
-                    with open('{0}/removable'.format(rrr),'r') as fp:
-                        removable=fp.read()
-                    if '1' in removable:
-                        if os.path.isfile('{0}/device/model'.format(rrr)):
-                            with open('{0}/device/model'.format(rrr),'r') as fpp:
-                                model=fpp.read()
-                            for ii in ['CDROM','DVD-ROM','DVD-RW']:
-                                if ii in model:
-                                    if size is None:
-                                        return '/dev/{0}'.format(dd)
-                                    else:
-                                        if os.path.exists('{}/size'.format(rrr)):
-                                            with open('{}/size'.format(rrr),'r') as fss:
-                                                block_size=fss.read()
-                                                dev_size=int(block_size) * 512
-                                                if dev_size == int(size):
-                                                    return '/dev/{0}'.format(dd)
-
-def find_usb_dev(size=None,max_size=None):
-    rc=[]
-    load_kmod(modules=['usb-storage'])
-    if os.path.isdir('/sys/block') is False:
-        return
-    for r, d, f in os.walk('/sys/block'):
-        for dd in d:
-            for rrr,ddd,fff in os.walk(os.path.join(r,dd)):
-                if 'removable' in fff:
-                    removable=cat('{0}/removable'.format(rrr))
-                    if removable:
-                        if '1' in removable:
-                            if size is None:
-                                if max_size:
-                                    file_size=cat('{0}/size'.format(rrr))
-                                    if file_size:
-                                        dev_size=int(file_size) * 512
-                                        if dev_size <= int(max_size):
-                                            rc.append('/dev/{0}'.format(dd))
-                                else:
-                                    rc.append('/dev/{0}'.format(dd))
-                            else:
-                                file_size=cat('{0}/size'.format(rrr))
-                                if file_size:
-                                    dev_size=int(file_size) * 512
-                                    if dev_size == int(size):
-                                        rc.append('/dev/{0}'.format(dd))
-    return rc
 ##########################################################################################
 def append(src,addendum):
     type_src=type(src)
@@ -4995,17 +4873,40 @@ def is_comeback(ip,**opts):
         log(']\n',direct=True,log_level=1)
     return False,'Timeout/Unknown issue'
 
-def Join(*inps,symbol=''):
+def Join(*inps,symbol='_-_',byte=None):
     if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
         src=inps[0]
+    elif len(inps) == 2 and isinstance(inps[0],(list,tuple)) and symbol=='_-_':
+        src=inps[0]
+        symbol=inps[1]
     else:
         src=inps
+    if symbol=='_-_': symbol=''
     rt=''
-    for i in src:
-        if rt:
-            rt=rt+symbol+'{}'.format(i)
+    if isinstance(byte,bool):
+        if byte:
+            rt=b''
+            symbol=BYTES().From(symbol)
         else:
-            rt='{}'.format(i)
+            symbol=BYTES(symbol).Str()
+    else:
+        byte=False
+        if src and isinstance(src,(list,tuple)): 
+            if IS(src[0]).Bytes():
+                rt=b''
+                byte=True
+                symbol=BYTES().From(symbol)
+    for i in src:
+        if not isinstance(i,(str,bytes)):
+            i='{}'.format(i)
+        if byte:
+            i=BYTES().From(i)
+        else:
+            i=BYTES(i).Str()
+        if rt:
+            rt=rt+symbol+i
+        else:
+            rt=i
     return rt
 
 def file_mode(val):
@@ -5132,21 +5033,30 @@ class ANSI:
                 return new_data
         return data
 
-def cat(filename,no_end_newline=False):
+def cat(filename,no_end_newline=False,no_edge=False,byte=None,newline='\n',no_first_newline=False,no_all_newline=False):
     tmp=FILE().Rw(filename)
     tmp=Get(tmp,1)
-    if isinstance(tmp,str) and no_end_newline:
-        tmp_a=tmp.split('\n')
-        ntmp=''
-        for ii in tmp_a[:-1]:
-            if ntmp:
-                ntmp='{}\n{}'.format(ntmp,ii)
-            else:
-                ntmp='{}'.format(ii)
-        if len(tmp_a[-1]) > 0:
-            ntmp='{}\n{}'.format(ntmp,tmp_a[-1])
-        tmp=ntmp
+    if no_edge:
+        return STR(tmp).RemoveNewline(mode='edge',byte=byte,newline=newline)
+    elif no_end_newline:
+        return STR(tmp).RemoveNewline(mode='end',byte=byte,newline=newline)
+    elif no_first_newline:
+        return STR(tmp).RemoveNewline(mode='first',byte=byte,newline=newline)
+    elif no_all_newline:
+        return STR(tmp).RemoveNewline(mode='all',byte=byte,newline=newline)
     return tmp
+    #if isinstance(tmp,str) and no_end_newline:
+    #    tmp_a=tmp.split('\n')
+    #    ntmp=''
+    #    for ii in tmp_a[:-1]:
+    #        if ntmp:
+    #            ntmp='{}\n{}'.format(ntmp,ii)
+    #        else:
+    #            ntmp='{}'.format(ii)
+    #    if len(tmp_a[-1]) > 0:
+    #        ntmp='{}\n{}'.format(ntmp,tmp_a[-1])
+    #    tmp=ntmp
+    #return tmp
 
 def ls(dirname,opt=''):
     if os.path.isdir(dirname):
@@ -5163,12 +5073,12 @@ def ls(dirname,opt=''):
 
 #########################################################################
 def is_cancel(func):
-    if func:
-        ttt=type(func).__name__
-        if ttt in ['function','instancemethod','method']:
-            if func(): return True
-        elif ttt  == 'bool':
-            if func : return True
+    ttt=type(func).__name__
+    if ttt in ['function','instancemethod','method']:
+        if func():
+            return True
+    elif ttt in ['bool','str'] and func in [True,'cancel']:
+        return True
     return False
 
 def log_file_info(name):
@@ -5358,7 +5268,8 @@ def get_dev_mac(ifname):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-        return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+        #return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+        return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
     except:
         return
 
@@ -5557,7 +5468,8 @@ def clear_version(string,sym='.'):
             arr.pop(-1)
         else:
             break
-    return sym.join(arr)
+    #return sym.join(arr)
+    return Join(arr,symbol=sym)
 
 def get_key(dic=None,find=None):
     return find_key_from_value(dic=dic,find=find)
@@ -5673,6 +5585,35 @@ def find_cdrom_dev(size=None):
                                                 dev_size=int(block_size) * 512
                                                 if dev_size == int(size):
                                                     return '/dev/{0}'.format(dd)
+
+def find_usb_dev(size=None,max_size=None):
+    rc=[]
+    load_kmod(modules=['usb-storage'])
+    if os.path.isdir('/sys/block') is False:
+        return
+    for r, d, f in os.walk('/sys/block'):
+        for dd in d:
+            for rrr,ddd,fff in os.walk(os.path.join(r,dd)):
+                if 'removable' in fff:
+                    removable=cat('{0}/removable'.format(rrr),no_edge=True)
+                    if removable:
+                        if IsSame('1',removable):
+                            if size is None:
+                                if max_size:
+                                    file_size=cat('{0}/size'.format(rrr),no_edge=True)
+                                    if file_size:
+                                        dev_size=int(file_size) * 512
+                                        if dev_size <= int(max_size):
+                                            rc.append('/dev/{0}'.format(dd))
+                                else:
+                                    rc.append('/dev/{0}'.format(dd))
+                            else:
+                                file_size=cat('{0}/size'.format(rrr),no_edge=True)
+                                if file_size:
+                                    dev_size=int(file_size) * 512
+                                    if dev_size == int(size):
+                                        rc.append('/dev/{0}'.format(dd))
+    return rc
 
 #def ipmi_sol(ipmi_ip,ipmi_user,ipmi_pass):
 #    if is_ipv4(ipmi_ip):
@@ -6205,35 +6146,6 @@ def get_iso_uid(filename):
         return False,rc[1],None
     return False,'{} not found'.format(filename),None
 
-def find_usb_dev(size=None,max_size=None):
-    rc=[]
-    load_kmod(modules=['usb-storage'])
-    if os.path.isdir('/sys/block') is False:
-        return
-    for r, d, f in os.walk('/sys/block'):
-        for dd in d:
-            for rrr,ddd,fff in os.walk(os.path.join(r,dd)):
-                if 'removable' in fff:
-                    removable=cat('{0}/removable'.format(rrr))
-                    if removable:
-                        if '1' in removable:
-                            if size is None:
-                                if max_size:
-                                    file_size=cat('{0}/size'.format(rrr))
-                                    if file_size:
-                                        dev_size=int(file_size) * 512
-                                        if dev_size <= int(max_size):
-                                            rc.append('/dev/{0}'.format(dd))
-                                else:
-                                    rc.append('/dev/{0}'.format(dd))
-                            else:
-                                file_size=cat('{0}/size'.format(rrr))
-                                if file_size:
-                                    dev_size=int(file_size) * 512
-                                    if dev_size == int(size):
-                                        rc.append('/dev/{0}'.format(dd))
-    return rc
-
 def alive(out=None):
     aa=rshell('uptime')
     if aa[0] == 0:
@@ -6398,8 +6310,8 @@ def str2mac(mac,sym=':',case='lower',chk=False):
 def is_mac4(mac=None,symbol=':',convert=True):
     return MAC(mac).IsV4(symbol=symbol)
 
-def rshell(cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5):
-    return SHELL().Run(cmd,timeout=timeout,ansi=ansi,path=path,progress=progress,progress_pre_new_line=progress_pre_new_line,progress_post_new_line=progress_post_new_line,log=log,progress_interval=progress_interval)
+def rshell(cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5,cd=False):
+    return SHELL().Run(cmd,timeout=timeout,ansi=ansi,path=path,progress=progress,progress_pre_new_line=progress_pre_new_line,progress_post_new_line=progress_post_new_line,log=log,progress_interval=progress_interval,cd=cd)
 
 def gen_random_string(length=8,letter='*',digits=True,symbols=True,custom=''):
     mode='alpha'
