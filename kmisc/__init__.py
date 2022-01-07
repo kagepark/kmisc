@@ -1378,6 +1378,30 @@ class MAC:
             return self.src
         return default
 
+    def GetIfname(self):
+        if not self.FromStr(): return False
+        net_dir='/sys/class/net'
+        if os.path.isdir(net_dir):
+            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+            for dev in dirnames:
+                fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
+                if type(fmac) is str and fmac.strip().lower() == self.src.lower():
+                    return dev
+
+    def FromIfname(self,ifname,default=None):
+        if isinstance(ifname,str):
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                if PyVer(3):
+                    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', BYTES(encode='utf-8').From(ifname[:15])))
+                    return ':'.join(['%02x' % char for char in info[18:24]])
+                else:
+                    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
+                    return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+            except:
+                pass
+        return default
+
 class VERSION:
     def __init__(self):
         pass
