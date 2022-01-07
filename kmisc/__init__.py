@@ -1894,28 +1894,7 @@ class GET:
                 return self.src.__dict__
         elif not Type(self.src,'function'):
             return default
-        args, varargs, keywords, defaults = inspect.getargspec(self.src)
-        if defaults is not None:
-            defaults=dict(zip(args[-len(defaults):], defaults))
-            del args[-len(defaults):]
-            rt['defaults']=defaults
-        if args:
-            rt['args']=args
-        if varargs:
-            rt['varargs']=varargs
-        if keywords:
-            rt['keywards']=keywords
-        if Type(field,(list,tuple)):
-            rts=[]
-            for ii in field:
-                rts.append(rt.get(ii,default))
-            return rts
-        else:
-            if field in ['*','all']:
-                return rt
-            if field in rt:
-                return rt[field]
-        return default
+        return FUNCTION(self.src).Args(mode=field,default=default)
 
     def ArgType(self,arg,want='_',get_data=['_']):
         type_arg=type(arg)
@@ -1961,18 +1940,7 @@ class GET:
         return self.Func(name,default=default)
 
     def FuncName(self,default=False,detail=False):
-        #return traceback.extract_stack(None, 2)[0][2]
-        try:
-            dep=len(inspect.stack())-2
-            if detail:
-                return sys._getframe(dep).f_code.co_name,sys._getframe(dep).f_lineno,sys._getframe(dep).f_code.co_filename
-            else:
-                name=sys._getframe(dep).f_code.co_name
-                if name == '_bootstrap_inner' or name == '_run_code':
-                    return sys._getframe(3).f_code.co_name
-                return name
-        except:
-            return default
+        return FUNCTION().CallerName(detail=detail)
 
     def FunctionName(self,default=False,detail=False):
         return self.FuncName(default=default,detail=detail)
@@ -1996,23 +1964,42 @@ class GET:
         else:
             return default
 
-    def DirName(self,default=None):
-        if Type(self.src,str):
-            dirname=os.path.dirname(self.src)
+    def DirName(self,src=None,default=None):
+        if src is None: src=self.src
+        if Type(src,str):
+            dirname=os.path.dirname(src)
             if dirname == '': return '.'
             return dirname
         return default
 
+    def Dirname(self,src=None,default=None):
+        return self.DirName(src=src,default=default)
+
     def DirectoryName(self,default=None):
         return self.DirName(default=default)
 
-    def Pwd(self):
+    def Pwd(self,default=None):
         #return os.path.abspath(__file__)
-        return os.path.dirname(os.path.realpath(__file__))
+        #return os.path.dirname(os.path.realpath(__file__))
+        try:
+            frame=inspect.stack()[1]
+            module=inspect.getmodule(frame[0])
+            return os.path.dirname(os.path.realpath(module.__file__))
+        except:
+            return default
 
-    def Basename(self):
-        if Type(self.src,str): return os.path.basename(self.src)
-        return __file__
+    def Basename(self,src=None):
+        if src is None: src=self.src
+        if Type(src,str): return os.path.basename(src)
+        return os.path.basename(inspect.stack()[1].filename)
+
+    def Me(self,default=False):
+        try:
+            frame=inspect.stack()[-1]
+            module=inspect.getmodule(frame[0])
+            return module
+        except:
+            return default
 
 class IS:
     def __init__(self,src=None,**opts):
@@ -3621,42 +3608,63 @@ class FUNCTION:
                 func=Global(func)
             self.func=func
 
-    def Name(self):
+    def Name(self,sub=False):
+        if sub:
+            try:
+                return traceback.extract_stack(None, 2+1)[0][2]
+            except:
+                return False
         return traceback.extract_stack(None, 2)[0][2]
 
-    def ParentName(self):
+    def ParentName(self,sub=False):
+        if sub:
+            try:
+                return traceback.extract_stack(None, 3+1)[0][2]
+            except:
+                return False
         return traceback.extract_stack(None, 3)[0][2]
 
-    def Args(self,func=None,mode='defaults'):
+    def Args(self,func=None,**opts):
+        mode=opts.get('mode',opts.get('field','defaults'))
+        default=opts.get('default',None)
         if func is None: func=self.func
-        rc={}
+        if not Type(func,'function'):
+            return default
+        rt={}
         args, varargs, keywords, defaults = inspect.getargspec(func)
         if defaults is not None:
             defaults=dict(zip(args[-len(defaults):], defaults))
             del args[-len(defaults):]
-            rc['defaults']=defaults
+            rt['defaults']=defaults
         if args:
-            rc['args']=args
+            rt['args']=args
         if varargs:
-            rc['varargs']=varargs
+            rt['varargs']=varargs
         if keywords:
-            rc['keywards']=keywords
-        if mode in ['*','all']:
-            return rc
-        if mode in rc:
-            return rc[mode]
+            rt['keywards']=keywords
+        if Type(mode,(list,tuple)):
+            rts=[]
+            for ii in mode:
+                rts.append(rt.get(ii,default))
+            return rts
+        else:
+            if mode in rt:
+                return rt[mode]
+            return rt
 
     def List(self,obj=None):
         aa={}
         if isinstance(obj,str):
-           obj=sys.modules.get(str)
+           obj=sys.modules.get(obj)
+        else:
+           obj=GET().Me()
         if obj is not None:
             for name,fobj in inspect.getmembers(obj):
                 if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
                     aa.update({name:fobj})
         return aa
 
-    def CallerName(self,detail=False):
+    def CallerName(self,default=False,detail=False):
         try:
             dep=len(inspect.stack())-2
             if detail:
@@ -3667,7 +3675,7 @@ class FUNCTION:
                     return sys._getframe(3).f_code.co_name
                 return name
         except:
-            return False
+            return default
 
     def Is(self,find=None,src=None):
         if find is None: find=self.func
@@ -3710,73 +3718,8 @@ def argtype(arg,want='_',get_data=['_']):
             return True
     return False
 
-def get_function_name():
-    return traceback.extract_stack(None, 2)[0][2]
-
-def get_pfunction_name():
-    return traceback.extract_stack(None, 3)[0][2]
-
 def get_function_args(func,mode='defaults'):
-    rc={}
-    args, varargs, keywords, defaults = inspect.getargspec(func)
-    if defaults is not None:
-        defaults=dict(zip(args[-len(defaults):], defaults))
-        del args[-len(defaults):]
-        rc['defaults']=defaults
-    if args:
-        rc['args']=args
-    if varargs:
-        rc['varargs']=varargs
-    if keywords:
-        rc['keywards']=keywords
-    if mode in ['*','all']:
-        return rc
-    if mode in rc:
-        return rc[mode]
-
-def get_function_list(objName=None,obj=None):
-    aa={}
-    if obj is None and objName is not None:
-       obj=sys.modules[objName]
-    if obj is not None:
-        for name,fobj in inspect.getmembers(obj):
-            if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
-                aa.update({name:fobj})
-    return aa
-
-def get_caller_fcuntion_name(detail=False):
-    try:
-        dep=len(inspect.stack())-2
-        if detail:
-            return sys._getframe(dep).f_code.co_name,sys._getframe(dep).f_lineno,sys._getframe(dep).f_code.co_filename
-        else:
-            name=sys._getframe(dep).f_code.co_name
-            if name == '_bootstrap_inner' or name == '_run_code':
-                return sys._getframe(3).f_code.co_name
-            return name
-    except:
-        return False
-
-
-def is_function(find,src=None):
-    if src is None:
-        if isinstance(find,str):
-            find=sys.modules.get(find)
-        return inspect.isfunction(find)
-    aa=[]
-    if not isinstance(find,str): find=find.__name__
-    if isinstance(src,str):
-        src=sys.modules.get(src)
-    if inspect.ismodule(src) or inspect.isclass(src):
-        for name,fobj in inspect.getmembers(src):
-            if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
-                aa.append(name)
-    else:
-        for name,fobj in inspect.getmembers(src):
-            if inspect.ismethod(fobj): # inspect.ismodule(obj) check the obj is module or not
-                aa.append(name)
-    if find in aa: return True
-    return False
+    return FUNCTION().Args(func=func,mode=mode)
 
 def code_error(email_func=None,email=None,email_title=None,email_server=None,log=None,log_msg='',default=None):
     e=sys.exc_info()[0]
@@ -5224,6 +5167,7 @@ def get_ipmi_mac(ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',loop=0):
                 if mm[1]:
                     return mm
                 time.sleep(3)
+    return False,''
 
 def get_ipmi_ip():
     return rshell('''ipmitool lan print 2>/dev/null| grep "IP Address" | grep -v Source | awk '{print $4}' ''')
@@ -6445,4 +6389,19 @@ def _dict(pk={},add=False,**var):
             else:
                 return False
     return pk
+
+def get_function_name():
+    return FUNCTION().Name(sub=True)
+
+def get_pfunction_name():
+    return FUNCTION().ParentName(sub=True)
+
+def get_function_list(objName=None,obj=None):
+    return FUNCTION().List()
+
+def get_caller_fcuntion_name(detail=False):
+    return FUNCTION().CallerName(detail=detail)
+
+def is_function(find,src=None):
+    return FUNCTION().Is(find=find,src=src)
 
