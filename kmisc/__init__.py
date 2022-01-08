@@ -3626,6 +3626,263 @@ class EMAIL:
         else:
             print('something wrong input')
 
+class ANSI:
+    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+    def Clean(self,data):
+        if data:
+            if isinstance(data,str):
+                return self.ansi_escape.sub('',data)
+            elif isinstance(data,list):
+                new_data=[]
+                for ii in data:
+                    new_data.append(self.ansi_escape.sub('',ii))
+                return new_data
+        return data
+
+class Multiprocessor():
+    def __init__(self):
+        self.processes = []
+        self.queue = Queue()
+
+    @staticmethod
+    def _wrapper(func, queue, args, kwargs):
+        ret = func(*args, **kwargs)
+        queue.put(ret)
+
+    def run(self, func, *args, **kwargs):
+        args2 = [func, self.queue, args, kwargs]
+        p = Process(target=self._wrapper, args=args2)
+        self.processes.append(p)
+        p.start()
+
+    def wait(self):
+        rets = []
+        for p in self.processes[:]:
+            ret = self.queue.get()
+            rets.append(ret)
+            self.processes.remove(p)
+        return rets
+
+####################################FUNCTION##################################################
+class FUNCTION:
+    def __init__(self,func=None):
+        if func:
+            if isinstance(func,str):
+                func=Global(func)
+            self.func=func
+
+    def Name(self,sub=False):
+        if sub:
+            try:
+                return traceback.extract_stack(None, 2+1)[0][2]
+            except:
+                return False
+        return traceback.extract_stack(None, 2)[0][2]
+
+    def ParentName(self,sub=False):
+        if sub:
+            try:
+                return traceback.extract_stack(None, 3+1)[0][2]
+            except:
+                return False
+        return traceback.extract_stack(None, 3)[0][2]
+
+    def Args(self,func=None,**opts):
+        mode=opts.get('mode',opts.get('field','defaults'))
+        default=opts.get('default',None)
+        if func is None: func=self.func
+        if not Type(func,'function'):
+            return default
+        rt={}
+        args, varargs, keywords, defaults = inspect.getargspec(func)
+        if defaults is not None:
+            defaults=dict(zip(args[-len(defaults):], defaults))
+            del args[-len(defaults):]
+            rt['defaults']=defaults
+        if args:
+            rt['args']=args
+        if varargs:
+            rt['varargs']=varargs
+        if keywords:
+            rt['keywards']=keywords
+        if Type(mode,(list,tuple)):
+            rts=[]
+            for ii in mode:
+                rts.append(rt.get(ii,default))
+            return rts
+        else:
+            if mode in rt:
+                return rt[mode]
+            return rt
+
+    def List(self,obj=None):
+        aa={}
+        if isinstance(obj,str):
+           obj=sys.modules.get(obj)
+        else:
+           obj=GET().Me()
+        if obj is not None:
+            for name,fobj in inspect.getmembers(obj):
+                if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
+                    aa.update({name:fobj})
+        return aa
+
+    def CallerName(self,default=False,detail=False):
+        try:
+            dep=len(inspect.stack())-2
+            if detail:
+                return sys._getframe(dep).f_code.co_name,sys._getframe(dep).f_lineno,sys._getframe(dep).f_code.co_filename
+            else:
+                name=sys._getframe(dep).f_code.co_name
+                if name == '_bootstrap_inner' or name == '_run_code':
+                    return sys._getframe(3).f_code.co_name
+                return name
+        except:
+            return default
+
+    def Is(self,find=None,src=None):
+        if find is None: find=self.func
+        if src is None:
+            if isinstance(find,str):
+                #find=sys.modules.get(find)
+                find=Global().get(find)
+            return inspect.isfunction(find)
+        aa=[]
+        if not isinstance(find,str): find=find.__name__
+        if isinstance(src,str):
+            src=sys.modules.get(src)
+        if inspect.ismodule(src) or inspect.isclass(src):
+            for name,fobj in inspect.getmembers(src):
+                if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
+                    aa.append(name)
+        else:
+            for name,fobj in inspect.getmembers(src):
+                if inspect.ismethod(fobj): # inspect.ismodule(obj) check the obj is module or not
+                    aa.append(name)
+        if find in aa: return True
+        return False
+
+
+class SCREEN:
+    def Kill(self,title):
+        ids=self.Id(title)
+        if len(ids) == 1:
+            rc=rshell('''screen -X -S {} quit'''.format(ids[0]))
+            if rc[0] == 0:
+                return True
+            return False
+
+    def Monitor(self,title,ip,ipmi_user,ipmi_pass,find=[],timeout=600):
+        if type(title) is not str or not title:
+            print('no title')
+            return False
+        scr_id=self.Id(title)
+        if scr_id:
+            print('Already has the title at {}'.format(scr_id))
+            return False
+        cmd="ipmitool -I lanplus -H {} -U {} -P {} sol activate".format(ip,ipmi_user,ipmi_pass)
+        # Linux OS Boot (Completely kernel loaded): find=['initrd0.img','\xff']
+        # PXE Boot prompt: find=['boot:']
+        # PXE initial : find=['PXE ']
+        # DHCP initial : find=['DHCP']
+        # ex: aa=screen_monitor('test','ipmitool -I lanplus -H <bmc ip> -U ADMIN -P ADMIN sol activate',find=['initrd0.img','\xff'],timeout=300)
+        log_file=self.Log(title,cmd)
+        init_time=TIME().Int()
+        if log_file:
+            mon_line=0
+            old_mon_line=-1
+            found=0
+            find_num=len(find)
+            cnt=0
+            while True:
+                if TIME().Int() - init_time > timeout :
+                    print('Monitoring timeout({} sec)'.format(timeout))
+                    if self.Kill(title):
+                        os.unlink(log_file)
+                    break
+                with open(log_file,'rb') as f:
+                    tmp=f.read()
+                #tmp=_u_byte2str(tmp)
+                tmp=CONVERT(tmp).Str()
+                if '\x1b' in tmp:
+                    tmp_a=tmp.split('\x1b')
+                elif '\r\n' in tmp:
+                    tmp_a=tmp.split('\r\n')
+                elif '\r' in tmp:
+                    tmp_a=tmp.split('\r')
+                else:
+                    tmp_a=tmp.split('\n')
+                tmp_n=len(tmp_a)
+                for ss in tmp_a[tmp_n-2:]:
+                    if 'SOL Session operational' in ss:
+                        # control+c : "^C", Enter: "^M", any command "<linux command> ^M"
+                        rshell('screen -S {} -p 0 -X stuff "^M"'.format(title))
+                        cnt+=1
+                        if cnt > 5:
+                            print('maybe not activated SOL or BMC issue')
+                            if self.Kill(title):
+                                os.unlink(log_file)
+                            return False
+                        continue
+                if find:
+                    for ii in tmp_a[mon_line:]:
+                        if find_num == 0:
+                            print(ii)
+                        else:
+                            for ff in range(0,find_num):
+                                find_i=find[found]
+                                if ii.find(find_i) < 0:
+                                    break
+                                found=found+1
+                                if found >= find_num:
+                                    if self.Kill(title):
+                                        os.unlink(log_file)
+                                    return True
+                    if tmp_n > 1:
+                        mon_line=tmp_n -1
+                    else:
+                        mon_line=tmp_n
+                else:
+                    if self.Kill(title):
+                        os.unlink(log_file)
+                    return True
+                TIME().Sleep(1)
+        return False
+
+
+    def Id(self,title=None):
+        scs=[]
+        rc=rshell('''screen -ls''')
+        if rc[0] == 1:
+            for ii in rc[1].split('\n')[1:]:
+                jj=ii.split()
+                if len(jj) == 2:
+                    if title:
+                        zz=jj[0].split('.')
+                        if zz[1] == title:
+                            scs.append(jj[0])
+                    else:
+                        scs.append(jj[0])
+        return scs
+
+    def Log(self,title,cmd):
+        # ipmitool -I lanplus -H 172.16.114.80 -U ADMIN -P ADMIN sol activate
+        pid=os.getpid()
+        tmp_file=FILE().MkTemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
+        log_file=FILE().MkTemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
+        if os.path.isfile(log_file):
+            log_file=''
+        with open(tmp_file,'w') as f:
+            f.write('''logfile {}\nlogfile flush 0\nlog on\n'''.format(log_file))
+        if os.path.isfile(tmp_file):
+            rc=rshell('''screen -c {} -dmSL "{}" {}'''.format(tmp_file,title,cmd))
+            if rc[0] == 0:
+                for ii in range(0,50):
+                    if os.path.isfile(log_file):
+                        os.unlink(tmp_file)
+                        return log_file
+                    TIME().Sleep(0.1)
+
 ####################################STRING##################################################
 def Cut(src,head_len=None,body_len=None,new_line='\n',out=str):
     if not isinstance(src,str): return False
@@ -3830,128 +4087,6 @@ def FirstKey(src,default=None):
         except:
             return default
     return default
-
-####################################FUNCTION##################################################
-class FUNCTION:
-    def __init__(self,func=None):
-        if func:
-            if isinstance(func,str):
-                func=Global(func)
-            self.func=func
-
-    def Name(self,sub=False):
-        if sub:
-            try:
-                return traceback.extract_stack(None, 2+1)[0][2]
-            except:
-                return False
-        return traceback.extract_stack(None, 2)[0][2]
-
-    def ParentName(self,sub=False):
-        if sub:
-            try:
-                return traceback.extract_stack(None, 3+1)[0][2]
-            except:
-                return False
-        return traceback.extract_stack(None, 3)[0][2]
-
-    def Args(self,func=None,**opts):
-        mode=opts.get('mode',opts.get('field','defaults'))
-        default=opts.get('default',None)
-        if func is None: func=self.func
-        if not Type(func,'function'):
-            return default
-        rt={}
-        args, varargs, keywords, defaults = inspect.getargspec(func)
-        if defaults is not None:
-            defaults=dict(zip(args[-len(defaults):], defaults))
-            del args[-len(defaults):]
-            rt['defaults']=defaults
-        if args:
-            rt['args']=args
-        if varargs:
-            rt['varargs']=varargs
-        if keywords:
-            rt['keywards']=keywords
-        if Type(mode,(list,tuple)):
-            rts=[]
-            for ii in mode:
-                rts.append(rt.get(ii,default))
-            return rts
-        else:
-            if mode in rt:
-                return rt[mode]
-            return rt
-
-    def List(self,obj=None):
-        aa={}
-        if isinstance(obj,str):
-           obj=sys.modules.get(obj)
-        else:
-           obj=GET().Me()
-        if obj is not None:
-            for name,fobj in inspect.getmembers(obj):
-                if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
-                    aa.update({name:fobj})
-        return aa
-
-    def CallerName(self,default=False,detail=False):
-        try:
-            dep=len(inspect.stack())-2
-            if detail:
-                return sys._getframe(dep).f_code.co_name,sys._getframe(dep).f_lineno,sys._getframe(dep).f_code.co_filename
-            else:
-                name=sys._getframe(dep).f_code.co_name
-                if name == '_bootstrap_inner' or name == '_run_code':
-                    return sys._getframe(3).f_code.co_name
-                return name
-        except:
-            return default
-
-    def Is(self,find=None,src=None):
-        if find is None: find=self.func
-        if src is None:
-            if isinstance(find,str):
-                #find=sys.modules.get(find)
-                find=Global().get(find)
-            return inspect.isfunction(find)
-        aa=[]
-        if not isinstance(find,str): find=find.__name__
-        if isinstance(src,str):
-            src=sys.modules.get(src)
-        if inspect.ismodule(src) or inspect.isclass(src):
-            for name,fobj in inspect.getmembers(src):
-                if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
-                    aa.append(name)
-        else:
-            for name,fobj in inspect.getmembers(src):
-                if inspect.ismethod(fobj): # inspect.ismodule(obj) check the obj is module or not
-                    aa.append(name)
-        if find in aa: return True
-        return False
-
-def argtype(arg,want='_',get_data=['_']):
-    return GET().ArgType(arg,want=want,get_data=get_data)
-    #type_arg=type(arg)
-    #if want in get_data:
-    #    if type_arg.__name__ == 'Request':
-    #        return arg.method.lower()
-    #    return type_arg.__name__.lower()
-    #if type(want) is str:
-    #    if type_arg.__name__ == 'Request':
-    #        if want.upper() == 'REQUEST' or want.upper() == arg.method:
-    #            return True
-    #        return False
-    #    else:
-    #        if type_arg.__name__.lower() == want.lower():
-    #            return True
-    #else:
-    #    if type_arg == want:
-    #        return True
-    #return False
-
-def get_function_args(func,mode='defaults'):
-    return FUNCTION().Args(func=func,mode=mode)
 
 def code_error(email_func=None,email=None,email_title=None,email_server=None,log=None,log_msg='',default=None):
     e=sys.exc_info()[0]
@@ -4611,12 +4746,11 @@ def Random(length=8,strs=None,mode='*',letter='*',default=1):
         new='{0}{1}'.format(new,strs[random.randint(0,strn)])
     return new
 
-
 def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
     rt=[]
     if isinstance(src,str,list,tuple) and find:
         if isinstance(src,str): src=src.split(sym)
-        
+
         for row in range(0,len(src)):
             for ff in FIND().Find(find,src=src[row],pattern=pattern,word=word,findall=findall,default=[],out=list):
                 if findall:
@@ -4626,7 +4760,7 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
                     if idx >= 0:
                         rt.append((row,idx))
     elif isinstance(src,dict):
-        if find is None: 
+        if find is None:
             if out in ['raw',None] and len(src.keys()) == 1 : return list(src.keys())[0]
             if out in ['tuple',tuple]: return tuple(list(src.keys()))
             return list(src.keys())
@@ -4641,163 +4775,6 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
             return rt[0][1]
         return rt
     return default
-
-class SCREEN:
-    def Kill(self,title):
-        ids=self.Id(title)
-        if len(ids) == 1:
-            rc=rshell('''screen -X -S {} quit'''.format(ids[0]))
-            if rc[0] == 0:
-                return True
-            return False
-
-    def Monitor(self,title,ip,ipmi_user,ipmi_pass,find=[],timeout=600):
-        if type(title) is not str or not title:
-            print('no title')
-            return False
-        scr_id=self.Id(title)
-        if scr_id:
-            print('Already has the title at {}'.format(scr_id))
-            return False
-        cmd="ipmitool -I lanplus -H {} -U {} -P {} sol activate".format(ip,ipmi_user,ipmi_pass)
-        # Linux OS Boot (Completely kernel loaded): find=['initrd0.img','\xff']
-        # PXE Boot prompt: find=['boot:']
-        # PXE initial : find=['PXE ']
-        # DHCP initial : find=['DHCP']
-        # ex: aa=screen_monitor('test','ipmitool -I lanplus -H <bmc ip> -U ADMIN -P ADMIN sol activate',find=['initrd0.img','\xff'],timeout=300)
-        log_file=self.Log(title,cmd)
-        init_time=TIME().Int()
-        if log_file:
-            mon_line=0
-            old_mon_line=-1
-            found=0
-            find_num=len(find)
-            cnt=0
-            while True:
-                if TIME().Int() - init_time > timeout :
-                    print('Monitoring timeout({} sec)'.format(timeout))
-                    if self.Kill(title):
-                        os.unlink(log_file)
-                    break
-                with open(log_file,'rb') as f:
-                    tmp=f.read()
-                #tmp=_u_byte2str(tmp)
-                tmp=CONVERT(tmp).Str()
-                if '\x1b' in tmp:
-                    tmp_a=tmp.split('\x1b')
-                elif '\r\n' in tmp:
-                    tmp_a=tmp.split('\r\n')
-                elif '\r' in tmp:
-                    tmp_a=tmp.split('\r')
-                else:
-                    tmp_a=tmp.split('\n')
-                tmp_n=len(tmp_a)
-                for ss in tmp_a[tmp_n-2:]:
-                    if 'SOL Session operational' in ss:
-                        # control+c : "^C", Enter: "^M", any command "<linux command> ^M"
-                        rshell('screen -S {} -p 0 -X stuff "^M"'.format(title))
-                        cnt+=1
-                        if cnt > 5:
-                            print('maybe not activated SOL or BMC issue')
-                            if self.Kill(title):
-                                os.unlink(log_file)
-                            return False
-                        continue
-                if find:
-                    for ii in tmp_a[mon_line:]:
-                        if find_num == 0:
-                            print(ii)
-                        else:
-                            for ff in range(0,find_num):
-                                find_i=find[found]
-                                if ii.find(find_i) < 0:
-                                    break
-                                found=found+1
-                                if found >= find_num:
-                                    if self.Kill(title):
-                                        os.unlink(log_file)
-                                    return True
-                    if tmp_n > 1:
-                        mon_line=tmp_n -1
-                    else:
-                        mon_line=tmp_n
-                else:
-                    if self.Kill(title):
-                        os.unlink(log_file)
-                    return True
-                TIME().Sleep(1)
-        return False
-
-
-    def Id(self,title=None):
-        scs=[]
-        rc=rshell('''screen -ls''')
-        if rc[0] == 1:
-            for ii in rc[1].split('\n')[1:]:
-                jj=ii.split()
-                if len(jj) == 2:
-                    if title:
-                        zz=jj[0].split('.')
-                        if zz[1] == title:
-                            scs.append(jj[0])
-                    else:
-                        scs.append(jj[0])
-        return scs
-
-    def Log(self,title,cmd):
-        # ipmitool -I lanplus -H 172.16.114.80 -U ADMIN -P ADMIN sol activate
-        pid=os.getpid()
-        tmp_file=FILE().MkTemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
-        log_file=FILE().MkTemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
-        if os.path.isfile(log_file):
-            log_file=''
-        with open(tmp_file,'w') as f:
-            f.write('''logfile {}\nlogfile flush 0\nlog on\n'''.format(log_file))
-        if os.path.isfile(tmp_file):
-            rc=rshell('''screen -c {} -dmSL "{}" {}'''.format(tmp_file,title,cmd))
-            if rc[0] == 0:
-                for ii in range(0,50):
-                    if os.path.isfile(log_file):
-                        os.unlink(tmp_file)
-                        return log_file
-                    TIME().Sleep(0.1)
-
-class ANSI:
-    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-    def Clean(self,data):
-        if data:
-            if isinstance(data,str):
-                return self.ansi_escape.sub('',data)
-            elif isinstance(data,list):
-                new_data=[]
-                for ii in data:
-                    new_data.append(self.ansi_escape.sub('',ii))
-                return new_data
-        return data
-
-class Multiprocessor():
-    def __init__(self):
-        self.processes = []
-        self.queue = Queue()
-
-    @staticmethod
-    def _wrapper(func, queue, args, kwargs):
-        ret = func(*args, **kwargs)
-        queue.put(ret)
-
-    def run(self, func, *args, **kwargs):
-        args2 = [func, self.queue, args, kwargs]
-        p = Process(target=self._wrapper, args=args2)
-        self.processes.append(p)
-        p.start()
-
-    def wait(self):
-        rets = []
-        for p in self.processes[:]:
-            ret = self.queue.get()
-            rets.append(ret)
-            self.processes.remove(p)
-        return rets
 
 def findXML(xmlfile,find_name=None,find_path=None):
     tree=ET.parse(xmlfile)
@@ -4865,8 +4842,32 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
             if del_org_file: os.unline(data)
             return True
 
+def cat(filename,no_end_newline=False,no_edge=False,byte=False,newline='\n',no_first_newline=False,no_all_newline=False,file_only=True,default={'err'}):
+    tmp=FILE().Rw(filename,file_only=file_only,default=default)
+    tmp=Get(tmp,1)
+    if no_edge:
+        return STR(tmp).RemoveNewline(mode='edge',byte=byte,newline=newline)
+    elif no_end_newline:
+        return STR(tmp).RemoveNewline(mode='end',byte=byte,newline=newline)
+    elif no_first_newline:
+        return STR(tmp).RemoveNewline(mode='first',byte=byte,newline=newline)
+    elif no_all_newline:
+        return STR(tmp).RemoveNewline(mode='all',byte=byte,newline=newline)
+    return tmp
 
-##########################################################################################
+def ls(dirname,opt=''):
+    if os.path.isdir(dirname):
+        dirlist=[]
+        dirinfo=list(os.walk(dirname))[0]
+        if opt == 'd':
+            dirlist=dirinfo[1]
+        elif opt == 'f':
+            dirlist=dirinfo[2]
+        else:
+            dirlist=dirinfo[1]+dirinfo[2]
+        return dirlist
+    return False
+
 def append(src,addendum):
     type_src=type(src)
     type_data=type(addendum)
@@ -4905,76 +4906,6 @@ def compare(a,sym,b,ignore=None):
             return False
     return eval('{} {} {}'.format(a,sym,b))
 
-def integer(a,default=0):
-    try:
-        return int(a)
-    except:
-        return default
-
-def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[],out_form=None):
-    return GET(data).Value(key=key,ekey=ekey,default=default,method=method,strip=strip,find=find,out_form=out_form,peel=True)
-   # if argtype(data,'Request'):
-   #     if key:
-   #         if method is None:
-   #             method=data.method
-   #         if method.upper() == 'GET':
-   #             rc=data.GET.get(key,default)
-   #         elif method == 'FILE':
-   #             if out_form is list:
-   #                 rc=data.FILES.getlist(key,default)
-   #             else:
-   #                 rc=data.FILES.get(key,default)
-   #         else:
-   #             if out_form is list:
-   #                 rc=data.POST.getlist(key,default)
-   #             else:
-   #                 rc=data.POST.get(key,default)
-   #         if argtype(rc,str) and strip:
-   #             rc=rc.strip()
-   #         if find and rc in find:
-   #             return True
-   #         if rc == 'true':
-   #             return True
-   #         elif rc == '':
-   #             return default
-   #         return rc
-   #     else:
-   #         if data.method == 'GET':
-   #             return data.GET
-   #         else:
-   #             return data.data
-   # else:
-   #     type_data=type(data)
-   #     if type_data in [tuple,list]:
-   #         if len(data) > key:
-   #             if ekey and len(data) > ekey:
-   #                 return data[key:ekey]
-   #             else:
-   #                 return data[key]
-   #     elif type_data is dict:
-   #         return data.get(key,default)
-   # return default
-
-def check_value(src,find,idx=None):
-    return IS(find).In(src,idx=idx)
-    #'''Check key or value in the dict, list or tuple then True, not then False'''
-    #if isinstance(src, (list,tuple,str,dict)):
-    #    if idx is None:
-    #        for i in src:
-    #            if IsSame(i,find): return True
-    #    else:
-    #        if isinstance(src,str):
-    #            if idx < 0:
-    #                if src[idx-len(find):idx] == find:
-    #                    return True
-    #            else:
-    #                if src[idx:idx+len(find)] == find:
-    #                    return True
-    #        else:
-    #            if Get(src,idx,out='raw') == find:
-    #                return True
-    #return False
-
 def ping(host,**opts):
     count=opts.get('count',0)
     interval=opts.get('interval',1)
@@ -4986,6 +4917,7 @@ def ping(host,**opts):
     log_format=opts.get('log_format','.')
     cancel_func=opts.get('cancel_func',None)
     return IP().Ping(host=host,count=count,interval=interval,keep_good=keep_good, timeout=timeout,lost_mon=lost_mon,log=log,stop_func=stop_func,log_format=log_format,cancel_func=cancel_func)
+##########################################################################################
 
 def is_lost(ip,**opts):
     timeout=opts.get('timeout',opts.get('timeout_sec',1800))
@@ -5149,32 +5081,6 @@ def save_file(data,dest):
             if chmod_mode:
                 os.chmod(sub_file,chmod_mode)
 
-def cat(filename,no_end_newline=False,no_edge=False,byte=False,newline='\n',no_first_newline=False,no_all_newline=False,file_only=True,default={'err'}):
-    tmp=FILE().Rw(filename,file_only=file_only,default=default)
-    tmp=Get(tmp,1)
-    if no_edge:
-        return STR(tmp).RemoveNewline(mode='edge',byte=byte,newline=newline)
-    elif no_end_newline:
-        return STR(tmp).RemoveNewline(mode='end',byte=byte,newline=newline)
-    elif no_first_newline:
-        return STR(tmp).RemoveNewline(mode='first',byte=byte,newline=newline)
-    elif no_all_newline:
-        return STR(tmp).RemoveNewline(mode='all',byte=byte,newline=newline)
-    return tmp
-
-def ls(dirname,opt=''):
-    if os.path.isdir(dirname):
-        dirlist=[]
-        dirinfo=list(os.walk(dirname))[0]
-        if opt == 'd':
-            dirlist=dirinfo[1]
-        elif opt == 'f':
-            dirlist=dirinfo[2]
-        else:
-            dirlist=dirinfo[1]+dirinfo[2]
-        return dirlist
-    return False
-
 #########################################################################
 def is_cancel(func):
     ttt=type(func).__name__
@@ -5333,139 +5239,6 @@ def get_ipmi_mac(ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',loop=0):
 
 def get_ipmi_ip():
     return rshell('''ipmitool lan print 2>/dev/null| grep "IP Address" | grep -v Source | awk '{print $4}' ''')
-
-def get_host_name():
-    return HOST().Name()
-
-def get_host_ip(ifname=None,mac=None):
-    return HOST().Ip(ifname,mac)
-    #if ifname or mac:
-    #    if mac:
-    #        ifname=get_dev_name_from_mac(mac)
-    #    return get_net_dev_ip(ifname)
-    #else:
-    #    ifname=get_default_route_dev()
-    #    if not ifname:
-    #        ifname=get_dev_name_from_mac()
-    #    if not ifname: ifname=get_dev_name_from_mac()
-    #    if ifname:
-    #        ip=get_net_dev_ip(ifname)
-    #        if ip:
-    #            return ip
-    #    return socket.gethostbyname(socket.gethostname())
-
-def get_default_route_dev():
-    return HOST().DefaultRouteDev()
-    ##for ii in cat('/proc/net/route').split('\n'):
-    #for ii in STR(cat('/proc/net/route')).Split('\n'):
-    #    ii_a=ii.split()
-    #    if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
-
-def get_dev_name_from_mac(mac=None):
-    return HOST().DevName(mac)
-    #if mac is None:
-    #    mac=get_host_mac()
-    #net_dir='/sys/class/net'
-    #if type(mac) is str and os.path.isdir(net_dir):
-    #    dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-    #    for dev in dirnames:
-    #        fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
-    #        if type(fmac) is str and fmac.strip().lower() == mac.lower():
-    #            return dev
-
-def get_dev_mac(ifname):
-    return HOST().Mac(dev=ifname)
-    #try:
-    #    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-    #    #return ':'.join(['%02x' % ord(char) for char in info[18:24]])
-    #    return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
-    #except:
-    #    return
-
-def get_host_iface():
-    return HOST().DefaultRouteDev()
-    #if os.path.isfile('/proc/net/route'):
-    #    routes=cat('/proc/net/route')
-    #    for ii in routes.split('\n'):
-    #        ii_a=ii.split()
-    #        if ii_a[2] == '030010AC':
-    #            return ii_a[0]
-    
-def get_host_mac(ip=None,dev=None):
-    return HOST().Mac(ip=ip,dev=dev)
-    #if is_ipv4(ip):
-    #    dev_info=get_net_device()
-    #    if isinstance(dev_info,dict):
-    #        for dev in dev_info.keys():
-    #            if get_net_dev_ip(dev) == ip:
-    #                return STR(BYTES(dev_info[dev]['mac']).Str()).RemoveNewline(mode='edge')
-    #elif dev:
-    #    return STR(get_dev_mac(dev)).RemoveNewline(mode='edge')
-    #else:
-    #    #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-    #    return STR(str2mac('%012x' % uuid.getnode())).RemoveNewline(mode='edge')
-
-def get_net_dev_ip(ifname):
-    return HOST().Ip(ifname=ifname)
-    #if os.path.isdir('/sys/class/net/{}'.format(ifname)) is False:
-    #    return False
-    #try:
-    #    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #    return socket.inet_ntoa(fcntl.ioctl(
-    #        s.fileno(),
-    #        0x8915,  # SIOCGIFADDR
-    #        struct.pack('256s', ifname[:15])
-    #    )[20:24])
-    #except:
-    #    try:
-    #        return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
-    #    except:
-    #        return
-
-def get_net_device(name=None):
-    return HOST().NetDevice(name)
-    #net_dev={}
-    #net_dir='/sys/class/net'
-    #if os.path.isdir(net_dir):
-    #    dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-    #    if name:
-    #        if name in dirnames:
-    #            drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,name))
-    #            if drv is False:
-    #                drv='unknown'
-    #            else:
-    #                drv=drv[0].split(':')[1]
-    #            net_dev[name]={
-    #                'mac':cat('{}/{}/address'.format(dirpath,name),no_end_newline=True),
-    #                'duplex':cat('{}/{}/duplex'.format(dirpath,name),no_end_newline=True),
-    #                'mtu':cat('{}/{}/mtu'.format(dirpath,name),no_end_newline=True),
-    #                'state':cat('{}/{}/operstate'.format(dirpath,name),no_end_newline=True),
-    #                'speed':cat('{}/{}/speed'.format(dirpath,name),no_end_newline=True),
-    #                'id':cat('{}/{}/ifindex'.format(dirpath,name),no_end_newline=True),
-    #                'driver':drv,
-    #                'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,name),no_end_newline=True),
-    #                }
-    #    else:
-    #        for dev in dirnames:
-    #            drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,dev))
-    #            if drv is False:
-    #                drv='unknown'
-    #            else:
-    #                drv=drv[0].split(':')[1]
-    #            net_dev[dev]={
-    #                'mac':cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True),
-    #                'duplex':cat('{}/{}/duplex'.format(dirpath,dev),no_end_newline=True),
-    #                'mtu':cat('{}/{}/mtu'.format(dirpath,dev),no_end_newline=True),
-    #                'state':cat('{}/{}/operstate'.format(dirpath,dev),no_end_newline=True),
-    #                'speed':cat('{}/{}/speed'.format(dirpath,dev),no_end_newline=True),
-    #                'id':cat('{}/{}/ifindex'.format(dirpath,dev),no_end_newline=True),
-    #                'driver':drv,
-    #                'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,dev),no_end_newline=True),
-    #                }
-    #    return net_dev
-    #else:
-    #    return False
 
 def make_tar(filename,filelist,ctype='gz',ignore_file=[]):
     def ignore_files(filename,ignore_files):
@@ -6461,6 +6234,9 @@ def CompVersion(src,compare_symbol,dest,compare_range='dest',version_symbol='.')
 def Int(i,default={'org'}):
     return CONVERT(i).Int(default=default)
 
+def integer(a,default=0):
+    return CONVERT(a).Int(default=default)
+
 def Lower(src):
     if isinstance(src,str): return src.lower()
     return src
@@ -6521,4 +6297,43 @@ def get_caller_fcuntion_name(detail=False):
 
 def is_function(find,src=None):
     return FUNCTION().Is(find=find,src=src)
+
+def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[],out_form=None):
+    return GET(data).Value(key=key,ekey=ekey,default=default,method=method,strip=strip,find=find,out_form=out_form,peel=True)
+
+def check_value(src,find,idx=None):
+    return IS(find).In(src,idx=idx)
+
+def get_host_name():
+    return HOST().Name()
+
+def get_host_ip(ifname=None,mac=None):
+    return HOST().Ip(ifname,mac)
+
+def get_default_route_dev():
+    return HOST().DefaultRouteDev()
+
+def get_dev_name_from_mac(mac=None):
+    return HOST().DevName(mac)
+
+def get_dev_mac(ifname):
+    return HOST().Mac(dev=ifname)
+
+def get_host_iface():
+    return HOST().DefaultRouteDev()
+
+def get_host_mac(ip=None,dev=None):
+    return HOST().Mac(ip=ip,dev=dev)
+
+def get_net_dev_ip(ifname):
+    return HOST().Ip(ifname=ifname)
+
+def get_net_device(name=None):
+    return HOST().NetDevice(name)
+
+def argtype(arg,want='_',get_data=['_']):
+    return GET().ArgType(arg,want=want,get_data=get_data)
+
+def get_function_args(func,mode='defaults'):
+    return FUNCTION().Args(func=func,mode=mode)
 
