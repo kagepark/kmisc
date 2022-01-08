@@ -66,30 +66,47 @@ cdrom_ko=['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage']
 def Global():
     return dict(inspect.getmembers(inspect.stack()[-1][0]))["f_globals"]
 
-def OutFormat(data,out=None):
+def OutFormat(data,out=None,strip=False,peel=False):
+    def __peel__(data,peel):
+        if peel:
+            if isinstance(data,(list,tuple)) and len(data)==1:
+                return data[0]
+        return data
+
+    def __strip__(data,strip):
+        if strip:
+            if isinstance(data,(str,bytes)) and len(data) > 0:
+                return data.strip()
+        return data
+
     if out in [tuple,'tuple']:
-        if not isinstance(data,tuple):
-            return (data,)
-        elif not isinstance(data,list):
-            return tuple(data)
-    elif out in [list,'list']:
         if not isinstance(data,list):
-            return [data]
+            return tuple(data)
         elif not isinstance(data,tuple):
+            return (data,)
+        return data
+    elif out in [list,'list']:
+        if not isinstance(data,tuple):
             return list(data)
+        elif not isinstance(data,list):
+            return [data]
+        return data
     elif out in ['raw',None]:
-        if isinstance(data,(list,tuple)) and len(data) == 1:
-            return data[0]
-        elif isinstance(data,dict) and len(data) == 1:
-            return data.values()[0]
+        if isinstance(data,dict) and len(data) == 1:
+            return __strip__(__peel__(data.values(),True),strip)
+        return __strip__(__peel__(data,True),strip)
+       # if isinstance(data,(list,tuple)) and len(data) == 1:
+       #     return data[0]
+       # elif isinstance(data,dict) and len(data) == 1:
+       #     return data.values()[0]
     elif out in ['str',str]:
-        return '''{}'''.format(data)
+        return '''{}'''.format(__strip__(__peel__(data,peel),strip))
     elif out in ['int',int]:
         try:
-            return int(data)
+            return int(__strip__(__peel__(data,peel),strip))
         except:
             pass
-    return data
+    return __strip__(__peel__(data,peel),strip)
 
 def Abs(*inps,**opts):
     default=opts.get('default',None)
@@ -307,6 +324,119 @@ def Copy(src):
     if isinstance(src,float): return float('{}'.format(src))
     if PyVer(2):
         if isinstance(src,long): return long('{}'.format(src))
+
+def Join(*inps,symbol='_-_',byte=None):
+    if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
+        src=inps[0]
+    elif len(inps) == 2 and isinstance(inps[0],(list,tuple)) and symbol=='_-_':
+        src=inps[0]
+        symbol=inps[1]
+    else:
+        src=inps
+    if symbol=='_-_': symbol=''
+    rt=''
+    if isinstance(byte,bool):
+        if byte:
+            rt=b''
+            symbol=BYTES().From(symbol)
+        else:
+            symbol=BYTES(symbol).Str()
+    else:
+        byte=False
+        if src and isinstance(src,(list,tuple)):
+            if IS(src[0]).Bytes():
+                rt=b''
+                byte=True
+                symbol=BYTES().From(symbol)
+    for i in src:
+        if not isinstance(i,(str,bytes)):
+            i='{}'.format(i)
+        if byte:
+            i=BYTES().From(i)
+        else:
+            i=BYTES(i).Str()
+        if rt:
+            rt=rt+symbol+i
+        else:
+            rt=i
+    return rt
+
+def FixIndex(src,idx,default=0):
+    if isinstance(src,(list,tuple,str,dict)) and isinstance(idx,int):
+        if idx < 0:
+            if len(src) > abs(idx):
+                idx=len(src)-abs(idx)
+            else:
+                idx=0
+        else:
+            if len(src) <= idx: idx=len(src)-1
+        return idx
+    return default
+
+def Next(src,step=0,out=None,default='org'):
+    if isinstance(src,(list,tuple,dict)):
+        step=FixIndex(src,step)
+        iterator=iter(src)
+        for i in range(-1,step):
+            rt=next(iterator)
+        return OutFormat(rt,out=out)
+    elif isinstance(src,str):
+        step=FixIndex(src,step)
+        if len(src) == 0:
+            return ''
+        elif len(src) >= 0 or len(src) <= step:
+            return OutFormat(src[step],out=out)
+    if default == 'org': return src
+    OutFormat(default,out=out)
+
+def Delete(*inps,**opts):
+    if len(inps) >= 2:
+        obj=inps[0]
+        keys=inps[1:]
+    elif len(inps) == 1:
+        obj=inps[0]
+        keys=opts.get('key',None)
+        if isinstance(keys,list):
+            keys=tuple(keys)
+        elif keys is not None:
+            keys=(keys,)
+    default=opts.get('default',None)
+    _type=opts.get('type','index')
+
+    if isinstance(obj,(list,tuple)):
+        nobj=len(obj)
+        rt=[]
+        if _type == 'index':
+            nkeys=Abs(*tuple(keys),obj=obj,out=list)
+            for i in range(0,len(obj)):
+                if i not in nkeys:
+                    rt.append(obj[i])
+        else:
+            for i in obj:
+                if i not in keys:
+                    rt.append(i)
+        return rt
+    elif isinstance(obj,dict):
+        if isinstance(keys,(list,tuple,dict)):
+            for key in keys:
+                obj.pop(key,default)
+        else:
+            obj.pop(keys,default)
+        return obj
+    elif isinstance(obj,str):
+        nkeys=[]
+        for i in keys:
+            if isinstance(i,(tuple,str,int)):
+                tt=Abs(i,obj=obj,out=list)
+                if tt:
+                    nkeys=nkeys+tt
+        rt=''
+        for i in range(0,len(obj)):
+            if i in nkeys:
+                continue
+            rt=rt+obj[i]
+        return rt
+    return default
 
 class COLOR:
     def __init__(self,**opts):
@@ -1851,14 +1981,64 @@ class GET:
         if err == {'org'}: return self.src
         return OutFormat(default,out=out)
 
-    def Value(self,*find,**opts):
+    def Value(self,*key,**opts):
         default=opts.get('default',None)
         err=opts.get('err',False)
-        out=opts.get('out',None)
+        out=opts.get('out',opts.get('out_form',None))
+        strip=opts.get('strip',False)
+        peel=opts.get('peel',False)
         check=opts.get('check',('str','list','tuple','dict','instance','classobj'))
+        # Added
+        if len(key) == 0 and opts.get('key') is not None:
+            if isinstance(opts.get('key'),(tuple,list)):
+                key=tuple(opts.get('key'))
+            else:
+                key=(opts.get('key'),)
         rt=[]
+
+        # Web Data
+        if self.ArgType(self.src,'Request'):
+            if key:
+                key=key[0]
+            else:
+                key=opts.get('key',None)
+            method=opts.get('method',None)
+            strip=opts.get('strip',True)
+            find=opts.get('find',[])
+            if key is not None:
+                if method is None:
+                    method=self.src.method
+                if method.upper() == 'GET':
+                    rc=self.src.GET.get(key,default)
+                elif method.upper() == 'FILE':
+                    if out is list:
+                        rc=self.src.FILES.getlist(key,default)
+                    else:
+                        rc=self.src.FILES.get(key,default)
+                else:
+                    if out is list:
+                        rc=self.src.POST.getlist(key,default)
+                    else:
+                        rc=self.src.POST.get(key,default)
+                if self.ArgType(rc,str) and strip:
+                    rc=rc.strip()
+                if find and rc in find:
+                    return True
+                if rc == 'true':
+                    return True
+                elif rc == '':
+                    return default
+                return rc
+            else:
+                if self.src.method == 'GET':
+                    return self.src.GET
+                else:
+                    return self.src.data
+
+
+        # Other Python Data
         src_name=type(self.src).__name__
-        if len(find) == 0:
+        if len(key) == 0:
             if src_name in ['kDict','kList','DICT']: return self.src.Get()
             if Type(self.src,('instance','classobj')):
                 def method_in_class(class_name):
@@ -1872,14 +2052,14 @@ class GET:
             # Support
             if Type(self.src,(list,tuple,str)):
                 if src_name in ['kList']: self.src=self.src.Get()
-                for ff in Abs(*find,obj=self.src,out=list,default=None,err=err):
+                for ff in Abs(*key,obj=self.src,out=list,default=None,err=err):
                     if ff is None:
                         if err in [True,'True','err']: rt.append(default)
                     else:
                         rt.append(self.src[ff])
             elif Type(self.src,dict):
                 if src_name in ['kDict','DICT']: self.src=self.src.Get()
-                for ff in find:
+                for ff in key:
                     gval=self.src.get(ff,default)
                     if gval == default:
                         if err in [True,'True','err']: rt.append(gval)
@@ -1887,16 +2067,16 @@ class GET:
                         rt.append(gval)
             elif Type(self.src,('instance','classobj')):
                 # get function object of finding string name in the class/instance
-                for ff in find:
+                for ff in key:
                     if isinstance(ff,(list,tuple,dict)):
                         for kk in ff:
                             rt.append(getattr(self.src,kk,default))
                     elif isinstance(ff,str): 
                         rt.append(getattr(self.src,ff,default))
-            if rt: return OutFormat(rt,out=out)
+            if rt: return OutFormat(rt,out=out,strip=strip,peel=peel)
         # Not support format or if not class/instance then return error
-        if err in [True,'True','true','err','ERR','ERROR','error']: OutFormat(default,out=out)
-        return OutFormat(self.src,out=out)
+        if err in [True,'True','true','err','ERR','ERROR','error']: OutFormat(default,out=out,strip=strip,peel=peel)
+        return OutFormat(self.src,out=out,strip=strip,peel=peel)
 
     def Read(self,default=False):
         if Is(self.src).Pickle():
@@ -2258,6 +2438,33 @@ class IS:
             else:
                 return _IsSame_(src,chk_val,sense)
 
+    def In(self,src,idx=False,default=False):
+        find=self.src
+        '''Check key or value in the dict, list or tuple then True, not then False'''
+        if isinstance(src, (list,tuple,str)):
+            if isinstance(idx,int):
+                if isinstance(src,str):
+                    if idx < 0:
+                        if src[idx-len(find):idx] == find:
+                            return True
+                    else:
+                        if src[idx:idx+len(find)] == find:
+                            return True
+                else:
+                    if Get(src,idx,out='raw') == find:
+                        return True
+            else:
+                for i in src:
+                    if self.Same(i,find): return True
+        elif isinstance(src, dict):
+            if idx is None:
+                for i in src:
+                    if self.Same(i,find): return True
+            else:
+                if Get(src,idx,out='raw') == find:
+                    return True
+        return default
+
 class LOG:
     def __init__(self,**opts):
         self.limit=opts.get('limit',3)
@@ -2434,27 +2641,49 @@ class HOST:
     def Name(self):
         return socket.gethostname()
 
-    def NetIp(self,ifname):
-        if os.path.isdir('/sys/class/net/{}'.format(ifname)) is False:
-            return False
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            return socket.inet_ntoa(fcntl.ioctl(
-                s.fileno(),
-                0x8915,  # SIOCGIFADDR
-                struct.pack('256s', ifname[:15])
-            )[20:24])
-        except:
-            try:
-                return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
-            except:
-                return
+    def DefaultRouteDev(self,default=None,gw=None):
+        for ii in STR(cat('/proc/net/route',no_edge=True)).Split('\n'):
+            ii_a=ii.split()
+            #if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
+            if len(ii_a) < 4 or ii_a[1] != '00000000' or not int(ii_a[3], 16) & 2:
+                #If not default route or not RTF_GATEWAY, skip it
+                continue
+            if gw:
+                if IS().Same(socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16))),gw):
+                    return ii_a[0]
+            else:
+                return ii_a[0]
+        return default
+
+    def DefaultRouteIp(self,default=None):
+        for ii in STR(cat('/proc/net/route',no_edge=True)).Split('\n'):
+            ii_a=ii.split()
+            if len(ii_a) < 4 or ii_a[1] != '00000000' or not int(ii_a[3], 16) & 2:
+                #If not default route or not RTF_GATEWAY, skip it
+                continue
+            return socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16)))
+        return default
 
     def Ip(self,ifname=None,mac=None,default=None):
-        if mac is None : mac=self.Mac()
-        if ifname is None: ifname=get_dev_name_from_mac(mac)
-        ip=self.NetIp(ifname)
-        if ip: return ip
+        if ifname is None: 
+            if mac is None : mac=self.Mac()
+            ifname=self.DevName(mac)
+
+        if ifname:
+            if not os.path.isdir('/sys/class/net/{}'.format(ifname)):
+                return default
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                return socket.inet_ntoa(fcntl.ioctl(
+                    s.fileno(),
+                    0x8915,  # SIOCGIFADDR
+                    struct.pack('256s', ifname[:15])
+                )[20:24])
+            except:
+                try:
+                    return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
+                except:
+                    pass
         return socket.gethostbyname(socket.gethostname())
 
     def IpmiIp(self,default=None):
@@ -2467,27 +2696,22 @@ class HOST:
         if rt[0]:return rt[1]
         return default
 
-    def DevMac(self,ifname,default=None):
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-            #return ':'.join(['%02x' % ord(char) for char in info[18:24]])
-            return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
-        except:
-            return default
-
-    def Mac(self,ip=None,dev=None,default=None):
+    def Mac(self,ip=None,dev=None,default=None,ifname=None):
+        if dev is None and ifname: dev=ifname
         if IP(ip).IsV4():
             dev_info=self.NetDevice()
             for dev in dev_info.keys():
-                if self.NetIp(dev) == ip:
+                if self.Ip(dev) == ip:
                     return dev_info[dev]['mac']
-        elif dev:
-            return self.DevMac(dev)
-        else:
-            #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-            return CONVERT('%012x' % uuid.getnode()).Str2Mac()
-        return default
+        if dev:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', dev[:15]))
+                return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
+            except:
+                pass
+        #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+        return CONVERT('%012x' % uuid.getnode()).Str2Mac()
 
     def DevName(self,mac=None,default=None):
         if mac is None:
@@ -2496,26 +2720,9 @@ class HOST:
         if isinstance(mac,str) and os.path.isdir(net_dir):
             dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
             for dev in dirnames:
-                fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
+                fmac=cat('{}/{}/address'.format(dirpath,dev),no_edge=True)
                 if isinstance(fmac,str) and fmac.strip().lower() == mac.lower():
                     return dev
-        return default
-
-    def NetIP(ifname,default=None):
-        if not os.path.isdir('/sys/class/net/{}'.format(ifname)):
-            return default
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            return socket.inet_ntoa(fcntl.ioctl(
-                s.fileno(),
-                0x8915,  # SIOCGIFADDR
-                struct.pack('256s', ifname[:15])
-            )[20:24])
-        except:
-            try:
-                return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
-            except:
-                pass
         return default
 
     def Info(self):
@@ -2527,48 +2734,37 @@ class HOST:
          'ipmi_mac':self.IpmiMac(),
          }
 
-    def NetDevice(self,name=None):
+    def NetDevice(self,name=None,default=False):
+        def _dev_info_(path,name):
+            drv=ls('{}/{}/device/driver/module/drivers'.format(path,name))
+            if drv is False:
+                drv='unknown'
+            else:
+                drv=drv[0].split(':')[1]
+            return {
+                'mac':cat('{}/{}/address'.format(path,name),no_end_newline=True),
+                'duplex':cat('{}/{}/duplex'.format(path,name),no_end_newline=True,file_only=False),
+                'mtu':cat('{}/{}/mtu'.format(path,name),no_end_newline=True),
+                'state':cat('{}/{}/operstate'.format(path,name),no_end_newline=True),
+                'speed':cat('{}/{}/speed'.format(path,name),no_end_newline=True,file_only=False),
+                'id':cat('{}/{}/ifindex'.format(path,name),no_end_newline=True),
+                'driver':drv,
+                'drv_ver':cat('{}/{}/device/driver/module/version'.format(path,name),no_end_newline=True,file_only=False,default=''),
+                }
+
+
         net_dev={}
         net_dir='/sys/class/net'
         if os.path.isdir(net_dir):
             dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
             if name:
                 if name in dirnames:
-                    drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,name))
-                    if drv is False:
-                        drv='unknown'
-                    else:
-                        drv=drv[0].split(':')[1]
-                    net_dev[name]={
-                        'mac':cat('{}/{}/address'.format(dirpath,name),no_end_newline=True),
-                        'duplex':cat('{}/{}/duplex'.format(dirpath,name),no_end_newline=True),
-                        'mtu':cat('{}/{}/mtu'.format(dirpath,name),no_end_newline=True),
-                        'state':cat('{}/{}/operstate'.format(dirpath,name),no_end_newline=True),
-                        'speed':cat('{}/{}/speed'.format(dirpath,name),no_end_newline=True),
-                        'id':cat('{}/{}/ifindex'.format(dirpath,name),no_end_newline=True),
-                        'driver':drv,
-                        'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,name),no_end_newline=True),
-                        }
+                    net_dev[name]=_dev_info_(dirpath,name)
             else:
                 for dev in dirnames:
-                    drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,dev))
-                    if drv is False:
-                        drv='unknown'
-                    else:
-                        drv=drv[0].split(':')[1]
-                    net_dev[dev]={
-                        'mac':cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True),
-                        'duplex':cat('{}/{}/duplex'.format(dirpath,dev),no_end_newline=True),
-                        'mtu':cat('{}/{}/mtu'.format(dirpath,dev),no_end_newline=True),
-                        'state':cat('{}/{}/operstate'.format(dirpath,dev),no_end_newline=True),
-                        'speed':cat('{}/{}/speed'.format(dirpath,dev),no_end_newline=True),
-                        'id':cat('{}/{}/ifindex'.format(dirpath,dev),no_end_newline=True),
-                        'driver':drv,
-                        'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,dev),no_end_newline=True),
-                        }
+                    net_dev[dev]=_dev_info_(dirpath,dev)
             return net_dev
-        else:
-            return False
+        return default
 
     def Alive(self,ip,keep=20,interval=3,timeout=1800,default=False,log=None,cancel_func=None):
         return IP(ip).Online(keep=keep,interval=interval,timeout=timeout,default=default,log=log,cancel_func=cancel_func)[1]
@@ -2853,14 +3049,16 @@ class FILE:
 #            return True
 #        return False
 
-    def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={}):
+    def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={},file_only=True,default={'err'}):
         if isinstance(name,str):
             if data is None: # Read from file
-                if os.path.isfile(name):
+                if os.path.isfile(name) or (not file_only and os.path.exists(name)):
                     try:
                         if read in ['firstread','firstline','first_line','head','readline']:
                             with open(name,'rb') as f:
                                 data=f.readline()
+                        elif not file_only:
+                            data=os.open(name,os.O_RDONLY)
                         else:
                             with open(name,'rb') as f:
                                 data=f.read()
@@ -2870,27 +3068,36 @@ class FILE:
                             return True,data
                     except:
                         pass
-                return False,'File({}) not found'.format(name)
+                if default == {'err'}:
+                    return False,'File({}) not found'.format(name)
+                return False,default
             else: # Write to file
                 file_path=os.path.dirname(name)
                 if not file_path or os.path.isdir(file_path): # current dir or correct directory
-#                    try:
-                        if append:
-                            with open(name,'ab') as f:
-                                f.write(BYTES().From(data))
-                        else:
-                            with open(name,'wb') as f:
-                                f.write(BYTES().From(data))
-                            if isinstance(finfo,dict) and finfo: self.SetIdentity(name,**finfo)
-                            #mode=self.Mode(mode)
-                            #if mode: os.chmod(name,int(mode,base=8))
-                            #if uid and gid: os.chown(name,uid,gid)
-                            #if mtime and atime: os.utime(name,(atime,mtime))# Time update must be at last order
-                        return True,None
-#                    except:
-#                        pass
-                return False,'Directory({}) not found'.format(file_path)
-        return False,'Unknown type({}) filename'.format(name)
+                    if append:
+                        with open(name,'ab') as f:
+                            f.write(BYTES().From(data))
+                    elif not file_only:
+                        try:
+                            f=os.open(name,os.O_RDWR)
+                            os.write(f,data)
+                        except:
+                            return False,None
+                    else:
+                        with open(name,'wb') as f:
+                            f.write(BYTES().From(data))
+                        if isinstance(finfo,dict) and finfo: self.SetIdentity(name,**finfo)
+                        #mode=self.Mode(mode)
+                        #if mode: os.chmod(name,int(mode,base=8))
+                        #if uid and gid: os.chown(name,uid,gid)
+                        #if mtime and atime: os.utime(name,(atime,mtime))# Time update must be at last order
+                    return True,None
+                if default == {'err'}:
+                    return False,'Directory({}) not found'.format(file_path)
+                return False,default
+        if default == {'err'}:
+            return False,'Unknown type({}) filename'.format(name)
+        return False,default
 
     def Mode(self,val,default=False):
         if isinstance(val,int):
@@ -3724,23 +3931,24 @@ class FUNCTION:
         return False
 
 def argtype(arg,want='_',get_data=['_']):
-    type_arg=type(arg)
-    if want in get_data:
-        if type_arg.__name__ == 'Request':
-            return arg.method.lower()
-        return type_arg.__name__.lower()
-    if type(want) is str:
-        if type_arg.__name__ == 'Request':
-            if want.upper() == 'REQUEST' or want.upper() == arg.method:
-                return True
-            return False
-        else:
-            if type_arg.__name__.lower() == want.lower():
-                return True
-    else:
-        if type_arg == want:
-            return True
-    return False
+    return GET().ArgType(arg,want=want,get_data=get_data)
+    #type_arg=type(arg)
+    #if want in get_data:
+    #    if type_arg.__name__ == 'Request':
+    #        return arg.method.lower()
+    #    return type_arg.__name__.lower()
+    #if type(want) is str:
+    #    if type_arg.__name__ == 'Request':
+    #        if want.upper() == 'REQUEST' or want.upper() == arg.method:
+    #            return True
+    #        return False
+    #    else:
+    #        if type_arg.__name__.lower() == want.lower():
+    #            return True
+    #else:
+    #    if type_arg == want:
+    #        return True
+    #return False
 
 def get_function_args(func,mode='defaults'):
     return FUNCTION().Args(func=func,mode=mode)
@@ -4554,6 +4762,43 @@ class SCREEN:
                         return log_file
                     TIME().Sleep(0.1)
 
+class ANSI:
+    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
+    def Clean(self,data):
+        if data:
+            if isinstance(data,str):
+                return self.ansi_escape.sub('',data)
+            elif isinstance(data,list):
+                new_data=[]
+                for ii in data:
+                    new_data.append(self.ansi_escape.sub('',ii))
+                return new_data
+        return data
+
+class Multiprocessor():
+    def __init__(self):
+        self.processes = []
+        self.queue = Queue()
+
+    @staticmethod
+    def _wrapper(func, queue, args, kwargs):
+        ret = func(*args, **kwargs)
+        queue.put(ret)
+
+    def run(self, func, *args, **kwargs):
+        args2 = [func, self.queue, args, kwargs]
+        p = Process(target=self._wrapper, args=args2)
+        self.processes.append(p)
+        p.start()
+
+    def wait(self):
+        rets = []
+        for p in self.processes[:]:
+            ret = self.queue.get()
+            rets.append(ret)
+            self.processes.remove(p)
+        return rets
+
 def findXML(xmlfile,find_name=None,find_path=None):
     tree=ET.parse(xmlfile)
     #root=ET.fromstring(data)
@@ -4666,116 +4911,69 @@ def integer(a,default=0):
     except:
         return default
 
-def Delete(*inps,**opts):
-    if len(inps) >= 2:
-        obj=inps[0]
-        keys=inps[1:]
-    elif len(inps) == 1:
-        obj=inps[0]
-        keys=opts.get('key',None)
-        if isinstance(keys,list):
-            keys=tuple(keys)
-        elif keys is not None:
-            keys=(keys,)
-    default=opts.get('default',None)
-    _type=opts.get('type','index')
-
-    if isinstance(obj,(list,tuple)):
-        nobj=len(obj)
-        rt=[]
-        if _type == 'index':
-            nkeys=Abs(*tuple(keys),obj=obj,out=list)
-            for i in range(0,len(obj)):
-                if i not in nkeys:
-                    rt.append(obj[i])
-        else:
-            for i in obj:
-                if i not in keys:
-                    rt.append(i)
-        return rt
-    elif isinstance(obj,dict):
-        if isinstance(keys,(list,tuple,dict)):
-            for key in keys:
-                obj.pop(key,default)
-        else:
-            obj.pop(keys,default)
-        return obj
-    elif isinstance(obj,str):
-        nkeys=[]
-        for i in keys:
-            if isinstance(i,(tuple,str,int)):
-                tt=Abs(i,obj=obj,out=list)
-                if tt:
-                    nkeys=nkeys+tt
-        rt=''
-        for i in range(0,len(obj)):
-            if i in nkeys:
-                continue
-            rt=rt+obj[i]
-        return rt
-    return default
-
-def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[],out_form=str):
-    if argtype(data,'Request'):
-        if key:
-            if method is None:
-                method=data.method
-            if method.upper() == 'GET':
-                rc=data.GET.get(key,default)
-            elif method == 'FILE':
-                if out_form is list:
-                    rc=data.FILES.getlist(key,default)
-                else:
-                    rc=data.FILES.get(key,default)
-            else:
-                if out_form is list:
-                    rc=data.POST.getlist(key,default)
-                else:
-                    rc=data.POST.get(key,default)
-            if argtype(rc,str) and strip:
-                rc=rc.strip()
-            if find and rc in find:
-                return True
-            if rc == 'true':
-                return True
-            elif rc == '':
-                return default
-            return rc
-        else:
-            if data.method == 'GET':
-                return data.GET
-            else:
-                return data.data
-    else:
-        type_data=type(data)
-        if type_data in [tuple,list]:
-            if len(data) > key:
-                if ekey and len(data) > ekey:
-                    return data[key:ekey]
-                else:
-                    return data[key]
-        elif type_data is dict:
-            return data.get(key,default)
-    return default
+def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[],out_form=None):
+    return GET(data).Value(key=key,ekey=ekey,default=default,method=method,strip=strip,find=find,out_form=out_form,peel=True)
+   # if argtype(data,'Request'):
+   #     if key:
+   #         if method is None:
+   #             method=data.method
+   #         if method.upper() == 'GET':
+   #             rc=data.GET.get(key,default)
+   #         elif method == 'FILE':
+   #             if out_form is list:
+   #                 rc=data.FILES.getlist(key,default)
+   #             else:
+   #                 rc=data.FILES.get(key,default)
+   #         else:
+   #             if out_form is list:
+   #                 rc=data.POST.getlist(key,default)
+   #             else:
+   #                 rc=data.POST.get(key,default)
+   #         if argtype(rc,str) and strip:
+   #             rc=rc.strip()
+   #         if find and rc in find:
+   #             return True
+   #         if rc == 'true':
+   #             return True
+   #         elif rc == '':
+   #             return default
+   #         return rc
+   #     else:
+   #         if data.method == 'GET':
+   #             return data.GET
+   #         else:
+   #             return data.data
+   # else:
+   #     type_data=type(data)
+   #     if type_data in [tuple,list]:
+   #         if len(data) > key:
+   #             if ekey and len(data) > ekey:
+   #                 return data[key:ekey]
+   #             else:
+   #                 return data[key]
+   #     elif type_data is dict:
+   #         return data.get(key,default)
+   # return default
 
 def check_value(src,find,idx=None):
-    '''Check key or value in the dict, list or tuple then True, not then False'''
-    if isinstance(src, (list,tuple,str,dict)):
-        if idx is None:
-            for i in src:
-                if IsSame(i,find): return True
-        else:
-            if isinstance(src,str):
-                if idx < 0:
-                    if src[idx-len(find):idx] == find:
-                        return True
-                else:
-                    if src[idx:idx+len(find)] == find:
-                        return True
-            else:
-                if Get(src,idx,out='raw') == find:
-                    return True
-    return False
+    return IS(find).In(src,idx=idx)
+    #'''Check key or value in the dict, list or tuple then True, not then False'''
+    #if isinstance(src, (list,tuple,str,dict)):
+    #    if idx is None:
+    #        for i in src:
+    #            if IsSame(i,find): return True
+    #    else:
+    #        if isinstance(src,str):
+    #            if idx < 0:
+    #                if src[idx-len(find):idx] == find:
+    #                    return True
+    #            else:
+    #                if src[idx:idx+len(find)] == find:
+    #                    return True
+    #        else:
+    #            if Get(src,idx,out='raw') == find:
+    #                return True
+    #return False
 
 def ping(host,**opts):
     count=opts.get('count',0)
@@ -4839,42 +5037,6 @@ def is_comeback(ip,**opts):
     if log:
         log(']\n',direct=True,log_level=1)
     return False,'Timeout/Unknown issue'
-
-def Join(*inps,symbol='_-_',byte=None):
-    if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
-        src=inps[0]
-    elif len(inps) == 2 and isinstance(inps[0],(list,tuple)) and symbol=='_-_':
-        src=inps[0]
-        symbol=inps[1]
-    else:
-        src=inps
-    if symbol=='_-_': symbol=''
-    rt=''
-    if isinstance(byte,bool):
-        if byte:
-            rt=b''
-            symbol=BYTES().From(symbol)
-        else:
-            symbol=BYTES(symbol).Str()
-    else:
-        byte=False
-        if src and isinstance(src,(list,tuple)): 
-            if IS(src[0]).Bytes():
-                rt=b''
-                byte=True
-                symbol=BYTES().From(symbol)
-    for i in src:
-        if not isinstance(i,(str,bytes)):
-            i='{}'.format(i)
-        if byte:
-            i=BYTES().From(i)
-        else:
-            i=BYTES(i).Str()
-        if rt:
-            rt=rt+symbol+i
-        else:
-            rt=i
-    return rt
 
 def file_mode(val):
     #return FILE().Mode(val)
@@ -4987,21 +5149,8 @@ def save_file(data,dest):
             if chmod_mode:
                 os.chmod(sub_file,chmod_mode)
 
-class ANSI:
-    ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-    def Clean(self,data):
-        if data:
-            if isinstance(data,str):
-                return self.ansi_escape.sub('',data)
-            elif isinstance(data,list):
-                new_data=[]
-                for ii in data:
-                    new_data.append(self.ansi_escape.sub('',ii))
-                return new_data
-        return data
-
-def cat(filename,no_end_newline=False,no_edge=False,byte=None,newline='\n',no_first_newline=False,no_all_newline=False):
-    tmp=FILE().Rw(filename)
+def cat(filename,no_end_newline=False,no_edge=False,byte=False,newline='\n',no_first_newline=False,no_all_newline=False,file_only=True,default={'err'}):
+    tmp=FILE().Rw(filename,file_only=file_only,default=default)
     tmp=Get(tmp,1)
     if no_edge:
         return STR(tmp).RemoveNewline(mode='edge',byte=byte,newline=newline)
@@ -5012,18 +5161,6 @@ def cat(filename,no_end_newline=False,no_edge=False,byte=None,newline='\n',no_fi
     elif no_all_newline:
         return STR(tmp).RemoveNewline(mode='all',byte=byte,newline=newline)
     return tmp
-    #if isinstance(tmp,str) and no_end_newline:
-    #    tmp_a=tmp.split('\n')
-    #    ntmp=''
-    #    for ii in tmp_a[:-1]:
-    #        if ntmp:
-    #            ntmp='{}\n{}'.format(ntmp,ii)
-    #        else:
-    #            ntmp='{}'.format(ii)
-    #    if len(tmp_a[-1]) > 0:
-    #        ntmp='{}\n{}'.format(ntmp,tmp_a[-1])
-    #    tmp=ntmp
-    #return tmp
 
 def ls(dirname,opt=''):
     if os.path.isdir(dirname):
@@ -5175,6 +5312,7 @@ def ipmi_cmd(cmd,ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',log=None):
         log(' ipmi_cmd():{}'.format(ipmi_str),log_level=7)
     return rshell(ipmi_str)
 
+    
 def get_ipmi_mac(ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',loop=0):
     ipmi_mac_str=None
     if ipmi_ip is None:
@@ -5197,129 +5335,137 @@ def get_ipmi_ip():
     return rshell('''ipmitool lan print 2>/dev/null| grep "IP Address" | grep -v Source | awk '{print $4}' ''')
 
 def get_host_name():
-    return socket.gethostname()
+    return HOST().Name()
 
 def get_host_ip(ifname=None,mac=None):
-    if ifname or mac:
-        if mac:
-            ifname=get_dev_name_from_mac(mac)
-        return get_net_dev_ip(ifname)
-    else:
-        ifname=get_default_route_dev()
-        if not ifname:
-            ifname=get_dev_name_from_mac()
-        if not ifname: ifname=get_dev_name_from_mac()
-        if ifname:
-            ip=get_net_dev_ip(ifname)
-            if ip:
-                return ip
-        return socket.gethostbyname(socket.gethostname())
+    return HOST().Ip(ifname,mac)
+    #if ifname or mac:
+    #    if mac:
+    #        ifname=get_dev_name_from_mac(mac)
+    #    return get_net_dev_ip(ifname)
+    #else:
+    #    ifname=get_default_route_dev()
+    #    if not ifname:
+    #        ifname=get_dev_name_from_mac()
+    #    if not ifname: ifname=get_dev_name_from_mac()
+    #    if ifname:
+    #        ip=get_net_dev_ip(ifname)
+    #        if ip:
+    #            return ip
+    #    return socket.gethostbyname(socket.gethostname())
 
 def get_default_route_dev():
-    #for ii in cat('/proc/net/route').split('\n'):
-    for ii in STR(cat('/proc/net/route')).Split('\n'):
-        ii_a=ii.split()
-        if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
+    return HOST().DefaultRouteDev()
+    ##for ii in cat('/proc/net/route').split('\n'):
+    #for ii in STR(cat('/proc/net/route')).Split('\n'):
+    #    ii_a=ii.split()
+    #    if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
 
 def get_dev_name_from_mac(mac=None):
-    if mac is None:
-        mac=get_host_mac()
-    net_dir='/sys/class/net'
-    if type(mac) is str and os.path.isdir(net_dir):
-        dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-        for dev in dirnames:
-            fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
-            if type(fmac) is str and fmac.strip().lower() == mac.lower():
-                return dev
+    return HOST().DevName(mac)
+    #if mac is None:
+    #    mac=get_host_mac()
+    #net_dir='/sys/class/net'
+    #if type(mac) is str and os.path.isdir(net_dir):
+    #    dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+    #    for dev in dirnames:
+    #        fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
+    #        if type(fmac) is str and fmac.strip().lower() == mac.lower():
+    #            return dev
 
 def get_dev_mac(ifname):
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-        #return ':'.join(['%02x' % ord(char) for char in info[18:24]])
-        return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
-    except:
-        return
+    return HOST().Mac(dev=ifname)
+    #try:
+    #    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
+    #    #return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+    #    return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
+    #except:
+    #    return
 
 def get_host_iface():
-    if os.path.isfile('/proc/net/route'):
-        routes=cat('/proc/net/route')
-        for ii in routes.split('\n'):
-            ii_a=ii.split()
-            if ii_a[2] == '030010AC':
-                return ii_a[0]
+    return HOST().DefaultRouteDev()
+    #if os.path.isfile('/proc/net/route'):
+    #    routes=cat('/proc/net/route')
+    #    for ii in routes.split('\n'):
+    #        ii_a=ii.split()
+    #        if ii_a[2] == '030010AC':
+    #            return ii_a[0]
     
 def get_host_mac(ip=None,dev=None):
-    if is_ipv4(ip):
-        dev_info=get_net_device()
-        if isinstance(dev_info,dict):
-            for dev in dev_info.keys():
-                if get_net_dev_ip(dev) == ip:
-                    return STR(BYTES(dev_info[dev]['mac']).Str()).RemoveNewline(mode='edge')
-    elif dev:
-        return STR(get_dev_mac(dev)).RemoveNewline(mode='edge')
-    else:
-        #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        return STR(str2mac('%012x' % uuid.getnode())).RemoveNewline(mode='edge')
+    return HOST().Mac(ip=ip,dev=dev)
+    #if is_ipv4(ip):
+    #    dev_info=get_net_device()
+    #    if isinstance(dev_info,dict):
+    #        for dev in dev_info.keys():
+    #            if get_net_dev_ip(dev) == ip:
+    #                return STR(BYTES(dev_info[dev]['mac']).Str()).RemoveNewline(mode='edge')
+    #elif dev:
+    #    return STR(get_dev_mac(dev)).RemoveNewline(mode='edge')
+    #else:
+    #    #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+    #    return STR(str2mac('%012x' % uuid.getnode())).RemoveNewline(mode='edge')
 
 def get_net_dev_ip(ifname):
-    if os.path.isdir('/sys/class/net/{}'.format(ifname)) is False:
-        return False
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        return socket.inet_ntoa(fcntl.ioctl(
-            s.fileno(),
-            0x8915,  # SIOCGIFADDR
-            struct.pack('256s', ifname[:15])
-        )[20:24])
-    except:
-        try:
-            return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
-        except:
-            return
+    return HOST().Ip(ifname=ifname)
+    #if os.path.isdir('/sys/class/net/{}'.format(ifname)) is False:
+    #    return False
+    #try:
+    #    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #    return socket.inet_ntoa(fcntl.ioctl(
+    #        s.fileno(),
+    #        0x8915,  # SIOCGIFADDR
+    #        struct.pack('256s', ifname[:15])
+    #    )[20:24])
+    #except:
+    #    try:
+    #        return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
+    #    except:
+    #        return
 
 def get_net_device(name=None):
-    net_dev={}
-    net_dir='/sys/class/net'
-    if os.path.isdir(net_dir):
-        dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-        if name:
-            if name in dirnames:
-                drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,name))
-                if drv is False:
-                    drv='unknown'
-                else:
-                    drv=drv[0].split(':')[1]
-                net_dev[name]={
-                    'mac':cat('{}/{}/address'.format(dirpath,name),no_end_newline=True),
-                    'duplex':cat('{}/{}/duplex'.format(dirpath,name),no_end_newline=True),
-                    'mtu':cat('{}/{}/mtu'.format(dirpath,name),no_end_newline=True),
-                    'state':cat('{}/{}/operstate'.format(dirpath,name),no_end_newline=True),
-                    'speed':cat('{}/{}/speed'.format(dirpath,name),no_end_newline=True),
-                    'id':cat('{}/{}/ifindex'.format(dirpath,name),no_end_newline=True),
-                    'driver':drv,
-                    'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,name),no_end_newline=True),
-                    }
-        else:
-            for dev in dirnames:
-                drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,dev))
-                if drv is False:
-                    drv='unknown'
-                else:
-                    drv=drv[0].split(':')[1]
-                net_dev[dev]={
-                    'mac':cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True),
-                    'duplex':cat('{}/{}/duplex'.format(dirpath,dev),no_end_newline=True),
-                    'mtu':cat('{}/{}/mtu'.format(dirpath,dev),no_end_newline=True),
-                    'state':cat('{}/{}/operstate'.format(dirpath,dev),no_end_newline=True),
-                    'speed':cat('{}/{}/speed'.format(dirpath,dev),no_end_newline=True),
-                    'id':cat('{}/{}/ifindex'.format(dirpath,dev),no_end_newline=True),
-                    'driver':drv,
-                    'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,dev),no_end_newline=True),
-                    }
-        return net_dev
-    else:
-        return False
+    return HOST().NetDevice(name)
+    #net_dev={}
+    #net_dir='/sys/class/net'
+    #if os.path.isdir(net_dir):
+    #    dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+    #    if name:
+    #        if name in dirnames:
+    #            drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,name))
+    #            if drv is False:
+    #                drv='unknown'
+    #            else:
+    #                drv=drv[0].split(':')[1]
+    #            net_dev[name]={
+    #                'mac':cat('{}/{}/address'.format(dirpath,name),no_end_newline=True),
+    #                'duplex':cat('{}/{}/duplex'.format(dirpath,name),no_end_newline=True),
+    #                'mtu':cat('{}/{}/mtu'.format(dirpath,name),no_end_newline=True),
+    #                'state':cat('{}/{}/operstate'.format(dirpath,name),no_end_newline=True),
+    #                'speed':cat('{}/{}/speed'.format(dirpath,name),no_end_newline=True),
+    #                'id':cat('{}/{}/ifindex'.format(dirpath,name),no_end_newline=True),
+    #                'driver':drv,
+    #                'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,name),no_end_newline=True),
+    #                }
+    #    else:
+    #        for dev in dirnames:
+    #            drv=ls('{}/{}/device/driver/module/drivers'.format(dirpath,dev))
+    #            if drv is False:
+    #                drv='unknown'
+    #            else:
+    #                drv=drv[0].split(':')[1]
+    #            net_dev[dev]={
+    #                'mac':cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True),
+    #                'duplex':cat('{}/{}/duplex'.format(dirpath,dev),no_end_newline=True),
+    #                'mtu':cat('{}/{}/mtu'.format(dirpath,dev),no_end_newline=True),
+    #                'state':cat('{}/{}/operstate'.format(dirpath,dev),no_end_newline=True),
+    #                'speed':cat('{}/{}/speed'.format(dirpath,dev),no_end_newline=True),
+    #                'id':cat('{}/{}/ifindex'.format(dirpath,dev),no_end_newline=True),
+    #                'driver':drv,
+    #                'drv_ver':cat('{}/{}/device/driver/module/version'.format(dirpath,dev),no_end_newline=True),
+    #                }
+    #    return net_dev
+    #else:
+    #    return False
 
 def make_tar(filename,filelist,ctype='gz',ignore_file=[]):
     def ignore_files(filename,ignore_files):
@@ -5806,29 +5952,6 @@ def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,ma
     ssoc.close()
     return rc
 
-def check_work_dir(work_dir,make=False,ntry=1,try_wait=[1,3]):
-    for ii in range(0,ntry):
-        if os.path.isdir(work_dir):
-            return True
-        else:
-            if make:
-                try:
-                    os.makedirs(work_dir)
-                    return True
-                except:
-                    TIME().Sleep(try_wait)
-    return False
-
-def get_node_info(loop=0):
-    host_ip=get_host_ip()
-    return {
-         'host_name':get_host_name(),
-         'host_ip':host_ip,
-         'host_mac':get_host_mac(ip=host_ip),
-         'ipmi_mac':get_ipmi_mac(loop=loop)[1],
-         'ipmi_ip':get_ipmi_ip()[1],
-         }
-
 def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=True,log_raw=False, argv=[],queue=None):
     # Clean
     for n in [k for k in mp]:
@@ -5972,10 +6095,6 @@ def cert_file(keyfile,certfile,C='US',ST='CA',L='San Jose',O='KGC',OU='KG',CN=No
         return key_file,crt_file
     return None,None
 
-def rreplace(source_string, replace_what, replace_with):
-    head, _sep, tail = source_string.rpartition(replace_what)
-    return head + replace_with + tail
-
 def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],progress=None,enc=False,upacket=None,dbg=0,wait_time=3,SSLC=False):
     sent=False,'Unknown issue'
     for ii in range(0,try_num):
@@ -6018,6 +6137,33 @@ def decode(string):
         dd=zlib.decompress(base64.b64decode(string))
         return '{0}'.format(dd.decode("utf-8"))
     return string
+
+def check_work_dir(work_dir,make=False,ntry=1,try_wait=[1,3]):
+    for ii in range(0,ntry):
+        if os.path.isdir(work_dir):
+            return True
+        else:
+            if make:
+                try:
+                    os.makedirs(work_dir)
+                    return True
+                except:
+                    TIME().Sleep(try_wait)
+    return False
+
+def get_node_info(loop=0):
+    host_ip=get_host_ip()
+    return {
+         'host_name':get_host_name(),
+         'host_ip':host_ip,
+         'host_mac':get_host_mac(ip=host_ip),
+         'ipmi_mac':get_ipmi_mac(loop=loop)[1],
+         'ipmi_ip':get_ipmi_ip()[1],
+         }
+
+def rreplace(source_string, replace_what, replace_with):
+    head, _sep, tail = source_string.rpartition(replace_what)
+    return head + replace_with + tail
 
 def mount_samba(url,user,passwd,mount_point):
     if os.path.isdir(mount_point) is False:
@@ -6147,31 +6293,6 @@ def alive(out=None):
     else:
         return 'unknown'
 
-
-class Multiprocessor():
-    def __init__(self):
-        self.processes = []
-        self.queue = Queue()
-
-    @staticmethod
-    def _wrapper(func, queue, args, kwargs):
-        ret = func(*args, **kwargs)
-        queue.put(ret)
-
-    def run(self, func, *args, **kwargs):
-        args2 = [func, self.queue, args, kwargs]
-        p = Process(target=self._wrapper, args=args2)
-        self.processes.append(p)
-        p.start()
-
-    def wait(self):
-        rets = []
-        for p in self.processes[:]:
-            ret = self.queue.get()
-            rets.append(ret)
-            self.processes.remove(p)
-        return rets
-
 def ddict(*inps,**opts):
     out={}
     for ii in inps:
@@ -6207,34 +6328,6 @@ def Try(cmd):
     except:
         e=sys.exc_info()[0]
         return False,{'err':e}
-
-def FixIndex(src,idx,default=0):
-    if isinstance(src,(list,tuple,str,dict)) and isinstance(idx,int):
-        if idx < 0:
-            if len(src) > abs(idx):
-                idx=len(src)-abs(idx)
-            else:
-                idx=0
-        else:
-            if len(src) <= idx: idx=len(src)-1
-        return idx
-    return default
-
-def Next(src,step=0,out=None,default='org'):
-    if isinstance(src,(list,tuple,dict)):
-        step=FixIndex(src,step)
-        iterator=iter(src)
-        for i in range(-1,step):
-            rt=next(iterator)
-        return OutFormat(rt,out=out)
-    elif isinstance(src,str):
-        step=FixIndex(src,step)
-        if len(src) == 0:
-            return ''
-        elif len(src) >= 0 or len(src) <= step:
-            return OutFormat(src[step],out=out)
-    if default == 'org': return src
-    OutFormat(default,out=out)
 
 def Timeout(timeout_sec,init_time=None,default=(24*3600)):
     if timeout_sec == 0: return True,0
