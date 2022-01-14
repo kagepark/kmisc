@@ -2053,10 +2053,13 @@ class GET:
             if Type(self.src,(list,tuple,str)):
                 if src_name in ['kList']: self.src=self.src.Get()
                 for ff in Abs(*key,obj=self.src,out=list,default=None,err=err):
-                    if ff is None:
-                        if err in [True,'True','err']: rt.append(default)
-                    else:
+#                    if ff is None:
+#                        if err in [True,'True','err']: rt.append(default)
+#                    else:
+                    if IS(ff).Int() and ff < len(self.src):
                         rt.append(self.src[ff])
+                    else:
+                        if err in [True,'True','err']: rt.append(default)
             elif Type(self.src,dict):
                 if src_name in ['kDict','DICT']: self.src=self.src.Get()
                 for ff in key:
@@ -2703,11 +2706,13 @@ class HOST:
             for dev in dev_info.keys():
                 if self.Ip(dev) == ip:
                     return dev_info[dev]['mac']
+        #ip or anyother input of device then getting default gw's dev
+        if dev is None: dev=self.DefaultRouteDev()
         if dev:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', dev[:15]))
-                return Join(['%02x' % ord(char) for char in info[18:24]],symbol=':')
+                info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', BYTES().From(dev[:15])))
+                return Join(['%02x' % ord(char) for char in BYTES(info[18:24]).Str()],symbol=':')
             except:
                 pass
         #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
