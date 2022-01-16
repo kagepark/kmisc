@@ -6295,7 +6295,7 @@ def get_pfunction_name():
     return FUNCTION().ParentName(sub=True)
 
 def get_function_list(objName=None,obj=None):
-    return FUNCTION().List()
+    return FUNCTION(obj).List(objName)
 
 def get_caller_fcuntion_name(detail=False):
     return FUNCTION().CallerName(detail=detail)
