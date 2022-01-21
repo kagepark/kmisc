@@ -1105,8 +1105,9 @@ class STR(str):
 #                return self.src.split(sym)
 
 class TIME:
-    def __init__(self):
+    def __init__(self,src=None):
         self.init_sec=int(datetime.now().strftime('%s'))
+        self.src=src
 
     def Reset(self):
         self.init_sec=int(datetime.now().strftime('%s'))
@@ -1161,7 +1162,8 @@ class TIME:
         return False
 
 
-    def Format(self,time=0,tformat='%s',read_format='%S'):
+    def Format(self,tformat='%s',read_format='%S',time=None):
+        if time is None: time=self.src
         if time in [0,'0',None]:
             return datetime.now().strftime(tformat)
         elif isinstance(time,int) or (isinstance(time,str) and time.isdigit()):
@@ -1170,6 +1172,8 @@ class TIME:
                 return datetime.fromtimestamp(int(time)).strftime(tformat)
             else:
                 return datetime.strptime(str(time),read_format).strftime(tformat)
+        elif type(time).__name__ == 'datetime':
+            return time.strftime(tformat)
 
     def Init(self):
         return self.init_sec
