@@ -1987,7 +1987,7 @@ class GET:
 
     def Value(self,*key,**opts):
         default=opts.get('default',None)
-        err=opts.get('err',False)
+        err=opts.get('err',opts.get('error',True))
         out=opts.get('out',opts.get('out_form',None))
         strip=opts.get('strip',False)
         peel=opts.get('peel',False)
@@ -2001,7 +2001,23 @@ class GET:
         rt=[]
 
         # Web Data
-        if self.ArgType(self.src,'Request'):
+        if self.ArgType(self.src,'Response'):
+            if key:
+                key=key[0]
+            else:
+                key=opts.get('key',None)
+            if key in ['status','code','state','status_code']:
+                return self.src.status_code
+            elif key in ['data','value']:
+                try:
+                    return _json.loads(self.src.text)
+                except:
+                    if err in [True,'True','err']: return default
+                    return self.src.text
+            elif key in ['text','str','string']:
+                return self.src.text
+            return self.src
+        elif self.ArgType(self.src,'Request'):
             if key:
                 key=key[0]
             else:
@@ -2082,7 +2098,7 @@ class GET:
                         rt.append(getattr(self.src,ff,default))
             if rt: return OutFormat(rt,out=out,strip=strip,peel=peel)
         # Not support format or if not class/instance then return error
-        if err in [True,'True','true','err','ERR','ERROR','error']: OutFormat(default,out=out,strip=strip,peel=peel)
+        if err in [True,'True','true','err','ERR','ERROR','error']: return OutFormat(default,out=out,strip=strip,peel=peel)
         return OutFormat(self.src,out=out,strip=strip,peel=peel)
 
     def Read(self,default=False):
