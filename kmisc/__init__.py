@@ -1216,7 +1216,7 @@ class SHELL:
                 sys.stdout.write('\n')
                 sys.stdout.flush()
 
-    def Run(self,cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5,cd=False):
+    def Run(self,cmd,timeout=None,ansi=True,path=None,progress=False,progress_pre_new_line=False,progress_post_new_line=False,log=None,progress_interval=5,cd=False,default_timeout=7200):
         start_time=TIME()
         if not isinstance(cmd,str):
             return -1,'wrong command information :{0}'.format(cmd),'',start_time.Init(),start_time.Init(),start_time.Now(int),cmd,path
@@ -1240,13 +1240,15 @@ class SHELL:
             stop_threads=False
             ppth=Thread(target=self.Pprog,args=(lambda:stop_threads,progress_pre_new_line,progress_post_new_line,log,progress_interval))
             ppth.start()
-        if isinstance(timeout,(int,str)):
+        if (isinstance(timeout,int) and timeout) or (isinstance(timeout,str) and timeout.strip()):
             try:
                 timeout=int(timeout)
             except:
-                timeout=600
+                timeout=default_timeout
             if timeout < 3:
                 timeout=3
+        else:
+           timeout=None
         if PyVer(3):
             try:
                 out, err = p.communicate(timeout=timeout)
@@ -4134,7 +4136,7 @@ def printf(*msg,**opts):
     dsp=opts.get('dsp','a')
     func_name=opts.get('func_name',None)
     date=opts.get('date',False)
-    date_format=opts.get('date_format','[%m/%d/%Y %H:%M:%S]')
+    date_format=opts.get('date_format','%m/%d/%Y %H:%M:%S')
     intro=opts.get('intro',None)
     caller=opts.get('caller',False)
     caller_detail=opts.get('caller_detail',False)
@@ -4183,7 +4185,7 @@ def printf(*msg,**opts):
 
     # Make a Intro
     intro_msg=''
-    if date and syslogd is False:
+    if date and not syslogd:
         intro_msg='[{0}] '.format(datetime.now().strftime(date_format))
     if caller:
         call_name=get_caller_fcuntion_name(detail=caller_detail)
@@ -4801,10 +4803,18 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
         return rt
     return default
 
-def findXML(xmlfile,find_name=None,find_path=None):
-    tree=ET.parse(xmlfile)
-    #root=ET.fromstring(data)
-    root=tree.getroot()
+def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj'):
+    if os.path.isfile(xmlfile):
+        try:
+            tree=ET.parse(xmlfile)
+            root=tree.getroot()
+        except:
+            return default
+    else:
+        try:
+            root=ET.fromstring(xmlfile)
+        except:
+            return default
     def find(tr,find_name):
         for x in tr:
             if x.attrib.get('name') == find_name:
@@ -4821,8 +4831,19 @@ def findXML(xmlfile,find_name=None,find_path=None):
     if find_path and isinstance(find_path,str):
         #ex: root.findall('./Menu/Setting/[@name="Administrator Password"]/Information/HasPassword'):
         if not found_root: found_root=root
-        return found_root.findall(find_path)
+        found_result=found_root.findall(find_path)
         # <element>.tag: name, .text: data, .attrib: dict
+        if out in ['tag','name']:
+            return found_result.tag
+        elif out in ['text','data']:
+            return found_result.text
+        elif out in ['attrib','att']:
+            return found_result.attrib
+        return found_result
+    else:
+        if found_root:
+            return found_root
+    return default
 
 def Compress(data,mode='lz4'):
     if mode == 'lz4':
