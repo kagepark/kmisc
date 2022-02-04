@@ -1257,7 +1257,7 @@ class SHELL:
                 if progress:
                     stop_threads=True
                     ppth.join()
-                return -1, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time.Init(),start_time.Now(int),cmd,path
+                return -2, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time.Init(),start_time.Now(int),cmd,path
         else:
             if isinstance(timeout,int):
                 countdown=int('{}'.format(timeout))
@@ -1269,7 +1269,7 @@ class SHELL:
                     if progress:
                         stop_threads=True
                         ppth.join()
-                    return -1, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time.Init(),start_time.Now(int),cmd,path
+                    return -2, 'Kill process after timeout ({0} sec)'.format(timeout), 'Error: Kill process after Timeout {0}'.format(timeout),start_time.Init(),start_time.Now(int),cmd,path
             out, err = p.communicate()
 
         if progress:
@@ -6305,6 +6305,14 @@ def get_my_directory(cwd=None):
 
 def IsSame(src,chk_val,sense=False):
     return IS().Same(src,chk_val,sense=sense)
+
+def IsNone(src,chk_val=[None,''],space=False):
+    if space and isinstance(src,str):
+        src=src.strip()
+    if src in chk_val: return True
+    if not isinstance(src,int):
+        if not src: return True
+    return False
 
 def move2first(item,pool):
     return LIST(pool).Move2first(item)
