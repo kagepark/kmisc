@@ -4804,6 +4804,15 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
     return default
 
 def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj'):
+    #<Menu name="Security">
+    #  <Setting name="Administrator Password" type="Password">
+    #    <Information>
+    #      <HasPassword>False</HasPassword>
+    #    </Information>
+    #  </Setting>
+    #</Menu>
+    #findXML(cfg_file,find_name='Administrator Password',find_path='./Information/HasPassword',out='data'))
+    # => False
     if os.path.isfile(xmlfile):
         try:
             tree=ET.parse(xmlfile)
@@ -4834,14 +4843,23 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj'):
         found_result=found_root.findall(find_path)
         # <element>.tag: name, .text: data, .attrib: dict
         if out in ['tag','name']:
-            return found_result.tag
+            for ii in found_result:
+                return ii.tag
         elif out in ['text','data']:
-            return found_result.text
+            for ii in found_result:
+                return ii.text
         elif out in ['attrib','att']:
-            return found_result.attrib
+            for ii in found_result:
+                return ii.attrib
         return found_result
     else:
         if found_root:
+            if out in ['tag','name']:
+                return found_root.tag
+            elif out in ['text','data']:
+                return found_root.text
+            elif out in ['attrib','att']:
+                return found_root.attrib
             return found_root
     return default
 
