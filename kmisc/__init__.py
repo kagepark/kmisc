@@ -4441,6 +4441,72 @@ def printf2(*msg,**opts):
          else:
              return start_new_line+msg_str+new_line
 
+def fprintf(src,fmt,split='\n'):
+    #Output: [[{data},line numver,original string],...]
+    #{data}: {'parameter':{'type':...,'opt':...,'exist':True/False,'data':...},...}
+    #fmt: <cmd> <opt> {<parameter>[:<type>]} ....
+    #<type>: NONE => No data, just check that prameter only
+    #        IP: check data is IP format
+    #        INT: convert data to Int
+    #        STR: default (String data)
+    #ex) 
+    #   src='''~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status'''
+    #   fmt='''ipmitool -H {IP:IP} -U {User} -P {User} chassis power status'''
+    #   => [[{'IP': {'type': 'IP', 'opt': '-H', 'exist': True, 'data': '192.168.3.100'}, 'User': {'type': 'STR', 'opt': '-U', 'exist': True, 'data': 'ADMIN'}, 'passwd': {'type': 'STR', 'opt': '-P', 'exist': True, 'data': 'AD MIN'}}, 0, "~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status"]]
+    def pill(data,pill_list=["'''",'"""','"',"'"]):
+        for ii in pill_list:
+            if len(data) > len(ii) * 2:
+                if data[:len(ii)] == ii and data[-len(ii):] == ii:
+                    return data[len(ii):-len(ii)]
+        return data
+
+    rt=[] # (data,line,source string)
+    # format
+    fmt_a=fmt.split()
+    fmt_v={}
+    for ii in range(0,len(fmt_a)):
+        fmt_p=pill(fmt_a[ii])
+        if '{' in fmt_p and '}' in fmt_p:
+            var=fmt_p[1:-1].split(':')
+            if var[0] in fmt_v:
+                print('Duplicated variable name({})'.format(var[0]))
+                return False
+            if len(var) == 2:
+                fmt_v[var[0]]={'type':var[1],'opt':fmt_a[ii-1]}
+            else:
+                fmt_v[var[0]]={'type':'STR','opt':fmt_a[ii-1]}
+    # Source
+    src_l_a=src.split(split)
+    for src_ln in range(0,len(src_l_a)):
+        src_a=STR(src_l_a[src_ln]).CmdLine()
+        if fmt_a[0] in src_a:
+            rt_i=[copy.deepcopy(fmt_v),src_ln,src_l_a[src_ln]]
+            src_i=src_a.index(fmt_a[0])
+            new_src_a=src_a[src_i:]
+            for ii in fmt_v:
+                # Found parameter in the line
+                if rt_i[0][ii].get('opt') in new_src_a:
+                    rt_i[0][ii]['exist']=True
+                    # If just check option without data then ignore below.
+                    if rt_i[0][ii].get('type') != 'NONE':
+                        opt_i=new_src_a.index(rt_i[0][ii].get('opt'))
+                        if len(new_src_a) > opt_i:
+                            # Get Data
+                            found_data=pill(new_src_a[opt_i+1])
+                            # Verify Data format
+                            if rt_i[0][ii].get('type') == 'IP':
+                                if km.IP(found_data).IsV4():
+                                    rt_i[0][ii]['data']=found_data
+                            elif rt_i[0][ii].get('type') == 'INT':
+                                try:
+                                    rt_i[0][ii]['data']=int(found_data)
+                                except:
+                                    pass
+                            else:
+                                rt_i[0][ii]['data']=found_data
+            rt.append(rt_i)
+    return rt
+
 def sprintf(string,*inps,**opts):
     if not isinstance(string,str): return False,string
     #"""ipmitool -H %(ipmi_ip)s -U %(ipmi_user)s -P '%(ipmi_pass)s' """%(**opts)
