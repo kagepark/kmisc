@@ -1104,6 +1104,48 @@ class STR(str):
 #            except:
 #                return self.src.split(sym)
 
+    def CmdLine(self,data=None,breaking='-'):
+        if data is None: data=self.src
+        def inside_data(rt,breaking,data_a,ii,symbol):
+            tt=data_a[ii][1:]
+            if len(data_a) > ii:
+                for jj in range(ii+1,len(data_a)):
+                    if data_a[jj] and data_a[jj].startswith(breaking):
+                        for tt in range(ii,jj+1):
+                            rt.append(data_a[tt])
+                        return jj
+                    if (data_a[jj] and data_a[jj][0] != symbol and data_a[jj][-1] == symbol) or (data_a[jj] and data_a[jj][0] == symbol):
+                        tt=tt+""" {}""".format(data_a[jj][:-1])
+                        rt.append(tt)
+                        tt=''
+                        return jj
+                    else:
+                        tt=tt+""" {}""".format(data_a[jj])
+            return None
+
+
+        data_a=data.split(' ')
+        rt=[]
+        ii=0
+        while ii < len(data_a):
+            if not data_a[ii]:
+                ii+=1
+                continue
+            if data_a[ii][0] == '"' and data_a[ii][-1] == '"':
+                rt.append(data_a[ii][1:-1])
+            elif data_a[ii][0] == "'" and data_a[ii][-1] == "'":
+                rt.append(data_a[ii][1:-1])
+            elif data_a[ii][0] == "'" and data[ii][-1] != "'":
+                a=inside_data(rt,breaking,data_a,ii,"'")
+                if a is not None: ii=a
+            elif data_a[ii][0] == '"' and data[ii][-1] != '"':
+                a=inside_data(rt,breaking,data_a,ii,'"')
+                if a is not None: ii=a
+            else:
+                rt.append(data_a[ii])
+            ii+=1
+        return rt
+
 class TIME:
     def __init__(self,src=None):
         self.init_sec=int(datetime.now().strftime('%s'))
