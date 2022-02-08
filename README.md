@@ -29,24 +29,19 @@ Convert Dictionary to Object style Dictionary
    1. Save()   : dictionary save to file
    1. Sort()   : Sort dictionary
    1. FirstKey(): Get first Key 
+   1. FirstKey(): Get first Key 
 1. Added property at each key
 
 - Initialize dictionary 
 
 
 ```javascript
-from DICT import DICT
-root=DICT()
-```
-or
-```javascript
-import DICT
-root=DICT.DICT()
+from kmisc import kDict
+root=kDict.kDict()
 ```
 
-
 ```javascript
-from DICT import DICT
+from kmisc import kDict
 >>> test={
       'a':123,
       'b':{
@@ -54,14 +49,7 @@ from DICT import DICT
          'e':{}
       }
     }
-root=DICT(test)
-```
-
-or 
-
-```javascript
-from DICT import DICT
->>> root=DICT()
+root=kDict.kDict(test)
 ```
 
 - Add new data
@@ -152,28 +140,111 @@ Sample Dictionary:
 ```
   - Save Data (always use root if not then save partial data)
 ```javascript
->>> from DICT import DICT
->>> DICT._dfile_='<dict file name>'
->>> root.Save()
-```
-or
-```javascript
->>> import DICT
->>> DICT.DICT._dfile_='<dict file name>'
+>>> from kmisc import kDict
+>>> kDict.kDict._dfile_='<dict file name>'
 >>> root.Save()
 ```
   - Load Data (always use root if not then load at key)
 ```javascript
->>> from DICT import DICT
->>> DICT._dfile_='<dict file name>'
+>>> from kmisc import kDict
+>>> kDict.kDict._dfile_='<dict file name>'
 >>> root.Load()
 ```
-or
-```javascript
->>> import DICT
->>> DICT.DICT._dfile_='<dict file name>'
->>> root.Load()
-```
-
 # MISC functions
 Useful commands
+
+Type : Similar as isinstance(<obj>,(chk,type))
+```javascript
+>>> import kmisc as km
+>>> km.Type('abc','str')
+>>> True
+>>> km.Type('abc',str)
+>>> True
+```
+
+Copy: copy data for list,dict,str,int,tuple...
+
+```javascript
+>>> new_data=Copy(<data>)
+```
+
+Join : Similar as os.path().join()
+Joining data of bytes,string,....
+
+Next: Get data from list,tuple,dict,string
+
+Delete : Delete data in list,tuple,dict,str
+
+COLOR : class for console,html color string
+
+FIND : find string or format data 
+
+DIFF : diff between data
+
+LIST : handle list()
+
+STR: handle string
+
+TIME : handle time formats
+
+SHELL : handle command run,progress,....
+
+BYTES: handle byte data
+
+CONVERT : data converter
+
+MAC : handle mac address
+
+VERSION : handle version
+
+IP : handle IP address
+
+GET: getting data from anywhere
+
+IS: check the data 
+
+LOG: handle log data
+
+HOST:  handle Host Information
+
+FILE: handle File (Read/Write)
+
+WEB: handle web protocol data
+
+EMAIL: handle email data
+
+ANSI : handle hansi data
+
+Multiprocessor : handle multi processing
+
+FUNCTION: handle function information
+
+SCREEN: handle ipmi SOL
+
+CLI : handle Command Line Interface 
+
+Cut: cutting string to format
+
+Get: Getting data from anywhere
+
+Replace : replace string data
+
+Insert : add data 
+
+Update: update data
+
+printf : similar as printf in c
+
+sprintf : similar as sprintf in c
+
+Sort : sorting data
+
+findXML : Get XML data
+
+cat : similar as linux cat command
+
+ls : similar as linux ls command
+
+IsSame: check both data is same or not
+
+etc...

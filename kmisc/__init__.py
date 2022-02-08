@@ -12,6 +12,7 @@ import stat
 import time
 import uuid
 import zlib
+import copy
 import smtplib
 import tarfile
 import zipfile
@@ -66,11 +67,15 @@ cdrom_ko=['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage']
 def Global():
     return dict(inspect.getmembers(inspect.stack()[-1][0]))["f_globals"]
 
-def OutFormat(data,out=None,strip=False,peel=False):
+def OutFormat(data,out=None,strip=False,peel=None):
     def __peel__(data,peel):
         if peel:
+            if isinstance(data,dict) and len(data) == 1 and len(list(data.values())) == 1 and not isinstance(list(data.values())[0],(dict,list,tuple)):
+                data=data.values()
             if isinstance(data,(list,tuple)) and len(data)==1:
                 return data[0]
+            elif type(data).__name__ == 'dict_values' and len(data)==1:
+                return list(data)[0]
         return data
 
     def __strip__(data,strip):
@@ -92,9 +97,10 @@ def OutFormat(data,out=None,strip=False,peel=False):
             return [data]
         return data
     elif out in ['raw',None]:
-        if isinstance(data,dict) and len(data) == 1:
-            return __strip__(__peel__(data.values(),True),strip)
-        return __strip__(__peel__(data,True),strip)
+        if peel is None: peel=True
+#        if isinstance(data,dict) and len(data) == 1 and len(list(data.values())) == 1 and not isinstance(list(data.values())[0],(dict,list,tuple)):
+#            return __strip__(__peel__(data.values(),True),strip)
+        return __strip__(__peel__(data,peel),strip)
        # if isinstance(data,(list,tuple)) and len(data) == 1:
        #     return data[0]
        # elif isinstance(data,dict) and len(data) == 1:
@@ -485,12 +491,15 @@ class COLOR:
                return msg+reset
 
 class FIND:
-    def __init__(self,string,out='index',word=False):
-        string=string.replace('*','.+').replace('?','.')
-        if word:
-            self.find_re=re.compile(r'\b({0})\b'.format(string),flags=re.IGNORECASE)
-        else:
-            self.find_re=re.compile(string,flags=re.IGNORECASE)
+    def __init__(self,src=None,find=None,out='index',word=False):
+        self.src=src
+        if isinstance(find,str):
+            find=find.replace('*','.+').replace('?','.')
+            if word:
+                self.find_re=re.compile(r'\b({0})\b'.format(find),flags=re.IGNORECASE)
+            else:
+                self.find_re=re.compile(find,flags=re.IGNORECASE)
+        self.find=find
         self.out=out
 
     def From(self,data,symbol='\n'):
@@ -539,7 +548,8 @@ class FIND:
              return 'Unknown format'
         return rt
 
-    def Find(self,src,find,prs=None,sym='\n',pattern=True,default=[],out=None,findall=False,word=False,mode='value'):
+    def Find(self,find,src=None,sym='\n',default=[],out=None,findall=True,word=False,mode='value',prs=None,line_num=True):
+        if src is None: src=self.src
         #if Type(src,'instance','classobj'):
         # if src is instance or classobj then search in description and made function name at key
         if isinstance(src,(list,tuple)):
@@ -580,14 +590,77 @@ class FIND:
                         path.append(key)
             return path
         elif isinstance(src,str):
-            if word:
-                find_re=re.compile(r'\b({0})\b'.format(find),flags=re.IGNORECASE)
-            else:
-                find_re=re.compile(find,flags=re.IGNORECASE)
             if findall:
-                match=find_re.findall(src)
-                if match: return OutFormat(match,out=out)
-            else:
+                if prs == '$': idx=-1
+                if prs == '^': idx=0
+                if sym:
+                    string_a=src.split(sym)
+                else:
+                    string_a=[src]
+                if isinstance(find,dict):
+                    found={}
+                    for nn in range(0,len(string_a)):
+                        for dd in find:
+                            didx=None
+                            if isinstance(find[dd],dict):
+                                fmt=next(iter(find[dd]))
+                                try:
+                                    didx=int(find[dd][fmt].get('idx'))
+                                except:
+                                    didx=None
+                            else:
+                                fmt=find[dd]
+#                            aa=re.compile(fmt).findall(string_a[nn])
+                            if word:
+                                aa=re.compile(r'\b({0})\b'.format(fmt),flags=re.IGNORECASE).findall(string_a[nn])
+                            else:
+                                aa=re.compile(fmt,flags=re.IGNORECASE).findall(string_a[nn])
+                            if aa:
+                                for mm in aa:
+                                    if isinstance(mm,(tuple,list)) and isinstance(didx,int):
+                                        if line_num:
+                                            found.update({dd:{'data':mm[didx],'line':nn,'src':string_a[nn]}})
+                                        else:
+                                            found.update({dd:mm[didx]})
+                                    else:
+                                        if line_num:
+                                            found.update({dd:{'data':mm,'line':nn,'src':string_a[nn]}})
+                                        else:
+                                            found.update({dd:mm})
+                    if found: return OutFormat(found,out=out)
+                else:
+                    found=[]
+                    for nn in range(0,len(string_a)):
+                        if isinstance(find,(list,tuple)):
+                            find=list(find)
+                        else:
+                            find=[find]
+                        for ff in find:
+                            #aa=re.compile(ff).findall(string_a[nn])
+                            if word:
+                                aa=re.compile(r'\b({0})\b'.format(ff),flags=re.IGNORECASE).findall(string_a[nn])
+                            else:
+                                aa=re.compile(ff,flags=re.IGNORECASE).findall(string_a[nn])
+                            for mm in aa:
+                                if isinstance(idx,int):
+                                    if isinstance(mm,(tuple,list)):
+                                        if line_num:
+                                            found.append((mm[idx],nn,string_a[nn]))
+                                        else:
+                                            found.append(mm[idx])
+                                else:
+                                    if line_num:
+                                        found.append((mm,nn,string_a[nn]))
+                                    else:
+                                        found.append(mm)
+                    if found: return OutFormat(found,out=out)
+#                match=find_re.findall(src)
+#                if match: return OutFormat(match,out=out)
+            elif isinstance(find,str):
+                if word:
+                    find_re=re.compile(r'\b({0})\b'.format(find),flags=re.IGNORECASE)
+                else:
+                    find_re=re.compile(find,flags=re.IGNORECASE)
                 match=find_re.search(src)
                 if match: return OutFormat([match.group()],out=out)
         return OutFormat(default,out=out)
@@ -994,9 +1067,9 @@ class STR(str):
                     return self.src[start:]
         return default
 
-    def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=False,word=False):
+    def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=True,word=False,line_num=False):
         if src is None: src=self.src
-        return FIND().Find(src,find,prs=prs,sym=sym,pattern=pattern,default=default,out=out,findall=findall,word=word,mode='value')
+        return FIND(src).Find(find,prs=prs,sym=sym,default=default,out=out,findall=findall,word=word,mode='value',line_num=line_num)
 
     def Index(self,find,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
         if not isinstance(self.src,str): return default
@@ -1027,6 +1100,12 @@ class STR(str):
                 return head + replace_to + tail
         return default
 
+#    def Split(self,sym=None):
+#        if isinstance(self.src,str):
+#            try:
+#                return re.split(sym,self.src) # splited by '|' or expression
+#            except:
+#                return self.src.split(sym)
     def Split(self,sym,src=None,default='org'):
         if not isinstance(sym,str):
             if default in ['org',{'org'}]:
@@ -1097,54 +1176,6 @@ class STR(str):
 #            return ''.join(src_a)
         return src
 
-#    def Split(self,sym=None):
-#        if isinstance(self.src,str):
-#            try:
-#                return re.split(sym,self.src) # splited by '|' or expression
-#            except:
-#                return self.src.split(sym)
-
-    def CmdLine(self,data=None,breaking='-'):
-        if data is None: data=self.src
-        def inside_data(rt,breaking,data_a,ii,symbol):
-            tt=data_a[ii][1:]
-            if len(data_a) > ii:
-                for jj in range(ii+1,len(data_a)):
-                    if data_a[jj] and data_a[jj].startswith(breaking):
-                        for tt in range(ii,jj+1):
-                            rt.append(data_a[tt])
-                        return jj
-                    if (data_a[jj] and data_a[jj][0] != symbol and data_a[jj][-1] == symbol) or (data_a[jj] and data_a[jj][0] == symbol):
-                        tt=tt+""" {}""".format(data_a[jj][:-1])
-                        rt.append(tt)
-                        tt=''
-                        return jj
-                    else:
-                        tt=tt+""" {}""".format(data_a[jj])
-            return None
-
-
-        data_a=data.split(' ')
-        rt=[]
-        ii=0
-        while ii < len(data_a):
-            if not data_a[ii]:
-                ii+=1
-                continue
-            if data_a[ii][0] == '"' and data_a[ii][-1] == '"':
-                rt.append(data_a[ii][1:-1])
-            elif data_a[ii][0] == "'" and data_a[ii][-1] == "'":
-                rt.append(data_a[ii][1:-1])
-            elif data_a[ii][0] == "'" and data[ii][-1] != "'":
-                a=inside_data(rt,breaking,data_a,ii,"'")
-                if a is not None: ii=a
-            elif data_a[ii][0] == '"' and data[ii][-1] != '"':
-                a=inside_data(rt,breaking,data_a,ii,'"')
-                if a is not None: ii=a
-            else:
-                rt.append(data_a[ii])
-            ii+=1
-        return rt
 
 class TIME:
     def __init__(self,src=None):
@@ -4441,72 +4472,6 @@ def printf2(*msg,**opts):
          else:
              return start_new_line+msg_str+new_line
 
-def fprintf(src,fmt,split='\n'):
-    #Output: [[{data},line numver,original string],...]
-    #{data}: {'parameter':{'type':...,'opt':...,'exist':True/False,'data':...},...}
-    #fmt: <cmd> <opt> {<parameter>[:<type>]} ....
-    #<type>: NONE => No data, just check that prameter only
-    #        IP: check data is IP format
-    #        INT: convert data to Int
-    #        STR: default (String data)
-    #ex) 
-    #   src='''~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status'''
-    #   fmt='''ipmitool -H {IP:IP} -U {User} -P {User} chassis power status'''
-    #   => [[{'IP': {'type': 'IP', 'opt': '-H', 'exist': True, 'data': '192.168.3.100'}, 'User': {'type': 'STR', 'opt': '-U', 'exist': True, 'data': 'ADMIN'}, 'passwd': {'type': 'STR', 'opt': '-P', 'exist': True, 'data': 'AD MIN'}}, 0, "~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status"]]
-    def pill(data,pill_list=["'''",'"""','"',"'"]):
-        for ii in pill_list:
-            if len(data) > len(ii) * 2:
-                if data[:len(ii)] == ii and data[-len(ii):] == ii:
-                    return data[len(ii):-len(ii)]
-        return data
-
-    rt=[] # (data,line,source string)
-    # format
-    fmt_a=fmt.split()
-    fmt_v={}
-    for ii in range(0,len(fmt_a)):
-        fmt_p=pill(fmt_a[ii])
-        if '{' in fmt_p and '}' in fmt_p:
-            var=fmt_p[1:-1].split(':')
-            if var[0] in fmt_v:
-                print('Duplicated variable name({})'.format(var[0]))
-                return False
-            if len(var) == 2:
-                fmt_v[var[0]]={'type':var[1],'opt':fmt_a[ii-1]}
-            else:
-                fmt_v[var[0]]={'type':'STR','opt':fmt_a[ii-1]}
-    # Source
-    src_l_a=src.split(split)
-    for src_ln in range(0,len(src_l_a)):
-        src_a=STR(src_l_a[src_ln]).CmdLine()
-        if fmt_a[0] in src_a:
-            rt_i=[copy.deepcopy(fmt_v),src_ln,src_l_a[src_ln]]
-            src_i=src_a.index(fmt_a[0])
-            new_src_a=src_a[src_i:]
-            for ii in fmt_v:
-                # Found parameter in the line
-                if rt_i[0][ii].get('opt') in new_src_a:
-                    rt_i[0][ii]['exist']=True
-                    # If just check option without data then ignore below.
-                    if rt_i[0][ii].get('type') != 'NONE':
-                        opt_i=new_src_a.index(rt_i[0][ii].get('opt'))
-                        if len(new_src_a) > opt_i:
-                            # Get Data
-                            found_data=pill(new_src_a[opt_i+1])
-                            # Verify Data format
-                            if rt_i[0][ii].get('type') == 'IP':
-                                if km.IP(found_data).IsV4():
-                                    rt_i[0][ii]['data']=found_data
-                            elif rt_i[0][ii].get('type') == 'INT':
-                                try:
-                                    rt_i[0][ii]['data']=int(found_data)
-                                except:
-                                    pass
-                            else:
-                                rt_i[0][ii]['data']=found_data
-            rt.append(rt_i)
-    return rt
-
 def sprintf(string,*inps,**opts):
     if not isinstance(string,str): return False,string
     #"""ipmitool -H %(ipmi_ip)s -U %(ipmi_user)s -P '%(ipmi_pass)s' """%(**opts)
@@ -4574,6 +4539,138 @@ def sprintf(string,*inps,**opts):
                     return False,"Mismatched input (tuple/list) number (require:{}, input:{})".format(len(tmp),len(opts))
         i+=1
     return True,string
+
+class CLI:
+    def __init__(self,cmd=None):
+        self.cmd=cmd
+
+    def Print(self,cmd=None,*inps,**opts):
+        if cmd is None: cmd=self.cmd
+        if cmd is None: return False
+        rt=sprintf(cmd,*inps,**opts)
+        return rt
+
+    def Args(self,data=None,breaking='-'):
+        if data is None: data=self.src
+        def inside_data(rt,breaking,data_a,ii,symbol):
+            tt=data_a[ii][1:]
+            if len(data_a) > ii:
+                for jj in range(ii+1,len(data_a)):
+                    if data_a[jj] and data_a[jj].startswith(breaking):
+                        for tt in range(ii,jj+1):
+                            rt.append(data_a[tt])
+                        return jj
+                    if (data_a[jj] and data_a[jj][0] != symbol and data_a[jj][-1] == symbol) or (data_a[jj] and data_a[jj][0] == symbol):
+                        tt=tt+""" {}""".format(data_a[jj][:-1])
+                        rt.append(tt)
+                        tt=''
+                        return jj
+                    else:
+                        tt=tt+""" {}""".format(data_a[jj])
+            return None
+
+
+        data_a=data.split(' ')
+        rt=[]
+        ii=0
+        while ii < len(data_a):
+            if not data_a[ii]:
+                ii+=1
+                continue
+            if data_a[ii][0] == '"' and data_a[ii][-1] == '"':
+                rt.append(data_a[ii][1:-1])
+            elif data_a[ii][0] == "'" and data_a[ii][-1] == "'":
+                rt.append(data_a[ii][1:-1])
+            elif data_a[ii][0] == "'" and data[ii][-1] != "'":
+                a=inside_data(rt,breaking,data_a,ii,"'")
+                if a is not None: ii=a
+            elif data_a[ii][0] == '"' and data[ii][-1] != '"':
+                a=inside_data(rt,breaking,data_a,ii,'"')
+                if a is not None: ii=a
+            else:
+                rt.append(data_a[ii])
+            ii+=1
+        return rt
+
+    def Get(self,fmt,cmd=None,split='\n',fixed_fmt=False,opt_sym=['-','--']):
+        if cmd is None: cmd=self.cmd
+        if cmd is None: return False
+        #Output: [[{data},line numver,original string],...]
+        #{data}: {'parameter':{'type':...,'opt':...,'exist':True/False,'data':...},...}
+        #fmt: <cmd> <opt> {<parameter>[:<type>]} ....
+        #<type>: NONE => No data, just check that prameter only
+        #        IP: check data is IP format
+        #        INT: convert data to Int
+        #        STR: default (String data)
+        #ex) 
+        #   src='''~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status'''
+        #   fmt='''ipmitool -H {IP:IP} -U {User} -P {User} chassis power status'''
+        #   => [[{'IP': {'type': 'IP', 'opt': '-H', 'exist': True, 'data': '192.168.3.100'}, 'User': {'type': 'STR', 'opt': '-U', 'exist': True, 'data': 'ADMIN'}, 'passwd': {'type': 'STR', 'opt': '-P', 'exist': True, 'data': 'AD MIN'}}, 0, "~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status"]]
+        ########
+        # ToDo #
+        ########
+        # If fixed_fmt(True) then get "ipmi {IP} {USER} {PASSWD}" format, ipmi is the key for the finding command line.
+        # Add <taking number> at {<name>:<type>:<taking number>}
+        # <take number> : default 1
+        #   2  : get data two sys arg value
+        #   -1 : get data until <split> or <opt_sym>
+        def pill(data,pill_list=["'''",'"""','"',"'"]):
+            for ii in pill_list:
+                if len(data) > len(ii) * 2:
+                    if data[:len(ii)] == ii and data[-len(ii):] == ii:
+                        return data[len(ii):-len(ii)]
+            return data
+
+        rt=[] # (data,line,source string)
+        # format
+        fmt_a=fmt.split()
+        fmt_v={}
+        for ii in range(0,len(fmt_a)):
+            fmt_p=pill(fmt_a[ii])
+            if '{' in fmt_p and '}' in fmt_p:
+                var=fmt_p[1:-1].split(':')
+                if var[0] in fmt_v:
+                    print('Duplicated variable name({})'.format(var[0]))
+                    return False
+                if len(var) == 3:
+                    if not var[1]: var[1]='STR'
+                    fmt_v[var[0]]={'type':var[1],'opt':fmt_a[ii-1],'num':var[2]}
+                elif len(var) == 2:
+                    if not var[1]: var[1]='STR'
+                    fmt_v[var[0]]={'type':var[1],'opt':fmt_a[ii-1],'num':1}
+                else:
+                    fmt_v[var[0]]={'type':'STR','opt':fmt_a[ii-1],'num':1}
+        # Source
+        src_l_a=cmd.split(split)
+        for src_ln in range(0,len(src_l_a)):
+            src_a=self.Args(data=src_l_a[src_ln])
+            if fmt_a[0] in src_a:
+                rt_i=[copy.deepcopy(fmt_v),src_ln,src_l_a[src_ln]]
+                src_i=src_a.index(fmt_a[0])
+                new_src_a=src_a[src_i:]
+                for ii in fmt_v:
+                    # Found parameter in the line
+                    if rt_i[0][ii].get('opt') in new_src_a:
+                        rt_i[0][ii]['exist']=True
+                        # If just check option without data then ignore below.
+                        if rt_i[0][ii].get('type') != 'NONE':
+                            opt_i=new_src_a.index(rt_i[0][ii].get('opt'))
+                            if len(new_src_a) > opt_i:
+                                # Get Data
+                                found_data=pill(new_src_a[opt_i+1])
+                                # Verify Data format
+                                if rt_i[0][ii].get('type') == 'IP':
+                                    if km.IP(found_data).IsV4():
+                                        rt_i[0][ii]['data']=found_data
+                                elif rt_i[0][ii].get('type') == 'INT':
+                                    try:
+                                        rt_i[0][ii]['data']=int(found_data)
+                                    except:
+                                        pass
+                                else:
+                                    rt_i[0][ii]['data']=found_data
+                rt.append(rt_i)
+        return rt
 
 
 def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
@@ -4911,7 +5008,7 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
         return rt
     return default
 
-def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj'):
+def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_opt=None):
     #<Menu name="Security">
     #  <Setting name="Administrator Password" type="Password">
     #    <Information>
@@ -4950,22 +5047,32 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj'):
         if not found_root: found_root=root
         found_result=found_root.findall(find_path)
         # <element>.tag: name, .text: data, .attrib: dict
+        rt=[]
         if out in ['tag','name']:
             for ii in found_result:
-                return ii.tag
+                rt.append(ii.tag)
         elif out in ['text','data']:
             for ii in found_result:
-                return ii.text
+                if get_opt:
+                    rt.append(ii.get(get_opt,default))
+                else:
+                    rt.append(ii.text)
         elif out in ['attrib','att']:
             for ii in found_result:
-                return ii.attrib
-        return found_result
+                rt.append(ii.attrib)
+        if rt:
+            return rt
+        else:
+            return found_result
     else:
         if found_root:
             if out in ['tag','name']:
                 return found_root.tag
             elif out in ['text','data']:
-                return found_root.text
+                if get_opt:
+                    return found_root.get(get_opt,default)
+                else:
+                    return found_root.text
             elif out in ['attrib','att']:
                 return found_root.attrib
             return found_root
@@ -5577,47 +5684,48 @@ def reduce_string(string,symbol=' ',snum=0,enum=None):
     return strs
 
 def findstr(string,find,prs=None,split_symbol='\n',patern=True):
-    # Patern return selection (^: First(0), $: End(-1), <int>: found item index)
-    found=[]
-    if not isinstance(string,str): return []
-    if split_symbol:
-        string_a=string.split(split_symbol)
-    else:
-        string_a=[string]
-    for nn in string_a:
-        if isinstance(find,(list,tuple)):
-            find=list(find)
-        else:
-            find=[find]
-        for ff in find:
-            if patern:
-                aa=re.compile(ff).findall(nn)
-                for mm in aa:
-                    if isinstance(mm,tuple):
-                        if prs == '^':
-                            found.append(mm[0])
-                        elif prs == '$':
-                            found.append(mm[-1])
-                        elif isinstance(prs,int):
-                            found.append(mm[prs])
-                        else:
-                            found.append(mm)
-                    else:
-                        found.append(mm)
-            else:
-                find_a=ff.split('*')
-                if len(find_a[0]) > 0:
-                    if find_a[0] != nn[:len(find_a[0])]:
-                        chk=False
-                if len(find_a[-1]) > 0:
-                    if find_a[-1] != nn[-len(find_a[-1]):]:
-                        chk=False
-                for ii in find_a[1:-1]:
-                    if ii not in nn:
-                        chk=False
-                if chk:
-                    found.append(nn)
-    return found
+    return FIND(string).Find(find,sym=split_symbol,prs=prs)
+#    # Patern return selection (^: First(0), $: End(-1), <int>: found item index)
+#    found=[]
+#    if not isinstance(string,str): return []
+#    if split_symbol:
+#        string_a=string.split(split_symbol)
+#    else:
+#        string_a=[string]
+#    for nn in string_a:
+#        if isinstance(find,(list,tuple)):
+#            find=list(find)
+#        else:
+#            find=[find]
+#        for ff in find:
+#            if patern:
+#                aa=re.compile(ff).findall(nn)
+#                for mm in aa:
+#                    if isinstance(mm,tuple):
+#                        if prs == '^':
+#                            found.append(mm[0])
+#                        elif prs == '$':
+#                            found.append(mm[-1])
+#                        elif isinstance(prs,int):
+#                            found.append(mm[prs])
+#                        else:
+#                            found.append(mm)
+#                    else:
+#                        found.append(mm)
+#            else:
+#                find_a=ff.split('*')
+#                if len(find_a[0]) > 0:
+#                    if find_a[0] != nn[:len(find_a[0])]:
+#                        chk=False
+#                if len(find_a[-1]) > 0:
+#                    if find_a[-1] != nn[-len(find_a[-1]):]:
+#                        chk=False
+#                for ii in find_a[1:-1]:
+#                    if ii not in nn:
+#                        chk=False
+#                if chk:
+#                    found.append(nn)
+#    return found
 
 def find_cdrom_dev(size=None):
     load_kmod(['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage'])
