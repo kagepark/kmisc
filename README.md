@@ -9,6 +9,9 @@ and change name to klib
 ```javascript
 pip3 install kmisc
 ```
+
+# Import functions
+
 # Custom Dictionary Class
 
 Convert Dictionary to Object style Dictionary

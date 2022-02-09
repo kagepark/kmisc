@@ -225,41 +225,128 @@ def Abs(*inps,**opts):
             return list(obj.keys())
     return default
 
-def ObjName(obj,default=None):
-    #if isinstance(obj,str) and obj:
-    try:
-        if os.path.isfile(obj):
+#def ObjName(obj,default=None):
+#    #if isinstance(obj,str) and obj:
+#    try:
+#        if os.path.isfile(obj):
+#            aa=magic.from_buffer(open(obj,'rb').read(2048))
+#            if aa: return aa.split()[0].lower()
+#            try:
+#                with open(obj,'rb') as f: # Pickle Type
+#                    pickle.load(f)
+#                    return 'pickle'
+#            except:
+#                pass
+#        return 'str'
+#    #else:
+#    except:
+#        obj_dir=dir(obj)
+#        obj_name=type(obj).__name__
+#        if obj_name in ['function']: return obj_name
+#        if '__dict__' in obj_dir:
+#            if obj_name == 'type': return 'classobj'
+#            return 'instance'
+##        elif obj_name == 'type':
+##            return obj.__name__
+#        return obj_name.lower() # Object Name
+#    return default
+def ObjName(obj,default=None,chk=False):
+    if obj and isinstance(obj,str):
+        if os.path.islink(obj):
+            return 'symlink'
+        elif os.path.isfile(obj):
             aa=magic.from_buffer(open(obj,'rb').read(2048))
-            if aa: return aa.split()[0].lower()
+            if aa:
+                aa_a=aa.split()
+                aa_type=aa_a[0].lower()
+                if aa_type in ['elf']:
+                    if 'LSB' in aa_a:
+                        if 'shared' in aa_a and 'object,' in aa_a:
+                            return 'so'
+                        elif 'executable,' in aa_a:
+                            return 'bin'
+                        elif 'relocatable,' in aa_a:
+                            if len(obj.split('.')) > 1 and obj.split('.')[-1] == 'ko':
+                                return 'ko'
+                            else:
+                                return 'o'
+                elif aa_type in ['xz'] and len(obj.split('.')) > 2 and obj.split('.')[-2] == 'ko':
+                    return 'ko'
+                elif aa_type in ['current'] and 'ar' in aa_a:
+                    return 'ar'
+                elif aa_type in ['intel']:
+                    if 'flash' in aa_a and 'ROM' in aa_a:
+                        return 'rom'
+                elif aa_type in ['x86']:
+                    if 'boot' in aa_a and 'partition' in aa_a:
+                        return 'iso'
+                elif aa_type in ['data'] and obj.split('.')[-1] == 'iso':
+                    return 'iso'
+                elif aa_type in ['zip']:
+                    if obj.split('.')[-1] == 'jar':
+                        return 'java'
+                elif aa_type in ['pe32+']:
+                    if '(DLL)' in aa_a and 'MS' in aa_a and 'Windows' in aa_a:
+                        return 'dll'
+                elif aa_type in ['posix']:
+                    if 'shell' in aa_a and 'script,' in aa_a:
+                        return 'shell'
+                elif aa_type in ['ascii']:
+                    if 'cpio' in aa_a and 'archive' in aa_a:
+                        return 'cpio'
+                elif aa_type in ['linux']:
+                    if 'kernel' in aa_a and 'bzImage,' in aa_a:
+                        return 'kernel'
+                return aa_type
             try:
                 with open(obj,'rb') as f: # Pickle Type
                     pickle.load(f)
                     return 'pickle'
             except:
                 pass
-        return 'str'
-    #else:
-    except:
-        obj_dir=dir(obj)
-        obj_name=type(obj).__name__
-        if obj_name in ['function']: return obj_name
-        if '__dict__' in obj_dir:
-            if obj_name == 'type': return 'classobj'
-            return 'instance'
-#        elif obj_name == 'type':
-#            return obj.__name__
+        elif os.path.isdir(obj):
+            return 'dir'
+        elif os.path.exists(obj):
+            try:
+                if stat.S_ISBLK(os.stat(obj).st_mode):
+                    return 'blk'
+                elif stat.S_ISCHR(os.stat(obj).st_mode):
+                    return 'chr'
+            except:
+                pass
+#    else:
+    obj_dir=dir(obj)
+    obj_name=type(obj).__name__
+    if obj_name in ['function']: return obj_name
+    if obj_name in ['str']:
+        if chk:
+            return obj.lower()
+        else:
+            return obj_name.lower()
+    if '__dict__' in obj_dir:
+        if obj_name == 'type': return 'classobj'
+        return 'instance'
+#    elif obj_name == 'type':
+#        return obj.__name__
+    try:
         return obj_name.lower() # Object Name
-    return default
+    except:
+        return default
+
 
 #def TypeFixer(name,default=None):
-def TypeFixer(obj,default='unknown'):
+def TypeFixer(obj,default='unknown',chk=False):
     if obj == default: return default
-    if isinstance(obj,str): 
-        name=obj.lower()
-    else: 
-        name=ObjName(obj).lower()
+    name=ObjName(obj,default=default,chk=chk)
+    if name == default:
+        if isinstance(obj,str):
+            name=obj.lower()
+        else:
+            return default
+    elif isinstance(name,str):
+        name=name.lower()
     # Fix short word to correct name
-    if name in ['none']: return 'nonetype'
+    if name is None or name in ['none']: return 'nonetype'
     if name in ['byte']: return 'bytes'
     if name in ['obj']: return 'object'
     if name in ['func','unboundmethod']: return 'function'
@@ -290,23 +377,24 @@ def Type(*inp,**opts):
        method   : <class name>().<func name>
     '''
     inpn=len(inp)
-    default=opts.get('default','unknown')
+    #default=opts.get('default','unknown')
+    default='unknown'
     if inpn == 0: return default
     obj=inp[0]
-    if inpn == 1: return TypeFixer(obj,default=default)
+    if inpn == 1: return TypeFixer(obj,default=default,chk=False)
     chk_type=[]
     for name in inp[1:]:
         if not isinstance(name,(tuple,list)): name=[name]
         for ii in name:
-            a=TypeFixer(TypeFixer(ii,default=default),default=default)
+            a=TypeFixer(ii,default=default,chk=True)
             if a == default: continue
             if isinstance(a,list): 
                 chk_type=chk_type+a
             elif a not in chk_type:
                 chk_type.append(a)
+    obj_type=ObjName(obj)
     if chk_type: 
-        obj_type=ObjName(obj)
-#        print('    ::',obj_type,'  in  ',chk_type)
+#        print('>>>>>', obj, ' ::',obj_type,'  in  ',chk_type)
         if obj_type == default: return default
         if obj_type == 'instance':
             if 'int' in chk_type: 
@@ -320,7 +408,9 @@ def Type(*inp,**opts):
             elif 'float' in chk_type:
                 if isinstance(obj,float): return True
         if obj_type in chk_type: return True
-    return False
+        return False
+    else:
+        return obj_type
 
 def Copy(src):
     if isinstance(src,(list,tuple)): return src.root[:]
@@ -548,7 +638,7 @@ class FIND:
              return 'Unknown format'
         return rt
 
-    def Find(self,find,src=None,sym='\n',default=[],out=None,findall=True,word=False,mode='value',prs=None,line_num=True):
+    def Find(self,find,src=None,sym='\n',default=[],out=None,findall=True,word=False,mode='value',prs=None,line_num=False,peel=None,idx=None):
         if src is None: src=self.src
         #if Type(src,'instance','classobj'):
         # if src is instance or classobj then search in description and made function name at key
@@ -627,7 +717,7 @@ class FIND:
                                             found.update({dd:{'data':mm,'line':nn,'src':string_a[nn]}})
                                         else:
                                             found.update({dd:mm})
-                    if found: return OutFormat(found,out=out)
+                    if found: return OutFormat(found,out=out,peel=peel)
                 else:
                     found=[]
                     for nn in range(0,len(string_a)):
@@ -653,7 +743,7 @@ class FIND:
                                         found.append((mm,nn,string_a[nn]))
                                     else:
                                         found.append(mm)
-                    if found: return OutFormat(found,out=out)
+                    if found: return OutFormat(found,out=out,peel=peel)
 #                match=find_re.findall(src)
 #                if match: return OutFormat(match,out=out)
             elif isinstance(find,str):
@@ -662,8 +752,8 @@ class FIND:
                 else:
                     find_re=re.compile(find,flags=re.IGNORECASE)
                 match=find_re.search(src)
-                if match: return OutFormat([match.group()],out=out)
-        return OutFormat(default,out=out)
+                if match: return OutFormat([match.group()],out=out,peel=peel)
+        return OutFormat(default,out=out,peel=peel)
 
 class DIFF:
     def __init__(self):
@@ -1067,9 +1157,9 @@ class STR(str):
                     return self.src[start:]
         return default
 
-    def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=True,word=False,line_num=False):
+    def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=True,word=False,line_num=False,peel=None):
         if src is None: src=self.src
-        return FIND(src).Find(find,prs=prs,sym=sym,default=default,out=out,findall=findall,word=word,mode='value',line_num=line_num)
+        return FIND(src).Find(find,prs=prs,sym=sym,default=default,out=out,findall=findall,word=word,mode='value',line_num=line_num,peel=peel)
 
     def Index(self,find,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
         if not isinstance(self.src,str): return default
@@ -1221,7 +1311,7 @@ class TIME:
 
     def Now(self,mode=None):
         if mode in [int,'int','INT','sec']:return self.Int()
-        return time.now()
+        return datetime.now()
 
     def Out(self,timeout_sec,default=(24*3600)):
         try:
@@ -1976,6 +2066,7 @@ class IP:
                 if keep_good and keep_good > timeout:
                     timeout=keep_good + timeout
                 count=timeout
+                ocount=timeout
             chk_sec=Time.Init()
             log_type=type(log).__name__
             found_lost=False
@@ -1992,7 +2083,7 @@ class IP:
                    rc=SHELL().Run("ping -c 1 {}".format(host))
                else:
                    rc=do_ping(host,timeout=1,size=64,count=1,log_format=None)
-               if rc[0] == 0:
+               if krc(rc,chk=True):
                   good=True
                   if keep_good:
                       if good and keep_good and TIME().Now(int) - chk_sec >= keep_good:
@@ -2010,10 +2101,10 @@ class IP:
                   if log_type == 'function':
                       log('x',direct=True,log_level=1)
                   else:
-                      sys.stdout.write('.')
+                      sys.stdout.write('x')
                       sys.stdout.flush()
                if init_sec:
-                   count=count-(TIME().Now(int)-init_sec)
+                   count=ocount-(TIME().Now(int)-init_sec)
                elif not infinit:
                    count-=1
                TIME().Sleep(interval)
@@ -2065,7 +2156,7 @@ class GET:
         err=opts.get('err',opts.get('error',True))
         out=opts.get('out',opts.get('out_form',None))
         strip=opts.get('strip',False)
-        peel=opts.get('peel',False)
+        peel=opts.get('peel',None)
         check=opts.get('check',('str','list','tuple','dict','instance','classobj'))
         # Added
         if len(key) == 0 and opts.get('key') is not None:
@@ -2151,8 +2242,8 @@ class GET:
 #                    if ff is None:
 #                        if err in [True,'True','err']: rt.append(default)
 #                    else:
-                    if IS(ff).Int() and ff < len(self.src):
-                        rt.append(self.src[ff])
+                    if IS(ff).Int() and int(ff) < len(self.src):
+                        rt.append(self.src[int(ff)])
                     else:
                         if err in [True,'True','err']: rt.append(default)
             elif Type(self.src,dict):
@@ -2317,11 +2408,13 @@ class IS:
         return False
 
     def Int(self):
-        try:
-            int(self.src)
-            return True
-        except:
-            return False
+        if not isinstance(self.src,bool):
+            try:
+                int(self.src)
+                return True
+            except:
+                pass
+        return False
 
     def Bytes(self):
         if self.Py3():
@@ -2740,7 +2833,7 @@ class HOST:
         return socket.gethostname()
 
     def DefaultRouteDev(self,default=None,gw=None):
-        for ii in STR(cat('/proc/net/route',no_edge=True)).Split('\n'):
+        for ii in STR(cat('/proc/net/route',no_edge=True)).Split('\n',default=[]):
             ii_a=ii.split()
             #if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
             if len(ii_a) < 4 or ii_a[1] != '00000000' or not int(ii_a[3], 16) & 2:
@@ -5684,7 +5777,7 @@ def reduce_string(string,symbol=' ',snum=0,enum=None):
     return strs
 
 def findstr(string,find,prs=None,split_symbol='\n',patern=True):
-    return FIND(string).Find(find,sym=split_symbol,prs=prs)
+    return FIND(string).Find(find,sym=split_symbol,prs=prs,peel=False)
 #    # Patern return selection (^: First(0), $: End(-1), <int>: found item index)
 #    found=[]
 #    if not isinstance(string,str): return []
