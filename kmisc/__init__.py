@@ -96,8 +96,10 @@ def OutFormat(data,out=None,strip=False,peel=None):
         elif not isinstance(data,list):
             return [data]
         return data
-    elif out in ['raw',None]:
-        if peel is None: peel=True
+    #elif out in ['raw',None]:
+    elif out == 'raw' or IS(out).NONE():
+        #if peel is None: peel=True
+        if IS(peel).NONE(): peel=True
 #        if isinstance(data,dict) and len(data) == 1 and len(list(data.values())) == 1 and not isinstance(list(data.values())[0],(dict,list,tuple)):
 #            return __strip__(__peel__(data.values(),True),strip)
         return __strip__(__peel__(data,peel),strip)
@@ -143,40 +145,40 @@ def Abs(*inps,**opts):
         ss=None
         ee=None
         rt=[]
-        if obj is None:
+        if IS(obj).NONE():
             for i in inps:
                 if isinstance(i,int):
                     rt.append(abs(i))
                 elif err in [True,'err','True']:
                     rt.append(default)
-#        elif isinstance(obj,dict):
-#            keys=list(obj)
-#            for idx in inps:
-#                if isinstance(idx,int):
-#                    int_index=int_idx(idx,len(keys),default,err)
-#                    if int_index != default: rt.append(keys[int_index])
-#                elif isinstance(idx,tuple) and len(idx) == 2:
-#                    ss=Abs(idx[0],**opts)
-#                    ee=Abs(idx[1],**opts)
-#                    for i in range(ss,ee+1):
-#                        rt.append(keys[i])
-#                elif isinstance(idx,str):
-#                    try:
-#                        idx=int(idx)
-#                        rt.append(int_idx(idx,len(keys),default,err))
-#                    except:
-#                        if len(idx.split(':')) == 2:
-#                            ss,ee=tuple(idx.split(':'))
-#                            if isinstance(ss,int) and isinstance(ee,int):
-#                                for i in range(ss,ee+1):
-#                                    rt.append(keys[i])
-#                        elif len(idx.split('-')) == 2:
-#                            ss,ee=tuple(idx.split('-'))
-#                            if isinstance(ss,int) and isinstance(ee,int):
-#                                for i in range(ss,ee+1):
-#                                    rt.append(keys[i])
-#                        elif len(idx.split('|')) > 1:
-#                            rt=rt+idx.split('|')
+        elif isinstance(obj,dict):
+            keys=list(obj)
+            for idx in inps:
+                if isinstance(idx,int):
+                    int_index=int_idx(idx,len(keys),default,err)
+                    if int_index != default: rt.append(keys[int_index])
+                elif isinstance(idx,tuple) and len(idx) == 2:
+                    ss=Abs(idx[0],**opts)
+                    ee=Abs(idx[1],**opts)
+                    for i in range(ss,ee+1):
+                        rt.append(keys[i])
+                elif isinstance(idx,str):
+                    if len(idx.split(':')) == 2:
+                        ss,ee=tuple(idx.split(':'))
+                        if isinstance(ss,int) and isinstance(ee,int):
+                            for i in range(ss,ee+1):
+                                rt.append(keys[i])
+                    elif len(idx.split('-')) == 2:
+                        ss,ee=tuple(idx.split('-'))
+                        if isinstance(ss,int) and isinstance(ee,int):
+                            for i in range(ss,ee+1):
+                                rt.append(keys[i])
+                    elif len(idx.split('|')) > 1:
+                        for i in idx.split('|'): #A|B => A or B
+                            if i in keys:
+                                rt.append(i)
+                    else:
+                        rt.append(idx)
         elif isinstance(obj,(list,tuple,str)):
             nobj=len(obj)
             for idx in inps:
@@ -346,7 +348,8 @@ def TypeFixer(obj,default='unknown',chk=False):
     elif isinstance(name,str):
         name=name.lower()
     # Fix short word to correct name
-    if name is None or name in ['none']: return 'nonetype'
+    #if name is None or name in ['none']: return 'nonetype'
+    if IS(name).NONE(chk_val=[None,'','none']): return 'nonetype'
     if name in ['byte']: return 'bytes'
     if name in ['obj']: return 'object'
     if name in ['func','unboundmethod']: return 'function'
@@ -494,7 +497,8 @@ def Delete(*inps,**opts):
         keys=opts.get('key',None)
         if isinstance(keys,list):
             keys=tuple(keys)
-        elif keys is not None:
+        #elif keys is not None:
+        elif not IS(keys).NONE():
             keys=(keys,)
     default=opts.get('default',None)
     _type=opts.get('type','index')
@@ -572,9 +576,11 @@ class COLOR:
                color_code=self.Get(color,mode='attr',default=None)
            else:
                color_code=self.Get(color,default=None)
-           if color_code is None:
+           #if color_code is None:
+           if IS(color_code).NONE():
                return msg
-           if os.getenv('ANSI_COLORS_DISABLED') is None:
+           #if os.getenv('ANSI_COLORS_DISABLED') is None:
+           if IS(os.getenv('ANSI_COLORS_DISABLED')).NONE():
                reset='''\033[0m'''
                fmt_msg='''\033[%dm%s'''
                msg=fmt_msg % (color_code,msg)
@@ -639,7 +645,8 @@ class FIND:
         return rt
 
     def Find(self,find,src=None,sym='\n',default=[],out=None,findall=True,word=False,mode='value',prs=None,line_num=False,peel=None,idx=None):
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         #if Type(src,'instance','classobj'):
         # if src is instance or classobj then search in description and made function name at key
         if isinstance(src,(list,tuple)):
@@ -763,7 +770,8 @@ class DIFF:
         if isinstance(ignore,(list,tuple)):
             if a in ignore or b in ignore:
                 return default
-        elif ignore is not None:
+        #elif ignore is not None:
+        elif not IS(ignore).NONE():
             if eval('{} == {}'.format(a,ignore)) or eval('{} == {}'.format(b,ignore)):
                 return default
         if sym == '==':
@@ -914,7 +922,8 @@ class LIST(list):
                 return rt
             elif out in [tuple,'tuple']:
                 return tuple(rt)
-            elif out in [None,'raw']:
+            #elif out in [None,'raw']:
+            elif IS(out).NONE(chk_val=[None,'','raw']):
                 if len(rt) == 1:
                     return rt[0]
                 return rt
@@ -1127,7 +1136,8 @@ class STR(str):
         return default
 
     def Wrap(self,src=None,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         if not isinstance(src,(str,list,tuple)): return src
         if isinstance(src,str): src=src.split(sym)
         if isinstance(space,int): space=self.Space(space,mode=space_mode)
@@ -1158,7 +1168,8 @@ class STR(str):
         return default
 
     def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=True,word=False,line_num=False,peel=None):
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         return FIND(src).Find(find,prs=prs,sym=sym,default=default,out=out,findall=findall,word=word,mode='value',line_num=line_num,peel=peel)
 
     def Index(self,find,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
@@ -1201,7 +1212,8 @@ class STR(str):
             if default in ['org',{'org'}]:
                 return src
             return default
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         if isinstance(src,str):
             if isinstance(sym,bytes): sym=CONVERT(sym).Str()
         elif isinstance(src,bytes):
@@ -1231,8 +1243,8 @@ class STR(str):
             return default
 
     def RemoveNewline(self,src=None,mode='edge',newline='\n',byte=None):
-        if src is None:
-            src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         if isinstance(byte,bool):
             if byte:
                 src=BYTES().From(src)
@@ -1326,8 +1338,10 @@ class TIME:
 
 
     def Format(self,tformat='%s',read_format='%S',time=None):
-        if time is None: time=self.src
-        if time in [0,'0',None]:
+        #if time is None: time=self.src
+        if IS(time).NONE(): time=self.src
+        #if time in [0,'0',None]:
+        if IS(time).NONE(chk_val=[None,'',0,'0']):
             return datetime.now().strftime(tformat)
         elif isinstance(time,int) or (isinstance(time,str) and time.isdigit()):
             #if type(time) is int or (type(time) is str and time.isdigit()):
@@ -1562,7 +1576,8 @@ class CONVERT:
         return self.Ast(default=default)
 
     def Json(self,src=None,default=None):
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         try:
             return _json.loads(src)
         except:
@@ -1818,9 +1833,10 @@ class IP:
         return False
 
     def IsUsedPort(self,port,ip=None):
-        if ip is None:
-            ip=self.ip
-        if ip in ['localhost','local',None]:
+        #if ip is None: ip=self.ip
+        if IS(ip).NONE():ip=self.ip
+        #if ip in ['localhost','local',None]:
+        if IS(ip).NONE(chk_val=[None,'','localhost','local']):
             ip='127.0.0.1'
         '''
         The IP used the port, it just checkup used port. (open port or dedicated port)
@@ -1875,7 +1891,8 @@ class IP:
         return default
 
     def V4(self,ip=None,out='str',default=False):
-        if ip is None: ip=self.ip
+        #if ip is None: ip=self.ip
+        if IS(ip).NONE(): ip=self.ip
         ip_int=None
         if isinstance(ip,str):
             ipstr=ip.strip()
@@ -1898,7 +1915,8 @@ class IP:
         elif isinstance(ip,type(hex)):
             ip_int=int(ip,16)
 
-        if ip_int is not None:
+        #if ip_int is not None:
+        if not IS(ip_int).NONE():
             try:
                 if out in ['str',str]:
                     return socket.inet_ntoa(struct.pack("!I", ip_int))
@@ -1951,7 +1969,8 @@ class IP:
         return default,'IP format error'
 
     def Ping(self,host=None,count=0,interval=1,keep_good=0, timeout=0,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
-        if host is None: host=self.ip
+        #if host is None: host=self.ip
+        if IS(host).NONE(): host=self.ip
         ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
         ICMP_CODE = socket.getprotobyname('icmp')
         ERROR_DESCR = {
@@ -2115,7 +2134,8 @@ class GET:
         self.src=src
 
     def __repr__(self):
-        if self.src is None: return repr(self.MyAddr())
+        #if self.src is None: return repr(self.MyAddr())
+        if IS(self.src).NONE(): return repr(self.MyAddr())
         if Type(self.src,('instance','classobj')):
             def method_in_class(class_name):
                 ret=dir(class_name)
@@ -2159,7 +2179,8 @@ class GET:
         peel=opts.get('peel',None)
         check=opts.get('check',('str','list','tuple','dict','instance','classobj'))
         # Added
-        if len(key) == 0 and opts.get('key') is not None:
+        #if len(key) == 0 and opts.get('key') is not None:
+        if len(key) == 0 and not IS(opts.get('key')).NONE():
             if isinstance(opts.get('key'),(tuple,list)):
                 key=tuple(opts.get('key'))
             else:
@@ -2191,8 +2212,10 @@ class GET:
             method=opts.get('method',None)
             strip=opts.get('strip',True)
             find=opts.get('find',[])
-            if key is not None:
-                if method is None:
+            #if key is not None:
+            if not IS(key).NONE():
+                #if method is None:
+                if IS(method).NONE():
                     method=self.src.method
                 if method.upper() == 'GET':
                     rc=self.src.GET.get(key,default)
@@ -2248,7 +2271,8 @@ class GET:
                         if err in [True,'True','err']: rt.append(default)
             elif Type(self.src,dict):
                 if src_name in ['kDict','DICT']: self.src=self.src.Get()
-                for ff in key:
+#                for ff in key:
+                for ff  in Abs(*key,obj=self.src,out=list,default=None,err='ignore'):
                     gval=self.src.get(ff,default)
                     if gval == default:
                         if err in [True,'True','err']: rt.append(gval)
@@ -2358,7 +2382,8 @@ class GET:
             return default
 
     def DirName(self,src=None,default=None):
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         if Type(src,str):
             dirname=os.path.dirname(src)
             if dirname == '': return '.'
@@ -2382,7 +2407,8 @@ class GET:
             return default
 
     def Basename(self,src=None):
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if IS(src).NONE(): src=self.src
         if Type(src,str): return os.path.basename(src)
         return os.path.basename(inspect.stack()[1].filename)
 
@@ -2407,13 +2433,26 @@ class IS:
         if PyVer(3): return True
         return False
 
-    def Int(self):
-        if not isinstance(self.src,bool):
+    def Int(self,mode='all'):
+        # mode : int => check only int 
+        #        str => int type string only
+        #        all => Int and int type string
+        def _int_(data):
             try:
                 int(self.src)
                 return True
             except:
-                pass
+                return False
+
+        if not isinstance(self.src,bool):
+            if mode in [int,'int']:
+                if isinstance(self.src,int):
+                    return True
+            elif mode in [str,'str']:
+                if isinstance(self.src,str):
+                    return _int_(self.src)
+            else:
+                return _int_(self.src)
         return False
 
     def Bytes(self):
@@ -2429,7 +2468,7 @@ class IS:
         return MAC(self.src).IsV4()
 
     def Ip_with_port(self,port,**opts):
-        return IP(self.src).WithPort(port,**opts)
+        return IP(self.src).IsOpenPort(port,**opts)
 
     def File(self):
         if isinstance(self.src,str): return os.path.isfile(self.src)
@@ -2450,7 +2489,8 @@ class IS:
         return False
 
     def Json(self,src=None):
-        if src is None: src=self.src
+        #if src is None: src=self.src
+        if self.NONE(src=src): src=self.src
         try:
             _json.loads(self.src)
             return True
@@ -2492,8 +2532,8 @@ class IS:
     def Rc(self,chk='_'):
         def trans(irt):
             type_irt=type(irt)
-            for ii in rtd:
-                for jj in rtd[ii]:
+            for ii in self.rtd:
+                for jj in self.rtd[ii]:
                     if type(jj) == type_irt and ((type_irt is str and jj.lower() == irt.lower()) or jj == irt):
                         return ii
             return 'UNKN'
@@ -2506,8 +2546,8 @@ class IS:
         return nrtc
 
     def Cancel(self,func=None):
-        if func is None:
-            func=self.src
+        #if func is None: func=self.src
+        if self.NONE(src=func): func=self.src
         ttt=type(func).__name__
         if ttt in ['function','instancemethod','method']:
             if func():
@@ -2540,7 +2580,8 @@ class IS:
 
     def Function(self,obj=None,default=False):
         if Type(self.src,'function'): return True
-        if obj is None:
+        #if obj is None:
+        if self.NONE(src=obj):
             obj=sys.modules.get('__name__',default)
         elif isinstance(obj,str):
             obj=sys.modules.get(obj,default)
@@ -2552,7 +2593,8 @@ class IS:
         return default
 
     def Var(self,obj=None,default=False):
-        if obj is None:
+        #if obj is None:
+        if self.NONE(src=obj):
             obj=sys.modules.get('__main__',default)
         elif isinstance(obj,str):
             obj=sys.modules.get(obj,default)
@@ -2578,30 +2620,33 @@ class IS:
     def Bin(self):
         return self.Exec()
 
-    def Same(self,src=None,chk_val=None,sense=False):
-        def _IsSame_(src,chk,sense):
+    def Same(self,chk_val=None,src=None,sense=False):
+        def _IsSame_(src,chk,sense=False):
             src_type=type(src).__name__
             chk_type=type(chk).__name__
             if src_type == 'bytes' or chk_type == 'bytes':
                 if chk_type=='int': chk='{}'.format(chk)
                 if isinstance(chk,str):
                     chk=BYTES().From(chk)
-                if not sense:
+                if not sense and isinstance(chk,(bytes,str)):
                     chk=chk.lower()
                 if src_type=='int': src='{}'.format(src)
                 if isinstance(src,str):
                     src=BYTES().From(src)
-                if not sense:
+                if not sense and isinstance(src,(bytes,str)):
                     src=src.lower()
                 if src == chk: return True
             else:
-                if src_type == 'str' and src.isdigit(): src=int(src)
-                if chk_type == 'str' and chk.isdigit(): chk=int(chk)
+                if not sense:
+                    if src_type == 'str' and src.isdigit(): src=int(src)
+                    if chk_type == 'str' and chk.isdigit(): chk=int(chk)
                 if not sense and isinstance(src,str) and isinstance(chk,str):
                     if src.lower() == chk.lower(): return True
                 elif src == chk:
                     return True
             return False
+        #Do not user IS().NONE(). NONE() use Same()
+        if src in [None,'']: src=self.src
         if isinstance(src,(list,tuple)) and isinstance(chk_val,(list,tuple)):
             for j in src:
                 ok=False
@@ -2629,32 +2674,44 @@ class IS:
             else:
                 return _IsSame_(src,chk_val,sense)
 
-    def In(self,src,idx=False,default=False):
+    def In(self,dest,idx=False,default=False):
         find=self.src
         '''Check key or value in the dict, list or tuple then True, not then False'''
-        if isinstance(src, (list,tuple,str)):
+        if isinstance(dest, (list,tuple,str)):
             if isinstance(idx,int):
-                if isinstance(src,str):
+                if isinstance(dest,str):
                     if idx < 0:
-                        if src[idx-len(find):idx] == find:
+                        if dest[idx-len(find):idx] == find:
                             return True
                     else:
-                        if src[idx:idx+len(find)] == find:
+                        if dest[idx:idx+len(find)] == find:
                             return True
                 else:
-                    if Get(src,idx,out='raw') == find:
+                    if Get(dest,idx,out='raw') == find:
                         return True
             else:
-                for i in src:
-                    if self.Same(i,find): return True
-        elif isinstance(src, dict):
-            if idx is None:
-                for i in src:
-                    if self.Same(i,find): return True
+                for i in dest:
+                    if self.Same(find,i): return True
+        elif isinstance(dest, dict):
+            #if idx is None:
+            if self.NONE(src=idx):
+                for i in dest:
+                    if self.Same(find,i): return True
             else:
-                if Get(src,idx,out='raw') == find:
+                if Get(dest,idx,out='raw') == find:
                     return True
         return default
+
+    def NONE(self,chk_val=[None,''],src=None,space=False):
+        if src is None: src=self.src
+        if space and isinstance(src,str):
+            src=src.strip()
+        if self.Same(chk_val,src,sense=False): return True
+#        if src in chk_val: return True
+        if not isinstance(src,(bool,int)):
+            if not src: return True
+        return False
+
 
 class LOG:
     def __init__(self,**opts):
@@ -2691,7 +2748,8 @@ class LOG:
                    intro_space=intro_space+' '
             for m in list(msg):
                 n=m.split('\n')
-                if m_str is None:
+                #if m_str is None:
+                if IS(m_str).NONE():
                     m_str='{0}{1}{2}{3}'.format(start_new_line,intro,n[0],end_new_line)
                 else:
                     m_str='{0}{1}{2}{3}{4}'.format(m_str,start_new_line,intro_space,n[0],end_new_line)
@@ -2762,9 +2820,11 @@ class LOG:
             # send log at syslogd
             self.Syslogd(*msg,syslogd=syslogd)
 
-            if date_format in [False,None,'','no','ignore']:
+            #if date_format in [False,None,'','no','ignore']:
+            if IS(date_format).NONE([False,None,'','no','ignore']):
                 date_format=None
-            if func_name in [False,None,'','no','ignore']:
+            #if func_name in [False,None,'','no','ignore']:
+            if IS(func_name).NONE([False,None,'','no','ignore']):
                 func_name=None
             if direct:
                 #log_str=' '.join(msg)
@@ -2776,11 +2836,13 @@ class LOG:
             log_file=self.File(log_str,log_level,special_file=special_file)
 
             # print at screen
-            if screen is True or (screen is None and self.screen is True):
+            #if screen is True or (screen is None and self.screen is True):
+            if screen is True or (IS(screen).NONE() and self.screen is True):
                 self.Screen(log_str,log_level)
  
             # Send Log Data to logging function (self.log_file)
-            if log_file is None:
+            #if log_file is None:
+            if IS(log_file).NONE():
                 self.Function(log_str)
 
     def Function(self,*msg,**opts):
@@ -2840,7 +2902,7 @@ class HOST:
                 #If not default route or not RTF_GATEWAY, skip it
                 continue
             if gw:
-                if IS().Same(socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16))),gw):
+                if IS(socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16)))).Same(gw):
                     return ii_a[0]
             else:
                 return ii_a[0]
@@ -2856,8 +2918,10 @@ class HOST:
         return default
 
     def Ip(self,ifname=None,mac=None,default=None):
-        if ifname is None: 
-            if mac is None : mac=self.Mac()
+        #if ifname is None: 
+        if IS(ifname).NONE():
+            #if mac is None : mac=self.Mac()
+            if IS(mac).NONE() : mac=self.Mac()
             ifname=self.DevName(mac)
 
         if ifname:
@@ -2888,14 +2952,16 @@ class HOST:
         return default
 
     def Mac(self,ip=None,dev=None,default=None,ifname=None):
-        if dev is None and ifname: dev=ifname
+        #if dev is None and ifname: dev=ifname
+        if IS(dev).NONE() and ifname: dev=ifname
         if IP(ip).IsV4():
             dev_info=self.NetDevice()
             for dev in dev_info.keys():
                 if self.Ip(dev) == ip:
                     return dev_info[dev]['mac']
         #ip or anyother input of device then getting default gw's dev
-        if dev is None: dev=self.DefaultRouteDev()
+        #if dev is None: dev=self.DefaultRouteDev()
+        if IS(dev).NONE(): dev=self.DefaultRouteDev()
         if dev:
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -2907,7 +2973,8 @@ class HOST:
         return CONVERT('%012x' % uuid.getnode()).Str2Mac()
 
     def DevName(self,mac=None,default=None):
-        if mac is None:
+        #if mac is None:
+        if IS(mac).NONE():
             mac=self.Mac()
         net_dir='/sys/class/net'
         if isinstance(mac,str) and os.path.isdir(net_dir):
@@ -2975,7 +3042,8 @@ class FILE:
     def __init__(self,*inp,**opts):
         self.root_path=opts.get('root_path',None)
         #if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
-        if self.root_path is None: self.root_path=self.Path()
+        #if self.root_path is None: self.root_path=self.Path()
+        if IS(self.root_path).NONE(): self.root_path=self.Path()
         info=opts.get('info',None)
         if isinstance(info,dict):
             self.info=info
@@ -3136,7 +3204,8 @@ class FILE:
         return {}
 
     def GetInfoFile(self,name,roots=None): #get file info dict from Filename path
-        if roots is None: roots=self.FindRP()
+        #if roots is None: roots=self.FindRP()
+        if IS(roots).NONE(): roots=self.FindRP()
         if isinstance(name,str):
             for root in roots:
                 rt=self.info.get(root,{})
@@ -3148,7 +3217,8 @@ class FILE:
         return False
 
     def GetList(self,name=None,roots=None): #get file info dict from Filename path
-        if roots is None: roots=self.FindRP()
+        #if roots is None: roots=self.FindRP()
+        if IS(roots).NONE(): roots=self.FindRP()
         for root in roots:
             if isinstance(root,str):
                 rt=self.info.get(root,{})
@@ -3164,7 +3234,8 @@ class FILE:
         return False
 
     def GetFileList(self,name=None,roots=None): #get file info dict from Filename path
-        if roots is None: roots=self.FindRP()
+        #if roots is None: roots=self.FindRP()
+        if IS(roots).NONE(): roots=self.FindRP()
         for root in roots:
             if isinstance(root,str):
                 rt=self.info.get(root,{})
@@ -3203,7 +3274,8 @@ class FILE:
         
     def Dirname(self,filename,bin_name=None,default=False):
         if not isinstance(filename,str): return default
-        if bin_name is None: return os.path.dirname(filename)
+        #if bin_name is None: return os.path.dirname(filename)
+        if IS(bin_name).NONE(): return os.path.dirname(filename)
         if not isinstance(bin_name,str): return default
         bin_info=bin_name.split('/')
         bin_n=len(bin_info)
@@ -3244,7 +3316,8 @@ class FILE:
 
     def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={},file_only=True,default={'err'}):
         if isinstance(name,str):
-            if data is None: # Read from file
+            #if data is None: # Read from file
+            if IS(data).NONE(): # Read from file
                 if os.path.isfile(name) or (not file_only and os.path.exists(name)):
                     try:
                         if read in ['firstread','firstline','first_line','head','readline']:
@@ -3375,7 +3448,8 @@ class FILE:
             rinfo=rt.get(' i ',{})
             rtype=rinfo.get('type')
             #dir:directory,None:root directory
-            if rtype not in ['dir',None]: # File / Link
+            #if rtype not in ['dir',None]: # File / Link
+            if not IS(rtype).NONE(['dir',None,'']): # File / Link
                 mydest=os.path.dirname(dirpath)
                 myname=os.path.basename(dirpath)
                 if mydest:
@@ -3430,7 +3504,8 @@ class FILE:
         return True
 
     def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None):
-        if filename is None:
+        #if filename is None:
+        if IS(filename).NONE():
             filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
         dir_name=os.path.dirname(filename)
         file_name=os.path.basename(filename)
@@ -3505,7 +3580,8 @@ class FILE:
         dest=opts.get('dest',None)
         root_path=opts.get('root_path',None)
         sub_dir=opts.get('sub_dir',False)
-        if dest is None: return False
+        #if dest is None: return False
+        if IS(dest).NONE(): return False
         if not path: 
             self.ExtractRoot(root_path=self.FindRP(),dest=dest,sub_dir=sub_dir)
         else:
@@ -3629,7 +3705,8 @@ class WEB:
         ping=opts.get('ping',False)
         if https:
             verify=False
-        if auth is None and user and passwd:
+        #if auth is None and user and passwd:
+        if IS(auth).NONE() and user and passwd:
             if type(user) is not str or type(passwd) is not str:
                 printf("user='<user>',passwd='<pass>' : format(each string)",dsp='e',log=log,log_level=log_level,logfile=logfile)
                 return False,"user='<user>',passwd='<pass>' : format(each string)"
@@ -3694,7 +3771,8 @@ class WEB:
         return False,'TimeOut'
 
     def str2url(self,string):
-        if string is None: return ''
+        #if string is None: return ''
+        if IS(string).NONE(): return ''
         if type(string) is str:
             return string.replace('+','%2B').replace('?','%3F').replace('/','%2F').replace(':','%3A').replace('=','%3D').replace(' ','+')
         return string
@@ -3765,7 +3843,8 @@ class EMAIL:
                 print('It required mail server({}) login password'.format(self.server))
                 return False
             context = ssl.create_default_context()
-            if self.user is None: self.user=sender
+            #if self.user is None: self.user=sender
+            if IS(self.user).NONE(): self.user=sender
             try:
                 server=smtplib.SMTP_SSL(self.server,self.port,context=context)
                 server.login(self.user, self.password)
@@ -3783,7 +3862,8 @@ class EMAIL:
                     server.starttls(context=context)
                 else:
                     server.starttls()
-                if self.user is None: self.user=sender
+                #if self.user is None: self.user=sender
+                if IS(self.user).NONE(): self.user=sender
                 server.login(self.user, self.password)
         return server
 
@@ -3883,12 +3963,14 @@ class FUNCTION:
     def Args(self,func=None,**opts):
         mode=opts.get('mode',opts.get('field','defaults'))
         default=opts.get('default',None)
-        if func is None: func=self.func
+        #if func is None: func=self.func
+        if IS(func).NONE(): func=self.func
         if not Type(func,'function'):
             return default
         rt={}
         args, varargs, keywords, defaults = inspect.getargspec(func)
-        if defaults is not None:
+        #if defaults is not None:
+        if not IS(defaults).NONE():
             defaults=dict(zip(args[-len(defaults):], defaults))
             del args[-len(defaults):]
             rt['defaults']=defaults
@@ -3914,7 +3996,8 @@ class FUNCTION:
            obj=sys.modules.get(obj)
         else:
            obj=GET().Me()
-        if obj is not None:
+        #if obj is not None:
+        if not IS(obj).NONE():
             for name,fobj in inspect.getmembers(obj):
                 if inspect.isfunction(fobj): # inspect.ismodule(obj) check the obj is module or not
                     aa.update({name:fobj})
@@ -3934,8 +4017,10 @@ class FUNCTION:
             return default
 
     def Is(self,find=None,src=None):
-        if find is None: find=self.func
-        if src is None:
+        #if find is None: find=self.func
+        if IS(find).NONE(): find=self.func
+        #if src is None:
+        if IS(src).NONE():
             if isinstance(find,str):
                 #find=sys.modules.get(find)
                 find=Global().get(find)
@@ -4117,7 +4202,8 @@ def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,
         string_a=string.split(new_line)
     else:
         string_a=[string]
-    if max_len is None or (max_len is None and sub_len is None):
+    #if max_len is None or (max_len is None and sub_len is None):
+    if IS(max_len).NONE() or (IS(max_len).NONE() and IS(sub_len).NONE()):
         if new_line and out_format in [str,'str','string']:
             return string
         return [string]
@@ -4126,16 +4212,19 @@ def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,
     if sub_len and front_space:
         for ii in range(0,max_len-sub_len):
             space=space+' '
-    elif sub_len is None:
+    #elif sub_len is None:
+    elif IS(sub_len).NONE():
         sub_len=max_len
     for ii in range(0,max_num):
         str_len=len(string_a[ii])
         if max_num == 1:
-            if max_len is None or max_len >= str_len:
+            #if max_len is None or max_len >= str_len:
+            if IS(max_len).NONE() or max_len >= str_len:
                 if new_line and out_format in [str,'str','string']:
                     return string_a[ii]
                 return [string_a[ii]]
-            if sub_len is None:
+            #if sub_len is None:
+            if IS(sub_len).NONE():
                 rc=[string_a[i:i + max_len] for i in range(0, str_len, max_len)]
                 if new_line and out_format in [str,'str','string']:
                     #return new_line.join(rc)
@@ -4198,10 +4287,11 @@ def Get(*inps,**opts):
         key=opts.get('key',None)
         if isinstance(key,list):
             key=tuple(key)
-        elif key is not None:
-            key=(key,)
-        else: #None key
+        #elif key is not None:
+        elif IS(key).NONE(): #None key
             return GET(src).Value(**opts)
+        elif not isinstance(key,tuple):
+            key=(key,)
     return GET(src).Value(*key,**opts)
 
 def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error','error','erro','ERRO',{'ERR'}],'WARN':['Warn','warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}],'TOUT':['timeout','TimeOut','time out','Time Out','TMOUT','TOUT',{'TOUT'}],'REVD':['cancel','Cancel','CANCEL','REV','REVD','Revoked','revoked','revoke','Revoke',{'REVD'}],'LOST':['lost','connection lost','Connection Lost','Connection lost','CONNECTION LOST',{'LOST'}]},default=False):
@@ -4338,7 +4428,8 @@ def printf(*msg,**opts):
                 else:
                     logfile=logfile+logfile_list[1].split(',')
                 msg.remove(ii)
-    if os.getenv('ANSI_COLORS_DISABLED') is None and (color or bg_color or attr):
+    #if os.getenv('ANSI_COLORS_DISABLED') is None and (color or bg_color or attr):
+    if IS(os.getenv('ANSI_COLORS_DISABLED')).NONE() and (color or bg_color or attr):
         reset='''\033[0m'''
         fmt_msg='''\033[%dm%s'''
         if color and color in color_db:
@@ -4360,7 +4451,8 @@ def printf(*msg,**opts):
                 intro_msg=intro_msg+'{}({}:{}): '.format(call_name[0],call_name[1],call_name[2])
             else:
                 intro_msg=intro_msg+'{}(): '.format(call_name)
-    if intro is not None:
+    #if intro is not None:
+    if not IS(intro).NONE():
         intro_msg=intro_msg+intro+': '
 
     # Make a Tap
@@ -4638,13 +4730,16 @@ class CLI:
         self.cmd=cmd
 
     def Print(self,cmd=None,*inps,**opts):
-        if cmd is None: cmd=self.cmd
-        if cmd is None: return False
+        #if cmd is None: cmd=self.cmd
+        #if cmd is None: return False
+        if IS(cmd).NONE(): cmd=self.cmd
+        if IS(cmd).NONE(): return False
         rt=sprintf(cmd,*inps,**opts)
         return rt
 
     def Args(self,data=None,breaking='-'):
-        if data is None: data=self.src
+        #if data is None: data=self.src
+        if IS(data).NONE(): data=self.src
         def inside_data(rt,breaking,data_a,ii,symbol):
             tt=data_a[ii][1:]
             if len(data_a) > ii:
@@ -4676,18 +4771,22 @@ class CLI:
                 rt.append(data_a[ii][1:-1])
             elif data_a[ii][0] == "'" and data[ii][-1] != "'":
                 a=inside_data(rt,breaking,data_a,ii,"'")
-                if a is not None: ii=a
+                #if a is not None: ii=a
+                if not IS(a).NONE(): ii=a
             elif data_a[ii][0] == '"' and data[ii][-1] != '"':
                 a=inside_data(rt,breaking,data_a,ii,'"')
-                if a is not None: ii=a
+                #if a is not None: ii=a
+                if not IS(a).NONE(): ii=a
             else:
                 rt.append(data_a[ii])
             ii+=1
         return rt
 
     def Get(self,fmt,cmd=None,split='\n',fixed_fmt=False,opt_sym=['-','--']):
-        if cmd is None: cmd=self.cmd
-        if cmd is None: return False
+        #if cmd is None: cmd=self.cmd
+        #if cmd is None: return False
+        if IS(cmd).NONE(): cmd=self.cmd
+        if IS(cmd).NONE(): return False
         #Output: [[{data},line numver,original string],...]
         #{data}: {'parameter':{'type':...,'opt':...,'exist':True/False,'data':...},...}
         #fmt: <cmd> <opt> {<parameter>[:<type>]} ....
@@ -4774,7 +4873,8 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
 
     # Start Symbol
     if string_type is tuple:
-        if bstr is None:
+        #if bstr is None:
+        if IS(bstr).NONE():
             if NFLT:
                 rc_str='%s('%(rc_str)
             else:
@@ -4782,7 +4882,8 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
         else:
             rc_str='%s,\n%s%s('%(bstr,bspace,rc_str)
     elif string_type is list:
-        if bstr is None:
+        #if bstr is None:
+        if IS(bstr).NONE():
             if NFLT:
                 rc_str='%s['%(rc_str)
             else:
@@ -4790,7 +4891,8 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
         else:
             rc_str='%s,\n%s%s['%(bstr,bspace,rc_str)
     elif string_type is dict:
-        if bstr is None:
+        #if bstr is None:
+        if IS(bstr).NONE():
             rc_str='%s{'%(rc_str)
         else:
             rc_str='%s,\n%s %s{'%(bstr,bspace,rc_str)
@@ -4805,7 +4907,8 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
                   num=num+1
                rc_str=format_print(ii,num=num,bstr=rc_str,rc=True)
            else:
-               if chk == None:
+               #if chk == None:
+               if IS(chk).NONE():
                   rc_str='%s%s'%(rc_str,STR(str_format_print(ii,rc=True)).Tap())
                   chk='a'
                else:
@@ -4821,7 +4924,8 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
                    tmp=format_print(string[ii],num=num,rc=True,NFLT=True)
                rc_str="%s,\n%s %s:%s"%(rc_str,bspace,str_format_print(ii,rc=True),tmp)
            else:
-               if chk == None:
+               #if chk == None:
+               if IS(chk).NONE():
                   rc_str='%s%s'%(rc_str,STR("{0}:{1}".format(str_format_print(ii,rc=True),str_format_print(string[ii],rc=True))).Tap())
                   chk='a'
                else:
@@ -4833,7 +4937,8 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
     elif string_type is list:
         rc_str='%s\n%s]'%(rc_str,bspace)
     elif string_type is dict:
-        if bstr is None:
+        #if bstr is None:
+        if IS(bstr).NONE():
             rc_str='%s\n%s}'%(rc_str,bspace)
         else:
             rc_str='%s\n%s }'%(rc_str,bspace)
@@ -4887,7 +4992,8 @@ def format_string_dict(string):
 
 
 def Sort(src,reverse=False,func=None,order=None,field=None,base='key',sym=None):
-    if isinstance(src,str) and sym is not None: src=src.split(sym)
+    #if isinstance(src,str) and sym is not None: src=src.split(sym)
+    if isinstance(src,str) and not IS(sym).NONE(): src=src.split(sym)
     if isinstance(src,dict) and base == 'data':
         field=1
     def _cint_(e):
@@ -5085,8 +5191,10 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
                     if idx >= 0:
                         rt.append((row,idx))
     elif isinstance(src,dict):
-        if find is None:
-            if out in ['raw',None] and len(src.keys()) == 1 : return list(src.keys())[0]
+        #if find is None:
+        if IS(find).NONE():
+            #if out in ['raw',None] and len(src.keys()) == 1 : return list(src.keys())[0]
+            if IS(out).NONE(['raw',None,'']) and len(src.keys()) == 1 : return list(src.keys())[0]
             if out in ['tuple',tuple]: return tuple(list(src.keys()))
             return list(src.keys())
         # if it has found need code for recurring search at each all data and path of keys
@@ -5228,22 +5336,25 @@ def cat(filename,no_end_newline=False,no_edge=False,byte=False,newline='\n',no_f
     return tmp
 
 def ls(dirname,opt=''):
-    if os.path.isdir(dirname):
+    if not IS(dirname).NONE() and os.path.isdir(dirname):
         dirlist=[]
-        dirinfo=list(os.walk(dirname))[0]
-        if opt == 'd':
-            dirlist=dirinfo[1]
-        elif opt == 'f':
-            dirlist=dirinfo[2]
-        else:
-            dirlist=dirinfo[1]+dirinfo[2]
-        return dirlist
+        dirinfo_a=list(os.walk(dirname))
+        if not IS(dirinfo_a).NONE():
+            dirinfo=dirinfo_a[0]
+            if opt == 'd':
+                dirlist=Get(dirinfo,1)
+            elif opt == 'f':
+                dirlist=Get(dirinfo,2)
+            else:
+                dirlist=Get(dirinfo,1)+Get(dirinfo,2)
+            return dirlist
     return False
 
 def append(src,addendum):
     type_src=type(src)
     type_data=type(addendum)
-    if src is None:
+    #if src is None:
+    if IS(src).NONE():
         if type_data is str:
             src=''
         elif type_data is dict:
@@ -5253,7 +5364,8 @@ def append(src,addendum):
         elif type_data is tuple:
             src=()
         type_src=type(src)
-    if addendum is None:
+    #if addendum is None:
+    if IS(addendum).NONE():
         return src
     if type_src == type_data:
         if type_src is dict:
@@ -5273,7 +5385,8 @@ def append(src,addendum):
 def compare(a,sym,b,ignore=None):
     if type(a) is not int or type(b) is not int:
         return False
-    if ignore is not None:
+    #if ignore is not None:
+    if not IS(ignore).NONE():
         if eval('{} == {}'.format(a,ignore)) or eval('{} == {}'.format(b,ignore)):
             return False
     return eval('{} {} {}'.format(a,sym,b))
@@ -5312,7 +5425,8 @@ def is_comeback(ip,**opts):
     log=opts.get('log',None)
     init_time=None
     run_time=TIME().Int()
-    if keep == 0 or keep is None:
+    #if keep == 0 or keep is None:
+    if IS(keep).NONE([None,'',0]):
         return True,'N/A(Missing keep parameter data)'
     if log:
         log('[',direct=True,log_level=1)
@@ -5471,7 +5585,8 @@ def log_file_info(name):
                 return name
             name=name.split(',')
         for nn in name:
-            if nn and nn != 'None':
+            #if nn and nn != 'None':
+            if not IS(nn).NONE([None,'None','']):
                 if log_file_str:
                     log_file_str='{}:{}'.format(log_file_str,nn)
                 else:
@@ -5480,7 +5595,8 @@ def log_file_info(name):
             return 'log_file:{}'.format(log_file_str)
 
 def error_exit(msg=None):
-    if msg is not None:
+    #if msg is not None:
+    if not IS(msg).NONE():
        print(msg)
     sys.exit(-1)
 
@@ -5513,14 +5629,16 @@ def log_format(*msg,**opts):
            for i in range(0,len(intro)+1):
                intro_space=intro_space+' '
         for m in list(msg):
-            if m_str is None:
+            #if m_str is None:
+            if IS(m_str).NONE():
                 m_str='{0}{1}{2}{3}'.format(start_new_line,intro,m,end_new_line)
             else:
                 m_str='{0}{1}{2}{3}{4}'.format(start_new_line,m_str,intro_space,m,end_new_line)
         return m_str
 
 def dget(dict=None,keys=None):
-    if dict is None or keys is None:
+    #if dict is None or keys is None:
+    if IS(dict).NONE() or IS(keys).NONE():
         return False
     tmp=dict.copy()
     for ii in keys.split('/'):
@@ -5532,7 +5650,8 @@ def dget(dict=None,keys=None):
     return tmp
 
 def dput(dic=None,keys=None,val=None,force=False,safe=True):
-    if dic is not None and keys:
+    #if dic is not None and keys:
+    if not IS(dic).NONE() and keys:
         tmp=dic
         keys_arr=keys.split('/')
         keys_num=len(keys_arr)
@@ -5541,7 +5660,8 @@ def dput(dic=None,keys=None,val=None,force=False,safe=True):
                 if type(tmp[ii]) == type({}):
                     dtmp=tmp[ii]
                 else:
-                    if tmp[ii] == None:
+                    #if tmp[ii] == None:
+                    if IS(tmp[ii]).NONE():
                         tmp[ii]={}
                         dtmp=tmp[ii]
                     else:
@@ -5582,7 +5702,8 @@ def md5(string):
     return hashlib.md5(_u_bytes(string)).hexdigest()
 
 def ipmi_cmd(cmd,ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',log=None):
-    if ipmi_ip is None:
+    #if ipmi_ip is None:
+    if IS(ipmi_ip).NONE():
         ipmi_str=""" ipmitool {0} """.format(cmd)
     else:
         ipmi_str=""" ipmitool -I lanplus -H {0} -U {1} -P '{2}' {3} """.format(ipmi_ip,ipmi_user,ipmi_pass,cmd)
@@ -5593,11 +5714,13 @@ def ipmi_cmd(cmd,ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',log=None):
     
 def get_ipmi_mac(ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',loop=0):
     ipmi_mac_str=None
-    if ipmi_ip is None:
+    #if ipmi_ip is None:
+    if IS(ipmi_ip).NONE():
         ipmi_mac_str=""" ipmitool lan print 2>/dev/null | grep "MAC Address" | awk """
     elif is_ipv4(ipmi_ip):
         ipmi_mac_str=""" ipmitool -I lanplus -H {0} -U {1} -P {2} lan print 2>/dev/null | grep "MAC Address" | awk """.format(ipmi_ip,ipmi_user,ipmi_pass)
-    if ipmi_mac_str is not None:
+    #if ipmi_mac_str is not None:
+    if not IS(ipmi_mac_str).NONE():
         ipmi_mac_str=ipmi_mac_str + """ '{print $4}' """
         if not loop:
             return rshell(ipmi_mac_str)
@@ -5667,7 +5790,8 @@ def is_tempfile(filepath,tmp_dir='/tmp'):
 
 
 def isfile(filename=None):
-   if filename is None:
+   #if filename is None:
+   if IS(filename).NONE():
       return False
    if len(filename) == 0:
       return False
@@ -5690,7 +5814,8 @@ def tap_print(string,bspace='',rc=False,NFLT=False):
                NFLT=False
             else:
                line='%s%s'%(bspace,ii)
-            if rc_str is None:
+            #if rc_str is None:
+            if IS(rc_str).NONE():
                rc_str='%s'%(line)
             else:
                rc_str='%s\n%s'%(rc_str,line)
@@ -5735,21 +5860,24 @@ def get_key(dic=None,find=None):
 
 def find_key_from_value(dic=None,find=None):
     if isinstance(dic,dict):
-        if find is None:
+        #if find is None:
+        if IS(find).NONE():
             return list(dic.keys())
         else:
             for key,val in dic.items():
                 if val == find:
                     return key
     elif isinstance(dic,list) or isinstance(dic,tuple):
-        if find is None:
+        #if find is None:
+        if IS(find).NONE():
             return len(dic)
         else:
             if find in dic:
                 return dic.index(find)
          
 def git_ver(git_dir=None):
-    if git_dir is not None and os.path.isdir('{0}/.git'.format(git_dir)):
+    #if git_dir is not None and os.path.isdir('{0}/.git'.format(git_dir)):
+    if not IS(git_dir).NONE() and os.path.isdir('{0}/.git'.format(git_dir)):
         gver=rshell('''cd {0} && git describe --tags'''.format(git_dir))
         if gver[0] == 0:
             return gver[1]
@@ -5767,10 +5895,12 @@ def reduce_string(string,symbol=' ',snum=0,enum=None):
     if type(string) is str:
         arr=string.split(symbol)
     strs=None
-    if enum is None:
+    #if enum is None:
+    if IS(enum).NONE():
         enum=len(arr)
     for ii in range(snum,enum):
-        if strs is None:
+        #if strs is None:
+        if IS(strs).NONE():
             strs='{0}'.format(arr[ii])
         else:
             strs='{0} {1}'.format(strs,arr[ii])
@@ -5836,7 +5966,8 @@ def find_cdrom_dev(size=None):
                                 model=fpp.read()
                             for ii in ['CDROM','DVD-ROM','DVD-RW']:
                                 if ii in model:
-                                    if size is None:
+                                    #if size is None:
+                                    if IS(size).NONE():
                                         return '/dev/{0}'.format(dd)
                                     else:
                                         if os.path.exists('{}/size'.format(rrr)):
@@ -5857,8 +5988,10 @@ def find_usb_dev(size=None,max_size=None):
                 if 'removable' in fff:
                     removable=cat('{0}/removable'.format(rrr),no_edge=True)
                     if removable:
-                        if IsSame('1',removable):
-                            if size is None:
+                        #if IsSame('1',removable):
+                        if IS('1').Same(removable):
+                            #if size is None:
+                            if IS(size).NONE():
                                 if max_size:
                                     file_size=cat('{0}/size'.format(rrr),no_edge=True)
                                     if file_size:
@@ -6151,7 +6284,8 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
 
     # Functions
     if func:
-        if name is None:
+        #if name is None:
+        if IS(name).NONE():
             name=func.__name__
         if name not in mp:
             if argv:
@@ -6178,7 +6312,8 @@ def key_remove_pass(filename):
     rshell('openssl rsa -in {0}.key -out {0}.nopass.key'.format(filename))
 
 def cert_file(keyfile,certfile,C='US',ST='CA',L='San Jose',O='KGC',OU='KG',CN=None,EMAIL=None,days=365,passwd=None,mode='gen'):
-    if keyfile is None and certfile is None:
+    #if keyfile is None and certfile is None:
+    if IS(keyfile).NONE() and IS(certfile).NONE():
         return None,None
     if mode == 'remove':
         rc=rshell('openssl rsa -in {0} -out {0}.nopass'.format(keyfile))
@@ -6610,9 +6745,15 @@ def Int(i,default={'org'}):
 def integer(a,default=0):
     return CONVERT(a).Int(default=default)
 
-def Lower(src):
+def Lower(src,default='org'):
     if isinstance(src,str): return src.lower()
-    return src
+    if default in ['org',{'org'}]: return src
+    return default
+
+def Upper(src,default='org'):
+    if isinstance(src,str): return src.upper()
+    if default in ['org',{'org'}]: return src
+    return default
 
 def sendanmail(to,subj,msg,html=True):
     Email=EMAIL()
@@ -6631,15 +6772,10 @@ def get_my_directory(cwd=None):
     return FILE().Path(cwd)
 
 def IsSame(src,chk_val,sense=False):
-    return IS().Same(src,chk_val,sense=sense)
+    return IS(src).Same(chk_val,sense=sense)
 
 def IsNone(src,chk_val=[None,''],space=False):
-    if space and isinstance(src,str):
-        src=src.strip()
-    if src in chk_val: return True
-    if not isinstance(src,int):
-        if not src: return True
-    return False
+    return IS(src).NONE(chk_val=chk_val,space=space)
 
 def move2first(item,pool):
     return LIST(pool).Move2first(item)
