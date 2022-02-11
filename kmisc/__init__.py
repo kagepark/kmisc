@@ -644,9 +644,9 @@ class FIND:
              return 'Unknown format'
         return rt
 
-    def Find(self,find,src=None,sym='\n',default=[],out=None,findall=True,word=False,mode='value',prs=None,line_num=False,peel=None,idx=None):
+    def Find(self,find,src='_#_',sym='\n',default=[],out=None,findall=True,word=False,mode='value',prs=None,line_num=False,peel=None,idx=None):
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         #if Type(src,'instance','classobj'):
         # if src is instance or classobj then search in description and made function name at key
         if isinstance(src,(list,tuple)):
@@ -1135,9 +1135,9 @@ class STR(str):
             return rt
         return default
 
-    def Wrap(self,src=None,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
+    def Wrap(self,src='_#_',space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         if not isinstance(src,(str,list,tuple)): return src
         if isinstance(src,str): src=src.split(sym)
         if isinstance(space,int): space=self.Space(space,mode=space_mode)
@@ -1167,9 +1167,9 @@ class STR(str):
                     return self.src[start:]
         return default
 
-    def Find(self,find,src=None,prs=None,sym='\n',pattern=True,default=[],out=None,findall=True,word=False,line_num=False,peel=None):
+    def Find(self,find,src='_#_',prs=None,sym='\n',pattern=True,default=[],out=None,findall=True,word=False,line_num=False,peel=None):
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         return FIND(src).Find(find,prs=prs,sym=sym,default=default,out=out,findall=findall,word=word,mode='value',line_num=line_num,peel=peel)
 
     def Index(self,find,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
@@ -1207,13 +1207,13 @@ class STR(str):
 #                return re.split(sym,self.src) # splited by '|' or expression
 #            except:
 #                return self.src.split(sym)
-    def Split(self,sym,src=None,default='org'):
+    def Split(self,sym,src='_#_',default='org'):
         if not isinstance(sym,str):
             if default in ['org',{'org'}]:
                 return src
             return default
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         if isinstance(src,str):
             if isinstance(sym,bytes): sym=CONVERT(sym).Str()
         elif isinstance(src,bytes):
@@ -1242,9 +1242,9 @@ class STR(str):
                 return src
             return default
 
-    def RemoveNewline(self,src=None,mode='edge',newline='\n',byte=None):
+    def RemoveNewline(self,src='_#_',mode='edge',newline='\n',byte=None):
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         if isinstance(byte,bool):
             if byte:
                 src=BYTES().From(src)
@@ -1337,9 +1337,9 @@ class TIME:
         return False
 
 
-    def Format(self,tformat='%s',read_format='%S',time=None):
+    def Format(self,tformat='%s',read_format='%S',time='_#_'):
         #if time is None: time=self.src
-        if IS(time).NONE(): time=self.src
+        if IS(time).NONE(['_#_'],chk_only=True): time=self.src
         #if time in [0,'0',None]:
         if IS(time).NONE(chk_val=[None,'',0,'0']):
             return datetime.now().strftime(tformat)
@@ -1575,9 +1575,9 @@ class CONVERT:
     def Form(self,default=False):
         return self.Ast(default=default)
 
-    def Json(self,src=None,default=None):
+    def Json(self,src='_#_',default=None):
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         try:
             return _json.loads(src)
         except:
@@ -1832,9 +1832,9 @@ class IP:
                 pass
         return False
 
-    def IsUsedPort(self,port,ip=None):
+    def IsUsedPort(self,port,ip='_#_'):
         #if ip is None: ip=self.ip
-        if IS(ip).NONE():ip=self.ip
+        if IS(ip).NONE(['_#_'],chk_only=True):ip=self.ip
         #if ip in ['localhost','local',None]:
         if IS(ip).NONE(chk_val=[None,'','localhost','local']):
             ip='127.0.0.1'
@@ -1890,9 +1890,9 @@ class IP:
             return False
         return default
 
-    def V4(self,ip=None,out='str',default=False):
+    def V4(self,ip='_#_',out='str',default=False):
         #if ip is None: ip=self.ip
-        if IS(ip).NONE(): ip=self.ip
+        if IS(ip).NONE(['_#_'],chk_only=True): ip=self.ip
         ip_int=None
         if isinstance(ip,str):
             ipstr=ip.strip()
@@ -1968,9 +1968,9 @@ class IP:
             return False,'Timeout/Unknown issue'
         return default,'IP format error'
 
-    def Ping(self,host=None,count=0,interval=1,keep_good=0, timeout=0,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
+    def Ping(self,host='_#_',count=0,interval=1,keep_good=0, timeout=0,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
         #if host is None: host=self.ip
-        if IS(host).NONE(): host=self.ip
+        if IS(host).NONE(['_#_'],chk_only=True): host=self.ip
         ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris. From /usr/include/linux/icmp.h;
         ICMP_CODE = socket.getprotobyname('icmp')
         ERROR_DESCR = {
@@ -2381,9 +2381,9 @@ class GET:
         else:
             return default
 
-    def DirName(self,src=None,default=None):
+    def DirName(self,src='_#_',default=None):
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         if Type(src,str):
             dirname=os.path.dirname(src)
             if dirname == '': return '.'
@@ -2406,9 +2406,9 @@ class GET:
         except:
             return default
 
-    def Basename(self,src=None):
+    def Basename(self,src='_#_'):
         #if src is None: src=self.src
-        if IS(src).NONE(): src=self.src
+        if IS(src).NONE(['_#_'],chk_only=True): src=self.src
         if Type(src,str): return os.path.basename(src)
         return os.path.basename(inspect.stack()[1].filename)
 
@@ -2419,6 +2419,28 @@ class GET:
             return module
         except:
             return default
+
+    def Var(self,obj=None,default=None,mode='all'):
+        if IS(obj).NONE():
+            obj=sys.modules.get('__main__',default)
+        elif isinstance(obj,str):
+            obj=sys.modules.get(obj,default)
+        if obj == default: return default
+        if Type(obj,'class','function','instance'):
+            ARGS=GET(obj).Args()
+            for tt in ARGS:
+                if self.src in ARGS[tt]: return ARGS[tt].get(self.src)
+        else:
+            inspst=inspect.stack()
+            if mode != 'global':
+                local_var=dict(inspect.getmembers(inspst[-2][0]))["f_locals"].get(self.src,default)
+                if local_var != default:
+                    return local_var
+            if mode != 'local':
+                global_var=dict(inspect.getmembers(inspst[-2][0]))["f_globals"].get(self.src,default)
+                if global_var != default:
+                    return global_var
+        return default
 
 class IS:
     def __init__(self,src=None,**opts):
@@ -2433,26 +2455,27 @@ class IS:
         if PyVer(3): return True
         return False
 
-    def Int(self,mode='all'):
+    def Int(self,mode='all',src='_#_'):
         # mode : int => check only int 
         #        str => int type string only
         #        all => Int and int type string
         def _int_(data):
             try:
-                int(self.src)
+                int(data)
                 return True
             except:
                 return False
 
-        if not isinstance(self.src,bool):
+        if src == '_#_': src=self.src
+        if not isinstance(src,bool):
             if mode in [int,'int']:
-                if isinstance(self.src,int):
+                if isinstance(src,int):
                     return True
             elif mode in [str,'str']:
-                if isinstance(self.src,str):
-                    return _int_(self.src)
+                if isinstance(src,str):
+                    return _int_(src)
             else:
-                return _int_(self.src)
+                return _int_(src)
         return False
 
     def Bytes(self):
@@ -2488,9 +2511,9 @@ class IS:
         if isinstance(firstLine,str) and firstLine.split(' ')[0] == '<?xml': return True
         return False
 
-    def Json(self,src=None):
+    def Json(self,src='_#_'):
         #if src is None: src=self.src
-        if self.NONE(src=src): src=self.src
+        if self.NONE(['_#_'],src=src,chk_only=True): src=self.src
         try:
             _json.loads(self.src)
             return True
@@ -2545,9 +2568,9 @@ class IS:
             return False
         return nrtc
 
-    def Cancel(self,func=None):
+    def Cancel(self,func='_#_'):
         #if func is None: func=self.src
-        if self.NONE(src=func): func=self.src
+        if self.NONE(['_#_'],src=func,chk_only=True): func=self.src
         ttt=type(func).__name__
         if ttt in ['function','instancemethod','method']:
             if func():
@@ -2580,19 +2603,21 @@ class IS:
 
     def Function(self,obj=None,default=False):
         if Type(self.src,'function'): return True
+        if Type(self.src,'str'):
+            if Type(Global().get(self.src),'function'): return True
         #if obj is None:
         if self.NONE(src=obj):
             obj=sys.modules.get('__name__',default)
         elif isinstance(obj,str):
             obj=sys.modules.get(obj,default)
         if obj == default: return default
-        if Type(obj,'Class','module'):
+        if isinstance(self.src,str) and Type(obj,'Class','module'):
             if GET(obj).FuncList().get(self.src,default) == default: return default
             return True
             #return vars(obj).get(self.src,default)
         return default
 
-    def Var(self,obj=None,default=False):
+    def Var(self,obj=None,default=False,mode='all'):
         #if obj is None:
         if self.NONE(src=obj):
             obj=sys.modules.get('__main__',default)
@@ -2604,9 +2629,15 @@ class IS:
             for tt in ARGS:
                 if self.src in ARGS[tt]: return True 
         else:
-            get_var=dict(inspect.getmembers(inspect.stack()[1][0]))["f_globals"].get(self.src,'_#_')
-            if get_var != '_#_':
-                if not Type(get_var,'module','class','function'): return True
+            inspst=inspect.stack()
+            if mode != 'local':
+                global_var=dict(inspect.getmembers(inspst[-2][0]))["f_globals"].get(self.src,'_#_')
+                if global_var != '_#_':
+                    if not Type(global_var,'module','class','function'): return True
+            if mode != 'global':
+                local_var=dict(inspect.getmembers(inspst[-2][0]))["f_locals"].get(self.src,'_#_')
+                if local_var != '_#_':
+                    if not Type(local_var,'module','class','function'): return True
 #        if hasattr(obj,self.src):
 #            return True
         return False
@@ -2620,7 +2651,7 @@ class IS:
     def Bin(self):
         return self.Exec()
 
-    def Same(self,chk_val=None,src=None,sense=False):
+    def Same(self,chk_val=None,src='_#_',sense=False):
         def _IsSame_(src,chk,sense=False):
             src_type=type(src).__name__
             chk_type=type(chk).__name__
@@ -2646,7 +2677,7 @@ class IS:
                     return True
             return False
         #Do not user IS().NONE(). NONE() use Same()
-        if src in [None,'']: src=self.src
+        if src == '_#_': src=self.src
         if isinstance(src,(list,tuple)) and isinstance(chk_val,(list,tuple)):
             for j in src:
                 ok=False
@@ -2678,7 +2709,8 @@ class IS:
         find=self.src
         '''Check key or value in the dict, list or tuple then True, not then False'''
         if isinstance(dest, (list,tuple,str)):
-            if isinstance(idx,int):
+            #if not isinstance(idx,bool) and isinstance(idx,int):
+            if self.Int(int,idx):
                 if isinstance(dest,str):
                     if idx < 0:
                         if dest[idx-len(find):idx] == find:
@@ -2694,7 +2726,7 @@ class IS:
                     if self.Same(find,i): return True
         elif isinstance(dest, dict):
             #if idx is None:
-            if self.NONE(src=idx):
+            if self.NONE(src=idx,chk_val=[None,'',False]):
                 for i in dest:
                     if self.Same(find,i): return True
             else:
@@ -2702,14 +2734,14 @@ class IS:
                     return True
         return default
 
-    def NONE(self,chk_val=[None,''],src=None,space=False):
-        if src is None: src=self.src
+    def NONE(self,chk_val=[None,''],src='_#_',space=False,chk_only=False):
+        if src == '_#_': src=self.src
         if space and isinstance(src,str):
             src=src.strip()
         if self.Same(chk_val,src,sense=False): return True
-#        if src in chk_val: return True
-        if not isinstance(src,(bool,int)):
-            if not src: return True
+        if not chk_only:
+            if not isinstance(src,(bool,int)):
+                if not src: return True
         return False
 
 
@@ -3941,7 +3973,7 @@ class FUNCTION:
     def __init__(self,func=None):
         if func:
             if isinstance(func,str):
-                func=Global(func)
+                func=Global().get(func)
             self.func=func
 
     def Name(self,sub=False):
@@ -3960,11 +3992,11 @@ class FUNCTION:
                 return False
         return traceback.extract_stack(None, 3)[0][2]
 
-    def Args(self,func=None,**opts):
+    def Args(self,func='_#_',**opts):
         mode=opts.get('mode',opts.get('field','defaults'))
         default=opts.get('default',None)
         #if func is None: func=self.func
-        if IS(func).NONE(): func=self.func
+        if IS(func).NONE(['_#_'],chk_only=True): func=self.func
         if not Type(func,'function'):
             return default
         rt={}
@@ -4016,12 +4048,12 @@ class FUNCTION:
         except:
             return default
 
-    def Is(self,find=None,src=None):
+    def Is(self,find='_#_',src=None):
         #if find is None: find=self.func
-        if IS(find).NONE(): find=self.func
+        if IS(find).NONE(['_#_'],chk_only=True): find=self.func
         #if src is None:
         if IS(src).NONE():
-            if isinstance(find,str):
+            if isinstance(find,str) and find != '_#_':
                 #find=sys.modules.get(find)
                 find=Global().get(find)
             return inspect.isfunction(find)
@@ -4392,7 +4424,10 @@ def printf(*msg,**opts):
     dsp=opts.get('dsp','a')
     func_name=opts.get('func_name',None)
     date=opts.get('date',False)
-    date_format=opts.get('date_format','%m/%d/%Y %H:%M:%S')
+    if date:
+        date_format=opts.get('date_format','%m/%d/%Y %H:%M:%S')
+    else:
+        date_format=opts.get('date_format')
     intro=opts.get('intro',None)
     caller=opts.get('caller',False)
     caller_detail=opts.get('caller_detail',False)
@@ -4442,8 +4477,8 @@ def printf(*msg,**opts):
 
     # Make a Intro
     intro_msg=''
-    if date and not syslogd:
-        intro_msg='[{0}] '.format(datetime.now().strftime(date_format))
+    if date_format and not syslogd:
+        intro_msg='{0} '.format(datetime.now().strftime(date_format))
     if caller:
         call_name=get_caller_fcuntion_name(detail=caller_detail)
         if call_name:
@@ -4500,44 +4535,69 @@ def printf(*msg,**opts):
     #if type(log).__name__ == 'function':
     if Type(log,'function'):
          log_func_arg=get_function_args(log,mode='all')
-         if 'args' in log_func_arg or 'varargs' in log_func_arg:
+         if 'args' in log_func_arg or 'varargs' in log_func_arg or 'defaults' in log_func_arg:
              log_p=True
              args=log_func_arg.get('args',[])
-             if args and len(args) <= 4 and ('direct' in args or 'log_level' in args or 'func_name' in args):
+             keywards={}
+             direct_arg=False
+             log_level_arg=False
+             func_name_arg=False
+             date_format_arg=False
+             if args:
                  tmp=[]
                  for i in range(0,len(args)):
                      tmp.append(i)
-                 if 'direct' in args:
+                 if 'direct' in args and not IS(direct).NONE():
                      didx=args.index('direct')
                      del tmp[didx]
                      args[didx]=direct
-                 if 'log_level' in args:
+                     direct_arg=True
+                 if 'log_level' in args and not IS(log_level).NONE():
                      lidx=args.index('log_level')
                      del tmp[lidx]
                      args[lidx]=log_level
-                 if 'func_name' in args:
+                     log_level_arg=True
+                 if 'func_name' in args and not IS(func_name).NONE():
                      lidx=args.index('func_name')
                      del tmp[lidx]
                      args[lidx]=func_name
-                 if 'date_format' in args:
+                     func_name_arg=True
+                 if 'date_format' in args and not IS(date_format).NONE():
                      lidx=args.index('date_format')
                      del tmp[lidx]
                      args[lidx]=date_format
-                 args[tmp[0]]=msg_str
+                     date_format_arg=True
+                 arg_str=''
+                 for ii in msg:
+                    if arg_str:
+                        if new_line:
+                            arg_str=arg_str+new_line+tap+'{}'.format(ii)
+                        else:
+                            arg_str=arg_str+'{}'.format(ii)
+                    else:
+                        arg_str='{}'.format(ii)
+                 args[tmp[0]]=arg_str
+             if not direct_arg and not IS(direct).NONE():
+                 if 'keywards' in log_func_arg or 'direct' in log_func_arg.get('defaults',{}):
+                     keywards['direct']=direct
+             if not log_level_arg and not IS(log_level).NONE():
+                 if 'keywards' in log_func_arg or 'log_level' in log_func_arg.get('defaults',{}):
+                     keywards['log_level']=log_level
+             if not func_name_arg and not IS(func_name).NONE():
+                 if 'keywards' in log_func_arg or 'func_name' in log_func_arg.get('defaults',{}):
+                     keywards['func_name']=func_name
+             if not date_format_arg and not IS(date_format).NONE():
+                 if 'keywards' in log_func_arg or 'date_format' in log_func_arg.get('defaults',{}):
+                     keywards['date_format']=date_format
+             if not IS(args).NONE() and not IS(keywards).NONE():
+                 log(*args,**keywards)
+             elif not IS(args).NONE():
                  log(*args)
-             elif 'keywards' in log_func_arg:
-                 log(msg_str,direct=direct,log_level=log_level,func_name=func_name,date_format=date_format)
-             elif 'defaults' in log_func_arg:
-                 if 'direct' in log_func_arg['defaults'] and 'log_level' in log_func_arg['defaults']:
-                     log(msg_str,direct=direct,log_level=log_level)
-                 elif 'log_level' in log_func_arg['defaults']:
-                     log(msg_str,log_level=log_level)
-                 elif 'direct' in log_func_arg['defaults']:
-                     log(msg_str,direct=direct)
-                 else:
-                     log(msg_str)
+             elif not IS(keywards).NONE():
+                 log(*msg,**keywards)
              else:
                  log(msg_str)
+                
     # print msg to screen
     if (log_p is False and 'a' in dsp) or 's' in dsp or 'e' in dsp:
          if 'e' in dsp:
@@ -4729,17 +4789,17 @@ class CLI:
     def __init__(self,cmd=None):
         self.cmd=cmd
 
-    def Print(self,cmd=None,*inps,**opts):
+    def Print(self,cmd='_#_',*inps,**opts):
         #if cmd is None: cmd=self.cmd
         #if cmd is None: return False
-        if IS(cmd).NONE(): cmd=self.cmd
+        if IS(cmd).NONE(['_#_'],chk_only=True): cmd=self.cmd
         if IS(cmd).NONE(): return False
         rt=sprintf(cmd,*inps,**opts)
         return rt
 
-    def Args(self,data=None,breaking='-'):
+    def Args(self,data='_#_',breaking='-'):
         #if data is None: data=self.src
-        if IS(data).NONE(): data=self.src
+        if IS(data).NONE(['_#_'],chk_only=True): data=self.src
         def inside_data(rt,breaking,data_a,ii,symbol):
             tt=data_a[ii][1:]
             if len(data_a) > ii:
@@ -4782,10 +4842,10 @@ class CLI:
             ii+=1
         return rt
 
-    def Get(self,fmt,cmd=None,split='\n',fixed_fmt=False,opt_sym=['-','--']):
+    def Get(self,fmt,cmd='_#_',split='\n',fixed_fmt=False,opt_sym=['-','--']):
         #if cmd is None: cmd=self.cmd
         #if cmd is None: return False
-        if IS(cmd).NONE(): cmd=self.cmd
+        if IS(cmd).NONE(['_#_'],chk_only=True): cmd=self.cmd
         if IS(cmd).NONE(): return False
         #Output: [[{data},line numver,original string],...]
         #{data}: {'parameter':{'type':...,'opt':...,'exist':True/False,'data':...},...}
