@@ -2420,7 +2420,7 @@ class GET:
         except:
             return default
 
-    def Var(self,obj=None,default=None,mode='all'):
+    def Var(self,obj=None,default=None,mode='all',VarType=None):
         if IS(obj).NONE():
             obj=sys.modules.get('__main__',default)
         elif isinstance(obj,str):
@@ -2429,18 +2429,85 @@ class GET:
         if Type(obj,'class','function','instance'):
             ARGS=GET(obj).Args()
             for tt in ARGS:
-                if self.src in ARGS[tt]: return ARGS[tt].get(self.src)
+                if self.src in ARGS[tt] and isinstance(ARGS[tt],dict):
+                    rc=ARGS[tt].get(self.src)
+                    if VarType:
+                        if not Type(rc,VarType): default
+                    return rc
         else:
-            inspst=inspect.stack()
-            if mode != 'global':
-                local_var=dict(inspect.getmembers(inspst[-2][0]))["f_locals"].get(self.src,default)
-                if local_var != default:
-                    return local_var
-            if mode != 'local':
-                global_var=dict(inspect.getmembers(inspst[-2][0]))["f_globals"].get(self.src,default)
-                if global_var != default:
-                    return global_var
+            if Type(self.src,'function','instance'):
+                inspst=inspect.stack()
+                global_var={}
+                vdict=dict(inspect.getmembers(inspst[-2][0])).get("f_locals",{})
+                for i in vdict:
+                    if i not in ['global_var','inspst','__cached__','__file__','__annotations__','__spec__','__loader__','__doc__','__package__','__name__','VarType','mode','default'] and not Type(vdict[i],'module','class','function'):
+                        if i not in global_var: global_var[i]=vdict[i]
+                vdict=dict(inspect.getmembers(inspst[-2][0])).get("f_global",{})
+                for i in vdict:
+                    if i not in ['global_var','inspst','__cached__','__file__','__annotations__','__spec__','__loader__','__doc__','__package__','__name__'] and not Type(vdict[i],'module','class','function'):
+                        if i not in global_var: global_var[i]=vdict[i]
+                vdict=dict(inspect.getmembers(inspst[-1][0])).get('f_globals')
+                for i in vdict:
+                    if i not in ['global_var','inspst','__cached__','__file__','__annotations__','__spec__','__loader__','__doc__','__package__','__name__'] and not Type(vdict[i],'module','class','function'):
+                        if i not in global_var: global_var[i]=vdict[i]
+                     
+                ARGS=GET(self.src).Args()
+                arg_l=[]
+                arg_d={}
+                for tt in ARGS:
+                    if tt == 'args':
+                        for ii in ARGS[tt]:
+                            if global_var and ii in global_var:
+                                arg_l.append(global_var[ii])
+                            else:
+                                arg_l.append(None)
+                    else:
+                        for ii in ARGS[tt]:
+                            if global_var and ii in global_var:
+                                arg_d[ii]=global_var[ii]
+                gvar=default
+                if 'args' in ARGS and 'keywards' in ARGS:
+                    gvar=self.src(*arg_l,**global_var)
+                elif 'args' in ARGS and 'defaults' in ARGS:
+                    gvar=self.src(*arg_l,**arg_d)
+                elif 'keywards' in ARGS:
+                    gvar=self.src(**global_var)
+                elif 'args' in ARGS:
+                    gvar=self.src(*arg_l)
+                elif 'defaults' in ARGS:
+                    gvar=self.src(**arg_d)
+                else:
+                    gvar=self.src()
+                if gvar != default:
+                    if VarType:
+                        if not Type(gvar,VarType): return default
+                    return gvar
+            elif Type(self.src,'str'):
+                inspst=inspect.stack()
+                if mode != 'global':
+                    local_var=dict(inspect.getmembers(inspst[-2][0]))["f_locals"].get(self.src,default)
+                    if local_var != default:
+                        if VarType:
+                            if not Type(local_var,VarType): return default
+                        return local_var
+                if mode != 'local':
+                    global_var=dict(inspect.getmembers(inspst[-2][0]))["f_globals"].get(self.src,default)
+                    if global_var != default:
+                        if VarType:
+                            if not Type(global_var,VarType): return default
+                        return global_var
+                if mode != 'top':
+                    top_var=dict(inspect.getmembers(inspst[-1][0]))["f_globals"].get(self.src,default)
+                    if top_var != default:
+                        if VarType:
+                            if not Type(top_var,VarType): return default
+                        return top_var
+            else:
+                if VarType:
+                    if not Type(self.src,VarType): return default
+                return self.src
         return default
+
 
 class IS:
     def __init__(self,src=None,**opts):
@@ -4311,6 +4378,7 @@ def Path(*inp,**opts):
 ####################################KEYS##################################################
 def Get(*inps,**opts):
     key=None
+    src=None
     if len(inps) >= 2:
         src=inps[0]
         key=inps[1:]
