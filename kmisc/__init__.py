@@ -1558,7 +1558,7 @@ def Str(src,**opts):
 
     # Force make all to string
     if mode in ['force','fix','fixed']:
-        return '{}'.format(rt)
+        return '{}'.format(src)
     if tuple_data: return tuple(src)
     return src
 
