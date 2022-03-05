@@ -1490,6 +1490,15 @@ def Bytes(src,**opts):
     else:
         return _bytes_(src,encode,default)
 
+def Int2Bytes(src,default='org'):
+    try:
+        #struct.pack('>I', src)[1:]
+        #struct.pack('>L', src)[1:]
+        return struct.pack('>BH', src >> 16, src & 0xFFFF)
+    except:
+        if default in ['org',{'org'}]: return src
+        return default
+
 def Bytes2Int(src,encode='utf-8',default='org'):
     if PyVer(3):
         bsrc=Bytes(src,encode=encode)
