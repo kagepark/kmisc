@@ -1503,16 +1503,29 @@ def Bytes2Int(src,encode='utf-8',default='org'):
         if default in ['org',{'org'}]: return src
         return default
 
+def ByteName(src):
+    if PyVer(3) and isinstance(src,bytes):
+        if src.startswith(b'\xff\xfe\x00\x00') and src.endswith(b'\x00\x00\x00'):
+            return True,'utf-32-le'
+        elif src.startswith(b'\x00\x00\x00') and src.endswith(b'\xff\xfe\x00\x00'):
+            return True,'utf-32-be'
+        elif src.startswith(b'\xff\xfe') and src.endswith(b'\x00'):
+            return True,'utf-16-le'
+        elif src.startswith(b'\x00') and src.endswith(b'\xff\xfe'):
+            return True,'utf-16-be'
+        else:
+            return True,'bytes'
+    return False,None
+
 def Str(src,**opts):
     encode=opts.get('encode',None)
     default=opts.get('default','org')
     mode=opts.get('mode','auto')
     if not isinstance(encode,(str,list,tuple)): encode=['utf-8','latin1','windows-1252']
     def _byte2str_(src,encode):
-        if PyVer(3) and isinstance(src,bytes):
-            if b'\x00' in src: #utf-16/utf-16-le base data
-                return src.decode('utf-16-le')
-            else:
+        byte,bname=ByteName(src)
+        if byte:
+            if bname == 'bytes':
                 if isinstance(encode,(list,tuple)):
                     for i in encode:
                         try:
@@ -1521,6 +1534,8 @@ def Str(src,**opts):
                             pass
                 else:
                     return src.decode(encode)
+            else:
+                return src.decode(bname)
         elif Type(src,'unicode'):
             if isinstance(encode,(list,tuple)):
                 for i in encode:
