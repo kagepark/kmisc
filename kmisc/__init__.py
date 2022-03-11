@@ -3751,14 +3751,35 @@ def Get(*inps,**opts):
     if len(inps) == 0:
         print('Need source')
         return default
-    err=opts.get('err',opts.get('error',True))
+    err=opts.get('err',opts.get('error',False))
     out=opts.get('out',opts.get('out_form',None))
     strip=opts.get('strip',False)
     peel=opts.get('peel',None)
     index=opts.get('idx',opts.get('index',False))
-    check=opts.get('check',('str','list','tuple','dict','instance','classobj'))
-    # Source & key
+    _type=opts.get('type',opts.get('check',['list','tuple','dict','instance','classobj']))
+    bypass=opts.get('bypass',['str','int','bool',None,set,float])
+
+    if isinstance(_type,(list,tuple)):
+        _type=[i.__name__ if isinstance(i,type) else i for i in _type]
+    elif isinstance(_type,str):
+        _type=_type.split(',')
+    else:
+        _type=[_type.__name__ if isinstance(_type,type) else _type]
+
+    if isinstance(bypass,(list,tuple)):
+        bypass=[i.__name__ if isinstance(i,type) else i for i in bypass]
+    elif isinstance(bypass,str):
+        bypass=bypass.split(',')
+    else:
+        bypass=[bypass.__name__ if isinstance(bypass,type) else bypass]
+    
+    for cc in _type:
+        if cc in bypass: bypass.remove(cc)
+    _type=tuple(_type)
+    bypass=tuple(bypass)
+    # Source
     src=inps[0]
+
     # Make a KEY
     key=[]
     if len(inps) > 1:
@@ -3780,6 +3801,21 @@ def Get(*inps,**opts):
                 key=key+Split(i,'|')
             elif not IsNone(i,chk=True):
                 key.append(i)
+    # for None KEY
+    if IsNone(key):
+        if Type(src,_type):
+            if Type(src,('instance','classobj')):
+                if Type(src,'classobj'): src=src() # move from CLASS to CLASS()
+                if IsNone(out): return src.__dict__
+                return OutFormat(src.__dict__,out=out,strip=strip,peel=peel)
+            if IsNone(out): return src
+            return OutFormat(src,out=out,strip=strip,peel=peel)
+        return OutFormat(default,out=out,strip=strip,peel=peel)
+
+    # Bypass type
+    if Type(src,bypass):
+        return OutFormat(src,out=out,strip=strip,peel=peel)
+
     rt=[]
     # Finding Index from data
     if index:
@@ -3881,10 +3917,7 @@ def Get(*inps,**opts):
                 if Type(fobj,('function','instancemethod')):
                     rt.update({name:fobj})
         elif Type(src,('instance','classobj')):
-            if IsNone(key):
-                if Type(src,'classobj'): src=src() # move from CLASS to CLASS()
-                rt.append(src.__dict__)
-            elif isinstance(key,(list,tuple)):
+            if isinstance(key,(list,tuple)):
                 def method_in_class(class_name):
                     ret=dir(class_name)
                     if hasattr(class_name,'__bases__'):
@@ -3923,7 +3956,7 @@ def Get(*inps,**opts):
                 rt.append(src.get(i))
         else:
             rt.append(src.get(key))
-    elif Type(src,tuple(check)):
+    elif Type(src,_type):
         # Support
         if Type(src,(list,tuple,str)):
             if src_name in ['kList','LIST']: src=src.Get()
@@ -3958,8 +3991,9 @@ def Get(*inps,**opts):
                     rt.append(getattr(src,ff,default))
         if rt: return OutFormat(rt,out=out,strip=strip,peel=peel)
     # Not support format or if not class/instance then return error
-    if err in [True,'True','true','err','ERR','ERROR','error']: return OutFormat(default,out=out,strip=strip,peel=peel)
-    return OutFormat(src,out=out,strip=strip,peel=peel)
+    #if err in [True,'True','true','err','ERR','ERROR','error']: return OutFormat(default,out=out,strip=strip,peel=peel)
+    #return OutFormat(src,out=out,strip=strip,peel=peel)
+    return OutFormat(default,out=out,strip=strip,peel=peel)
 
 
 def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error','error','erro','ERRO',{'ERR'}],'WARN':['Warn','warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}],'TOUT':['timeout','TimeOut','time out','Time Out','TMOUT','TOUT',{'TOUT'}],'REVD':['cancel','Cancel','CANCEL','REV','REVD','Revoked','revoked','revoke','Revoke',{'REVD'}],'LOST':['lost','connection lost','Connection Lost','Connection lost','CONNECTION LOST',{'LOST'}]},default=False):
@@ -3970,7 +4004,7 @@ def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':
                 if type(jj) == type_irt and ((type_irt is str and jj.lower() == irt.lower()) or jj == irt):
                     return ii
         return 'UNKN'
-    rtc=Get(rt,'0|rc',out='raw',err='ignore',check=(list,tuple,dict))
+    rtc=Get(rt,'0|rc',out='raw',err='ignore',type=(list,tuple,dict))
     nrtc=trans(rtc)
     if chk != '_':
         if not isinstance(chk,list): chk=[chk]
@@ -6189,7 +6223,7 @@ def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':
                 if type(jj) == type_irt and ((type_irt is str and jj.lower() == irt.lower()) or jj == irt):
                     return ii
         return 'UNKN'
-    rtc=Get(rt,'0|rc',out='raw',err='ignore',check=(list,tuple,dict))
+    rtc=Get(rt,'0|rc',out='raw',err='ignore',type=(list,tuple,dict))
     nrtc=trans(rtc)
     if chk != '_':
         if not isinstance(chk,list): chk=[chk]
@@ -6397,7 +6431,7 @@ def is_py3():
     return PyVer(3)
 
 def get_value(src,key=None,default=None,check=[str,list,tuple,dict],err=False):
-    return Get(src,key,default=default,check=check,err=err)
+    return Get(src,key,default=default,type=check,err=err)
 
 def file_rw(name,data=None,out='string',append=False,read=None,overwrite=True):
     return FILE().Rw(name,data=data,out=out,append=append,read=read,overwrite=overwrite,finfo={})
@@ -6547,11 +6581,17 @@ def IsNone(src,**opts):
     space=opts.get('space',False)
     chk_only=opts.get('chk_only',opts.get('check_only',False))
     index=opts.get('index',opts.get('idx'))
+    list_none=opts.get('LIST',False)
     if space and isinstance(src,str): src=src.strip()
     if IsIn(src,value,sense=False): return True
     if src:
         if isinstance(src,(list,tuple)):
-            if isinstance(index,int) and len(src) > index:
+            if list_none:
+                for i in src:
+                    if space and isinstance(i,str): i=i.strip()
+                    if not IsIn(i,value,sense=False): return False
+                return True
+            elif isinstance(index,int) and len(src) > index:
                 if space and isinstance(src[index],str): src[index]=src[index].strip()
                 if IsIn(src[index],value,sense=False): return True
         elif isinstance(src,dict):
