@@ -48,7 +48,7 @@ from email.mime.multipart import MIMEMultipart
 from multiprocessing import Process, Queue
 from distutils.spawn import find_executable
 from distutils.version import LooseVersion
-from Import import *
+from kmport import *
 Import('from lz4 import frame')
 Import('import bz2')
 Import('import magic')
