@@ -278,68 +278,71 @@ def Abs(*inps,**opts):
 
 def ObjName(obj,default=None,chk=False):
     if obj and isinstance(obj,str):
-        if os.path.islink(obj):
-            return 'symlink'
-        elif os.path.isfile(obj):
-            aa=magic.from_buffer(open(obj,'rb').read(2048))
-            if aa:
-                aa_a=aa.split()
-                aa_type=aa_a[0].lower()
-                if aa_type in ['elf']:
-                    if 'LSB' in aa_a:
-                        if 'shared' in aa_a and 'object,' in aa_a:
-                            return 'so'
-                        elif 'executable,' in aa_a:
-                            return 'bin'
-                        elif 'relocatable,' in aa_a:
-                            if len(obj.split('.')) > 1 and obj.split('.')[-1] == 'ko':
-                                return 'ko'
-                            else:
-                                return 'o'
-                elif aa_type in ['xz'] and len(obj.split('.')) > 2 and obj.split('.')[-2] == 'ko':
-                    return 'ko'
-                elif aa_type in ['current'] and 'ar' in aa_a:
-                    return 'ar'
-                elif aa_type in ['intel']:
-                    if 'flash' in aa_a and 'ROM' in aa_a:
-                        return 'rom'
-                elif aa_type in ['x86']:
-                    if 'boot' in aa_a and 'partition' in aa_a:
+        try:
+            if os.path.islink(obj):
+                return 'symlink'
+            elif os.path.isfile(obj):
+                aa=magic.from_buffer(open(obj,'rb').read(2048))
+                if aa:
+                    aa_a=aa.split()
+                    aa_type=aa_a[0].lower()
+                    if aa_type in ['elf']:
+                        if 'LSB' in aa_a:
+                            if 'shared' in aa_a and 'object,' in aa_a:
+                                return 'so'
+                            elif 'executable,' in aa_a:
+                                return 'bin'
+                            elif 'relocatable,' in aa_a:
+                                if len(obj.split('.')) > 1 and obj.split('.')[-1] == 'ko':
+                                    return 'ko'
+                                else:
+                                    return 'o'
+                    elif aa_type in ['xz'] and len(obj.split('.')) > 2 and obj.split('.')[-2] == 'ko':
+                        return 'ko'
+                    elif aa_type in ['current'] and 'ar' in aa_a:
+                        return 'ar'
+                    elif aa_type in ['intel']:
+                        if 'flash' in aa_a and 'ROM' in aa_a:
+                            return 'rom'
+                    elif aa_type in ['x86']:
+                        if 'boot' in aa_a and 'partition' in aa_a:
+                            return 'iso'
+                    elif aa_type in ['data'] and obj.split('.')[-1] == 'iso':
                         return 'iso'
-                elif aa_type in ['data'] and obj.split('.')[-1] == 'iso':
-                    return 'iso'
-                elif aa_type in ['zip']:
-                    if obj.split('.')[-1] == 'jar':
-                        return 'java'
-                elif aa_type in ['pe32+']:
-                    if '(DLL)' in aa_a and 'MS' in aa_a and 'Windows' in aa_a:
-                        return 'dll'
-                elif aa_type in ['posix']:
-                    if 'shell' in aa_a and 'script,' in aa_a:
-                        return 'shell'
-                elif aa_type in ['ascii']:
-                    if 'cpio' in aa_a and 'archive' in aa_a:
-                        return 'cpio'
-                elif aa_type in ['linux']:
-                    if 'kernel' in aa_a and 'bzImage,' in aa_a:
-                        return 'kernel'
-                return aa_type
-            try:
-                with open(obj,'rb') as f: # Pickle Type
-                    pickle.load(f)
-                    return 'pickle'
-            except:
-                pass
-        elif os.path.isdir(obj):
-            return 'dir'
-        elif os.path.exists(obj):
-            try:
-                if stat.S_ISBLK(os.stat(obj).st_mode):
-                    return 'blk'
-                elif stat.S_ISCHR(os.stat(obj).st_mode):
-                    return 'chr'
-            except:
-                pass
+                    elif aa_type in ['zip']:
+                        if obj.split('.')[-1] == 'jar':
+                            return 'java'
+                    elif aa_type in ['pe32+']:
+                        if '(DLL)' in aa_a and 'MS' in aa_a and 'Windows' in aa_a:
+                            return 'dll'
+                    elif aa_type in ['posix']:
+                        if 'shell' in aa_a and 'script,' in aa_a:
+                            return 'shell'
+                    elif aa_type in ['ascii']:
+                        if 'cpio' in aa_a and 'archive' in aa_a:
+                            return 'cpio'
+                    elif aa_type in ['linux']:
+                        if 'kernel' in aa_a and 'bzImage,' in aa_a:
+                            return 'kernel'
+                    return aa_type
+                try:
+                    with open(obj,'rb') as f: # Pickle Type
+                        pickle.load(f)
+                        return 'pickle'
+                except:
+                    pass
+            elif os.path.isdir(obj):
+                return 'dir'
+            elif os.path.exists(obj):
+                try:
+                    if stat.S_ISBLK(os.stat(obj).st_mode):
+                        return 'blk'
+                    elif stat.S_ISCHR(os.stat(obj).st_mode):
+                        return 'chr'
+                except:
+                    pass
+        except:
+            pass
     obj_dir=dir(obj)
     obj_name=type(obj).__name__
     if obj_name in ['function']: return obj_name
