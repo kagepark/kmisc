@@ -49,12 +49,8 @@ from multiprocessing import Process, Queue
 from distutils.spawn import find_executable
 from distutils.version import LooseVersion
 from kmport import *
-Import('from lz4 import frame')
-Import('import bz2')
-Import('import magic')
 
 from http.cookies import Morsel # This module for requests when you use build by pyinstaller command
-Import('import requests')
 
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
 #log_file=None
@@ -282,6 +278,7 @@ def ObjName(obj,default=None,chk=False):
             if os.path.islink(obj):
                 return 'symlink'
             elif os.path.isfile(obj):
+                Import('import magic')
                 aa=magic.from_buffer(open(obj,'rb').read(2048))
                 if aa:
                     aa_a=aa.split()
@@ -2691,6 +2688,7 @@ class FILE:
 
     def FileType(self,filename,default=False):
         if not isinstance(filename,str) or not os.path.isfile(filename): return default
+        Import('import magic')
         aa=magic.from_buffer(open(filename,'rb').read(2048))
         if aa: return aa.split()[0].lower()
         return 'unknown'
@@ -3232,6 +3230,7 @@ class FILE:
 
 class WEB:
     def __init__(self,request=None):
+        Import('import requests')
         if request:
             self.requests=request
         else:
@@ -3478,6 +3477,7 @@ class EMAIL:
                 return False
         else:
             print('something wrong input')
+            return False
 
 class ANSI:
     ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
@@ -5032,8 +5032,10 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_
 
 def Compress(data,mode='lz4'):
     if mode == 'lz4':
+        Import('from lz4 import frame')
         return frame.compress(data)
     elif mode == 'bz2':
+        Import('import bz2')
         return bz2.compress(data)
 
 def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={}):
@@ -5050,13 +5052,16 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
 
     def FileType(filename,default=False):
         if not isinstance(filename,str) or not os.path.isfile(filename): return default
+        Import('import magic')
         aa=magic.from_buffer(open(filename,'rb').read(2048))
         if aa: return aa.split()[0].lower()
         return 'unknown'
 
     if mode == 'lz4':
+        Import('from lz4 import frame')
         return frame.decompress(data)
     elif mode == 'bz2':
+        Import('import bz2')
         return bz2.BZ2Decompressor().decompress(data)
     elif mode == 'file' and isinstance(data,str) and os.path.isfile(data):
         filename,fileextfile_info=FileName(data)
@@ -6484,7 +6489,7 @@ def Upper(src,default='org'):
 
 def sendanmail(to,subj,msg,html=True):
     Email=EMAIL()
-    Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
+    return Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
 
 def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
     return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir)
