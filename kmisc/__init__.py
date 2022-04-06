@@ -3313,7 +3313,7 @@ class WEB:
                 return False,'Can not access to destination({})'.format(chk_dest)
         ss = self.requests.Session()
         for j in range(0,max_try):
-            if mode == 'post':
+            if IsSame(mode,'post'):
                 try:
                     r =ss.post(host_url,verify=verify,auth=auth,data=data,files=files,timeout=timeout,json=json_data)
                     return True,r
@@ -6503,7 +6503,7 @@ def Pwd(cwd=None):
 def get_my_directory(cwd=None):
     return FILE().Path(cwd)
 
-def IsIn(find,dest,idx=False,default=False,sense=False):
+def IsIn(find,dest,idx=False,default=False,sense=False,startswith=False,endswith=False):
     '''Check key or value in the dict, list or tuple then True, not then False'''
     if isinstance(dest, (list,tuple,str)):
         if IsInt(idx,int):
@@ -6519,18 +6519,18 @@ def IsIn(find,dest,idx=False,default=False,sense=False):
                     return True
         else:
             for i in dest:
-                if IsSame(find,i,sense=sense): return True
+                if IsSame(find,i,sense=sense,startswith=startswith,endswith=endswith): return True
     elif isinstance(dest, dict):
         if idx in [None,'',False]:
             for i in dest:
-                if IsSame(find,i,sense=sense): return True
+                if IsSame(find,i,sense=sense,startswith=startswith,endswith=endswith): return True
         else:
             if Get(dest,idx,out='raw') == find:
                 return True
     return default
 
-def IsSame(src,dest,sense=False,order=False):
-    def _IsSame_(src,chk,sense=False):
+def IsSame(src,dest,sense=False,order=False,startswith=False,endswith=False):
+    def _IsSame_(src,chk,sense=False,startswith=False,endswith=False):
         src_type=type(src).__name__
         chk_type=type(chk).__name__
         if src_type == 'bytes' or chk_type == 'bytes':
@@ -6542,12 +6542,24 @@ def IsSame(src,dest,sense=False,order=False):
                 src=Bytes('{}'.format(src))
             if not sense:
                 src=src.lower()
-            if src == chk: return True
+            if src == chk:
+                return True
+            else:
+                if startswith is True:
+                    if chk.startswith(src): return True
+                elif endswith is True:
+                    if chk.endswith(src): return True
         else:
             if not sense and (isinstance(src,str) or isinstance(chk,str)):
                 src='{}'.format(src)
                 chk='{}'.format(chk)
-                if src.lower() == chk.lower(): return True
+                if src.lower() == chk.lower():
+                    return True
+                else:
+                    if startswith is True:
+                        if chk.startswith(src): return True
+                    elif endswith is True:
+                        if chk.endswith(src): return True
             if src == chk: return True
         return False
     if isinstance(src,(list,tuple)) and isinstance(dest,(list,tuple)):
@@ -6559,17 +6571,17 @@ def IsSame(src,dest,sense=False,order=False):
             for j in range(0,len(src)):
                 for i in range(0,len(dest)):
                     if (isinstance(src[j],dict) and isinstance(dest[j],dict)) or (isinstance(src[j],(list,tuple)) and isinstance(dest[j],(list,tuple))):
-                        if IsSame(src[j],dest[i],sense=sense,order=order):
+                        if IsSame(src[j],dest[i],sense=sense,order=order,startswith=startswith,endswith=endswith):
                             a[j]=None
                             b[i]=None
-                    elif _IsSame_(src[j],dest[i],sense):
+                    elif _IsSame_(src[j],dest[i],sense,startswith,endswith):
                         a[j]=None
                         b[i]=None
             if a.count(None) == len(a) and b.count(None) == len(b): return True
             return False
         else:
             for j in range(0,len(src)):
-                if not _IsSame_(src[j],dest[j],sense): return False
+                if not _IsSame_(src[j],dest[j],sense,startswith,endswith): return False
             return True
     elif isinstance(src,dict) and isinstance(dest,dict):
         if sense: return src == dest
@@ -6577,12 +6589,12 @@ def IsSame(src,dest,sense=False,order=False):
         for j in src:
             if j in dest:
                 if (isinstance(src[j],dict) and isinstance(dest[j],dict)) or (isinstance(src[j],(list,tuple)) and isinstance(dest[j],(list,tuple))):
-                    if not IsSame(src[j],dest[j],sense=sense,order=order): return False
+                    if not IsSame(src[j],dest[j],sense=sense,order=order,startswith=startswith,endswith=endswith): return False
                 else:
-                    if not _IsSame_(src[j],dest[j],sense): return False
+                    if not _IsSame_(src[j],dest[j],sense,startswith,endswith): return False
         return True
     else:
-        return _IsSame_(src,dest,sense)
+        return _IsSame_(src,dest,sense,startswith,endswith)
 
 def IsNone(src,**opts):
     value=opts.get('value',opts.get('chk_val',['',None]))
