@@ -32,7 +32,7 @@ import importlib
 import subprocess
 import traceback
 import fcntl,socket,struct
-import json as _json
+import json
 import email.utils
 import xml.etree.ElementTree as ET
 from sys import modules
@@ -1128,17 +1128,12 @@ class STR(str):
         return rt
 
     def Space(num=1,fill=' ',mode='space'):
-        if mode.lower() =='tap':
-            fill='\t'
-        tap=''
-        for i in range(0,num):
-            tap=tap+fill
-        return tap
+        return space(num,fill,mode)
 
     def Tap(self,space='',sym='\n',default=None,NFLT=False,out=str):
         # No First Line Tap (NFLT)
         if isinstance(space,int):
-            space=self.Space(space)
+            space=space(space)
         if isinstance(self.src,str):
             self.src=self.src.split(sym)
         if isinstance(self.src,(list,tuple)):
@@ -1156,7 +1151,7 @@ class STR(str):
         if IsNone(src,chk_val=['_#_'],chk_only=True): src=self.src
         if not isinstance(src,(str,list,tuple)): return src
         if isinstance(src,str): src=src.split(sym)
-        if isinstance(space,int): space=self.Space(space,mode=space_mode)
+        if isinstance(space,int): space=space(space,mode=space_mode)
         rt=[]
         # No First Line Tap (NFLT)
         if NFLT: rt.append('%s'%(src.pop(0)))
@@ -1229,7 +1224,7 @@ class STR(str):
             return default
         if IsNone(src,chk_val=['_#_'],chk_only=True): src=self.src
         if isinstance(src,str):
-            if isinstance(sym,bytes): sym=CONVERT(sym).Str()
+            if isinstance(sym,bytes): sym=Str(sym)
         elif isinstance(src,bytes):
             if isinstance(sym,str): sym=Bytes(sym,default={'org'})
         else:
@@ -1591,30 +1586,13 @@ class CONVERT:
         self.src=src
 
     def Int(self,default=False):
-        if isinstance(self.src,int): return self.src
-        if Type(self.src,('float','long','str')):
-            try:return int(self.src)
-            except: pass
-        if default == 'org' or default == {'org'}: return self.src
-        return default
+        return Int(self.src,default)
 
     def Str(self,default='org'):
         return Str(self.src,default=default,mode='force')
 
     def Ast(self,default=False,want_type=None):
-        if isinstance(self.src,str):
-            try:
-                return ast.literal_eval(self.src)
-            except:
-                if default == 'org' or default == {'org'}:
-                    return self.src
-                return default
-        if want_type:
-            if isinstance(self.src,want_type):
-                return self.src
-        if default == 'org' or default == {'org'}:
-            return self.src
-        return default
+        return string2data(self.src,default=default,want_type=want_type)
 
     def Form(self,default=False):
         return self.Ast(default=default)
@@ -1622,65 +1600,21 @@ class CONVERT:
     def Json(self,src='_#_',default=None):
         if IsNone(src,chk_val=['_#_'],chk_only=True): src=self.src
         try:
-            return _json.loads(src)
+            return json.loads(src)
         except:
             return default
 
     def Mac2Str(self,case='lower',default=False):
-        if MAC(self.src).IsV4():
-            if case == 'lower':
-                self.src=self.src.strip().replace(':','').replace('-','').lower()
-            else:
-                self.src=self.src.strip().replace(':','').replace('-','').upper()
-            return self.src
-        return default
+        return MAC(self.src).ToStr(case,default)
 
     def Str2Mac(self,case='lower',default=False,sym=':',chk=False):
-        if isinstance(self.src, str):
-            self.src=self.src.strip()
-            if len(self.src) in [12,17]:
-                self.src=self.src.replace(':','').replace('-','')
-                if len(self.src) == 12:
-                    #self.src=sym.join(self.src[i:i+2] for i in range(0,12,2))
-                    self.src=Join([self.src[i:i+2] for i in range(0,12,2)],symbol=sym)
-                if case == 'lower':
-                    self.src=self.src.lower()
-                else:
-                    self.src=self.src.upper()
-        if chk:
-            if not MAC(self.src).IsV4():
-                return  default
-        return self.src
+        return MAC(self.src).FromStr(case=case,default=default,sym=sym,chk=chk)
 
     def Size(self,unit='b:g',default=False):
-        try:
-            self.src=int(self.src)
-        except:
-            return default
-        unit_a=unit.lower().split(':')
-        if len(unit_a) != 2:
-            return False
-        def inc(sz):
-            return '%.1f'%(float(sz) / 1024)
-        def dec(sz):
-            return int(sz) * 1024
-        sunit=unit_a[0]
-        eunit=unit_a[1]
-        unit_m=['b','k','m','g','t','p']
-        si=unit_m.index(sunit)
-        ei=unit_m.index(eunit)
-        h=ei-si
-        for i in range(0,abs(h)):
-            if h > 0:
-                self.src=inc(self.src)
-            else:
-                self.src=dec(self.src)
-        return self.src
+        return sizeConvert(self.src,unit=unit)
 
     def Url(self):
-        if isinstance(self.src,str):
-            return self.src.replace('+','%2B').replace('?','%3F').replace('/','%2F').replace(':','%3A').replace('=','%3D').replace(' ','+')
-        return self.src
+        return str2url(self.src)
 
 class MAC:
     def __init__(self,src=None):
@@ -2034,7 +1968,7 @@ class IP:
             header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0, 0, size, 1)
             #data = struct.calcsize('bbHHh') * 'Q'
             data = size * 'Q'
-            my_checksum = checksum(CONVERT(header).Str() + data)
+            my_checksum = checksum(Str(header) + data)
             header = struct.pack('bbHHh', ICMP_ECHO_REQUEST, 0,
                                  socket.htons(my_checksum), size, 1)
             return header + Bytes(data)
@@ -2227,7 +2161,7 @@ def IsBytes(src):
 
 def IsJson(src):
     try:
-        _json.loads(src)
+        json.loads(src)
         return True
     except:
         return False
@@ -2244,7 +2178,7 @@ def IsCancel(func):
 def IsXml(src):
     firstLine=file_rw(src,out='string',read='firstline')
     if firstLine is False:
-        filename_str=CONVERT(src).Str()
+        filename_str=Str(src)
         if isinstance(filename_str,str):
             firstLine=filename_str.split('\n')[0]
     if isinstance(firstLine,str) and firstLine.split(' ')[0] == '<?xml': return True
@@ -2542,7 +2476,7 @@ class HOST:
             except:
                 pass
         #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        return CONVERT('%012x' % uuid.getnode()).Str2Mac()
+        return MAC('%012x' % uuid.getnode()).FromStr()
 
     def DevName(self,mac=None,default=None):
         if IsNone(mac):
@@ -2897,7 +2831,7 @@ class FILE:
                             with open(name,'rb') as f:
                                 data=f.read()
                         if out in ['string','str']:
-                            return True,CONVERT(data).Str()
+                            return True,Str(data)
                         else:
                             return True,data
                     except:
@@ -3556,7 +3490,7 @@ class SCREEN:
                 with open(log_file,'rb') as f:
                     tmp=f.read()
                 #tmp=_u_byte2str(tmp)
-                tmp=CONVERT(tmp).Str()
+                tmp=Str(tmp)
                 if '\x1b' in tmp:
                     tmp_a=tmp.split('\x1b')
                 elif '\r\n' in tmp:
@@ -3841,7 +3775,7 @@ def Get(*inps,**opts):
                 rt.append(src.status_code)
             elif ikey in ['data','value']:
                 try:
-                    rt.append(_json.loads(src.text))
+                    rt.append(json.loads(src.text))
                 except:
                     if err in [True,'True','err']: return default
                     rt.append(src.text)
@@ -5542,11 +5476,19 @@ def isfile(filename=None):
       return True
    return False
 
-def space(space_num=0,_space_='   '):
-    space_str=''
-    for ii in range(space_num):
-        space_str='{0}{1}'.format(space_str,_space_)
-    return space_str
+def space(num=4,fill=' ',mode='space'):
+    if mode.lower() =='tap':
+        fill='\t'
+    tap=''
+    for i in range(0,num):
+        tap=tap+fill
+    return tap
+
+#def space(space_num=0,_space_='   '):
+#    space_str=''
+#    for ii in range(space_num):
+#        space_str='{0}{1}'.format(space_str,_space_)
+#    return space_str
 
 def tap_print(string,bspace='',rc=False,NFLT=False):
     rc_str=None
@@ -6393,8 +6335,21 @@ def gen_random_string(length=8,letter='*',digits=True,symbols=True,custom=''):
     if symbols:mode=mode+'char'
     return Random(length=length,strs=custom,mode=mode,letter=letter)
 
-def string2data(string,default='org',want_type=None):
-    return CONVERT(string).Ast(default=default,want_type=want_type)
+def string2data(src,default='org',want_type=None):
+    if isinstance(src,str):
+        try:
+            return ast.literal_eval(src)
+        except:
+            try:
+                return json.loads(src)
+            except:
+                if default in ['org',{'org'}]: return src
+                return default
+    if want_type:
+        if isinstance(src,want_type): return src
+    if default in ['org',{'org'}]: return src
+    return default
+
 
 def str2url(string):
     return WEB().str2url(string)
@@ -6451,7 +6406,29 @@ def append2list(*inps,**opts):
     return LIST(inps[0]).Append(*inps[1:],**opts)
 
 def sizeConvert(sz=None,unit='b:g'):
-    return CONVERT(sz).Size(unit=unit)
+    try:
+        sz=int(sz)
+    except:
+        return default
+    unit_a=unit.lower().split(':')
+    if len(unit_a) != 2:
+        return False
+    def inc(sz):
+        return '%.1f'%(float(sz) / 1024)
+    def dec(sz):
+        return int(sz) * 1024
+    sunit=unit_a[0]
+    eunit=unit_a[1]
+    unit_m=['b','k','m','g','t','p']
+    si=unit_m.index(sunit)
+    ei=unit_m.index(eunit)
+    h=ei-si
+    for i in range(0,abs(h)):
+        if h > 0:
+            sz=inc(sz)
+        else:
+            sz=dec(sz)
+    return sz
 
 def list2str(arr):
     return Join(arr,symbol=' ')
@@ -6471,11 +6448,32 @@ def _u_byte2str(val,encode='latin1'):
 def CompVersion(src,compare_symbol,dest,compare_range='dest',version_symbol='.'):
     return VERSION().Compare(src,compare_symbol,dest,compare_range=compare_range,version_symbol=version_symbol)
 
-def Int(i,default={'org'}):
-    return CONVERT(i).Int(default=default)
+def Int(i,default={'org'},sym=None):
+    if isinstance(i,int): return i
+    if isinstance(i,str):
+        if sym:
+            i=i.split(sym)
+        else:
+            try:
+                return int(i)
+            except:
+                pass
+    if isinstance(i,(list,tuple)):
+        tuple_out=False
+        if isinstance(i,tuple): tuple_out=True
+        rt=[]
+        for a in i:
+           try:
+               rt.append(int(a))
+           except:
+               rt.append(a)
+        if tuple_out: return tuple(rt)
+        return rt
+    if default in ['org',{'org'}]: return i
+    return default
 
 def integer(a,default=0):
-    return CONVERT(a).Int(default=default)
+    return Int(a,default=default)
 
 def Lower(src,default='org'):
     if isinstance(src,str): return src.lower()
@@ -6789,6 +6787,97 @@ def argtype(arg,want='_',get_data=['_']):
 
 def get_function_args(func,mode='defaults'):
     return FArgs(func,mode=mode)
+
+def Var(src,obj=None,default=None,mode='all',VarType=None):
+    if IsNone(obj):
+        obj=sys.modules.get('__main__',default)
+    elif isinstance(obj,str):
+        obj=sys.modules.get(obj,default)
+    if obj == default: return default
+    if Type(obj,'class','function','instance'):
+        ARGS=Args(obj,default={})
+        for tt in ARGS:
+            if src in ARGS[tt] and isinstance(ARGS[tt],dict):
+                rc=ARGS[tt].get(src)
+                if VarType:
+                    if not Type(rc,VarType): default
+                return rc
+    else:
+        if Type(src,'function','instance'):
+            inspst=inspect.stack()
+            global_var={}
+            vdict=dict(inspect.getmembers(inspst[-2][0])).get("f_locals",{})
+            for i in vdict:
+                if i not in ['global_var','inspst','__cached__','__file__','__annotations__','__spec__','__loader__','__doc__','__package__','__name__','VarType','mode','default'] and not Type(vdict[i],'module','class','function'):
+                    if i not in global_var: global_var[i]=vdict[i]
+            vdict=dict(inspect.getmembers(inspst[-2][0])).get("f_global",{})
+            for i in vdict:
+                if i not in ['global_var','inspst','__cached__','__file__','__annotations__','__spec__','__loader__','__doc__','__package__','__name__'] and not Type(vdict[i],'module','class','function'):
+                    if i not in global_var: global_var[i]=vdict[i]
+            vdict=dict(inspect.getmembers(inspst[-1][0])).get('f_globals')
+            for i in vdict:
+                if i not in ['global_var','inspst','__cached__','__file__','__annotations__','__spec__','__loader__','__doc__','__package__','__name__'] and not Type(vdict[i],'module','class','function'):
+                    if i not in global_var: global_var[i]=vdict[i]
+
+            ARGS=Args(src)
+            arg_l=[]
+            arg_d={}
+            for tt in ARGS:
+                if tt == 'args':
+                    for ii in ARGS[tt]:
+                        if global_var and ii in global_var:
+                            arg_l.append(global_var[ii])
+                        else:
+                            arg_l.append(None)
+                else:
+                    for ii in ARGS[tt]:
+                        if global_var and ii in global_var:
+                            arg_d[ii]=global_var[ii]
+            gvar=default
+            if 'args' in ARGS and 'keywards' in ARGS:
+                gvar=src(*arg_l,**global_var)
+            elif 'args' in ARGS and 'defaults' in ARGS:
+                gvar=src(*arg_l,**arg_d)
+            elif 'keywards' in ARGS:
+                gvar=src(**global_var)
+            elif 'args' in ARGS:
+                gvar=src(*arg_l)
+            elif 'defaults' in ARGS:
+                gvar=src(**arg_d)
+            else:
+                gvar=src()
+            if gvar != default:
+                if VarType:
+                    if not Type(gvar,VarType): return default
+                return gvar
+        elif Type(src,'str'):
+            inspst=inspect.stack()
+            if mode != 'global':
+                # Inside Function's variable
+                local_var=dict(inspect.getmembers(inspst[-2][0]))["f_locals"].get(src,default)
+                if local_var != default:
+                    if VarType:
+                        if not Type(local_var,VarType): return default
+                    return local_var
+            if mode != 'local':
+                # Global Variable
+                global_var=dict(inspect.getmembers(inspst[-2][0]))["f_globals"].get(src,default)
+                if global_var != default:
+                    if VarType:
+                        if not Type(global_var,VarType): return default
+                    return global_var
+            if mode != 'top':
+                # Parent Global Variable
+                top_var=dict(inspect.getmembers(inspst[-1][0]))["f_globals"].get(src,default)
+                if top_var != default:
+                    if VarType:
+                        if not Type(top_var,VarType): return default
+                    return top_var
+        else:
+            if VarType:
+                if not Type(src,VarType): return default
+            return src
+    return default
 
 
 #print(FList().keys())
