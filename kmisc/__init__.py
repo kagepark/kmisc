@@ -97,13 +97,7 @@ def OutFormat(data,out=None,strip=False,peel=None):
         if isinstance(data,dict): return data
     elif out == 'raw' or IsNone(out):
         if IsNone(peel): peel=True
-#        if isinstance(data,dict) and len(data) == 1 and len(list(data.values())) == 1 and not isinstance(list(data.values())[0],(dict,list,tuple)):
-#            return __strip__(__peel__(data.values(),True),strip)
         return __strip__(__peel__(data,peel),strip)
-       # if isinstance(data,(list,tuple)) and len(data) == 1:
-       #     return data[0]
-       # elif isinstance(data,dict) and len(data) == 1:
-       #     return data.values()[0]
     elif out in ['str',str]:
         return '''{}'''.format(__strip__(__peel__(data,peel),strip))
     elif out in ['int',int]:
@@ -112,54 +106,6 @@ def OutFormat(data,out=None,strip=False,peel=None):
         except:
             pass
     return __strip__(__peel__(data,peel),strip)
-
-#def OutFormat(data,out=None,strip=False,peel=None):
-#    def __peel__(data,peel):
-#        if peel:
-#            if isinstance(data,dict) and len(data) == 1 and len(list(data.values())) == 1 and not isinstance(list(data.values())[0],(dict,list,tuple)):
-#                data=data.values()
-#            if isinstance(data,(list,tuple)) and len(data)==1:
-#                return data[0]
-#            elif type(data).__name__ == 'dict_values' and len(data)==1:
-#                return list(data)[0]
-#        return data
-# 
-#    def __strip__(data,strip):
-#        if strip:
-#            if isinstance(data,(str,bytes)) and len(data) > 0:
-#                return data.strip()
-#        return data
-# 
-#    if out in [tuple,'tuple']:
-#        if not isinstance(data,list):
-#            return tuple(data)
-#        elif not isinstance(data,tuple):
-#            return (data,)
-#        return data
-#    elif out in [list,'list']:
-#        if not isinstance(data,tuple):
-#            return list(data)
-#        elif not isinstance(data,list):
-#            return [data]
-#        return data
-#    #elif out in ['raw',None]:
-#    elif out == 'raw' or IsNone(out):
-#        if IsNone(peel): peel=True
-#         if isinstance(data,dict) and len(data) == 1 and len(list(data.values())) == 1 and not isinstance(list(data.values())[0],(dict,list,tuple)):
-#             return __strip__(__peel__(data.values(),True),strip)
-#        return __strip__(__peel__(data,peel),strip)
-#       # if isinstance(data,(list,tuple)) and len(data) == 1:
-#       #     return data[0]
-#       # elif isinstance(data,dict) and len(data) == 1:
-#       #     return data.values()[0]
-#    elif out in ['str',str]:
-#        return '''{}'''.format(__strip__(__peel__(data,peel),strip))
-#    elif out in ['int',int]:
-#        try:
-#            return int(__strip__(__peel__(data,peel),strip))
-#        except:
-#            pass
-#    return __strip__(__peel__(data,peel),strip)
 
 def Abs(*inps,**opts):
     default=opts.get('default',None)
@@ -271,6 +217,21 @@ def Abs(*inps,**opts):
         elif isinstance(obj,dict):
             return list(obj.keys())
     return default
+
+def cli_input(msg,**opts):
+    hidden=opts.get('hidden',False)
+    if hidden:
+        if sys.stdin.isatty():
+            p = getpass.getpass(msg)
+        else:
+            printf(msg,end_line='')
+            p = sys.stdin.readline().rstrip()
+    else:
+        if PyVer(2):
+            p=raw_input(msg)
+        else:
+            p=input(msg)
+    return p
 
 def ObjName(obj,default=None,chk=False):
     if obj and isinstance(obj,str):
@@ -1128,48 +1089,15 @@ class STR(str):
         return rt
 
     def Space(num=1,fill=' ',mode='space'):
-        return space(num,fill,mode)
-
-    def Tap(self,space='',sym='\n',default=None,NFLT=False,out=str):
-        # No First Line Tap (NFLT)
-        if isinstance(space,int):
-            space=space(space)
-        if isinstance(self.src,str):
-            self.src=self.src.split(sym)
-        if isinstance(self.src,(list,tuple)):
-            rt=[]
-            if NFLT:
-                rt.append(self.src.pop(0))
-            for ii in self.src:
-                rt.append('%s%s'%(space,ii))
-            #if rt and out in [str,'str']: return sym.join(rt)
-            if rt and out in [str,'str']: return Join(rt,symbol=sym)
-            return rt
-        return default
-
-    def Wrap(self,src='_#_',space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
-        if IsNone(src,chk_val=['_#_'],chk_only=True): src=self.src
-        if not isinstance(src,(str,list,tuple)): return src
-        if isinstance(src,str): src=src.split(sym)
-        if isinstance(space,int): space=space(space,mode=space_mode)
-        rt=[]
-        # No First Line Tap (NFLT)
-        if NFLT: rt.append('%s'%(src.pop(0)))
-        for ii in src:
-            rt.append('%s%s'%(space,ii))
-        #if rt and out in [str,'str']: return sym.join(rt)
-        if rt and out in [str,'str']: return Join(rt,symbol=sym)
-        return rt
+        return Space(num,fill,mode)
 
     def Reduce(self,start=0,end=None,sym=None,default=None):
         if isinstance(self.src,str):
             if sym:
                 arr=self.src.split(sym)
                 if isinstance(end,int):
-                    #return sym.join(arr[start:end])
                     return Join(arr[start:end],symbol=sym)
                 else:
-                    #return sym.join(arr[start])
                     return Join(arr[start],symbol=sym)
             else:
                 if isinstance(end,int):
@@ -1211,12 +1139,6 @@ class STR(str):
                 return head + replace_to + tail
         return default
 
-#    def Split(self,sym=None):
-#        if isinstance(self.src,str):
-#            try:
-#                return re.split(sym,self.src) # splited by '|' or expression
-#            except:
-#                return self.src.split(sym)
     def Split(self,sym,src='_#_',default='org'):
         if not isinstance(sym,str):
             if default in ['org',{'org'}]:
@@ -1277,6 +1199,15 @@ class STR(str):
             return Join(src_a,symbol='')
         return src
 
+    def Wrap(self,src='_#_',space='',space_mode='space',sym='\n',default='org',NFLT=False,out=str):
+        if isinstance(space,str):
+            space=len(space)
+        return WrapString(fspace=space,nspace=space,new_line=sym,NFLT=NFLT,mode=space_mode)
+
+    def Tap(self,space='',sym='\n',default='org',NFLT=False,out=str):
+        if isinstance(space,str):
+            space=len(space)
+        return WrapString(fspace=space,nspace=space,new_line=sym,NFLT=NFLT)
 
 class TIME:
     def __init__(self,src=None):
@@ -1592,7 +1523,7 @@ class CONVERT:
         return Str(self.src,default=default,mode='force')
 
     def Ast(self,default=False,want_type=None):
-        return string2data(self.src,default=default,want_type=want_type)
+        return TypeData(self.src,default,want_type)
 
     def Form(self,default=False):
         return self.Ast(default=default)
@@ -4561,7 +4492,7 @@ def format_print(string,rc=False,num=0,bstr=None,NFLT=False):
     string_type=type(string)
     rc_str=''
     chk=None
-    bspace=space(num)
+    bspace=Space(num)
 
     # Start Symbol
     if string_type is tuple:
@@ -5476,19 +5407,15 @@ def isfile(filename=None):
       return True
    return False
 
-def space(num=4,fill=' ',mode='space'):
-    if mode.lower() =='tap':
+def Space(num=4,fill=None,mode='space',tap=''):
+    mode=mode.lower()
+    if mode =='tap':
         fill='\t'
-    tap=''
+    elif mode == 'space' or fill is None:
+        fill=' '
     for i in range(0,num):
         tap=tap+fill
     return tap
-
-#def space(space_num=0,_space_='   '):
-#    space_str=''
-#    for ii in range(space_num):
-#        space_str='{0}{1}'.format(space_str,_space_)
-#    return space_str
 
 def tap_print(string,bspace='',rc=False,NFLT=False):
     rc_str=None
@@ -5587,47 +5514,6 @@ def reduce_string(string,symbol=' ',snum=0,enum=None):
 
 def findstr(string,find,prs=None,split_symbol='\n',patern=True):
     return FIND(string).Find(find,sym=split_symbol,prs=prs,peel=False)
-#    # Patern return selection (^: First(0), $: End(-1), <int>: found item index)
-#    found=[]
-#    if not isinstance(string,str): return []
-#    if split_symbol:
-#        string_a=string.split(split_symbol)
-#    else:
-#        string_a=[string]
-#    for nn in string_a:
-#        if isinstance(find,(list,tuple)):
-#            find=list(find)
-#        else:
-#            find=[find]
-#        for ff in find:
-#            if patern:
-#                aa=re.compile(ff).findall(nn)
-#                for mm in aa:
-#                    if isinstance(mm,tuple):
-#                        if prs == '^':
-#                            found.append(mm[0])
-#                        elif prs == '$':
-#                            found.append(mm[-1])
-#                        elif isinstance(prs,int):
-#                            found.append(mm[prs])
-#                        else:
-#                            found.append(mm)
-#                    else:
-#                        found.append(mm)
-#            else:
-#                find_a=ff.split('*')
-#                if len(find_a[0]) > 0:
-#                    if find_a[0] != nn[:len(find_a[0])]:
-#                        chk=False
-#                if len(find_a[-1]) > 0:
-#                    if find_a[-1] != nn[-len(find_a[-1]):]:
-#                        chk=False
-#                for ii in find_a[1:-1]:
-#                    if ii not in nn:
-#                        chk=False
-#                if chk:
-#                    found.append(nn)
-#    return found
 
 def find_cdrom_dev(size=None):
     load_kmod(['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage'])
@@ -6335,21 +6221,55 @@ def gen_random_string(length=8,letter='*',digits=True,symbols=True,custom=''):
     if symbols:mode=mode+'char'
     return Random(length=length,strs=custom,mode=mode,letter=letter)
 
-def string2data(src,default='org',want_type=None):
-    if isinstance(src,str):
+def TypeData(src,default='org',want_type=None,spliter=None):
+    '''Convert (input)data to want type (ex: str -> list, int, ...), can not convert to type then return False'''
+    if want_type is str and spliter and isinstance(src,(list,tuple)):
+        return spliter.join(src)
+    elif want_type is str and not isinstance(src,str):
+        return '''{}'''.format(src)
+    elif want_type is int and not isinstance(src,int):
+        try:
+            return int(src)
+        except:
+            if default in ['org',{'org'}]: return src
+            return default
+    elif want_type in [list,tuple] and isinstance(src,str) and isinstance(spliter,str):
+        if want_type is tuple:
+            return tuple(src.split(spliter))
+        return src.split(spliter)
+    elif want_type is tuple and isinstance(src,(list,dict)):
+        if isinstance(src,dict):
+            if spliter == 'key':
+                return tuple(src.keys())
+            elif spliter == 'value':
+                return tuple(src.values())
+            else:
+                return tuple(src.items())
+        return tuple(src)
+    elif want_type is list and isinstance(src,(tuple,dict)):
+        if isinstance(src,dict):
+            if spliter == 'key':
+                return list(src.keys())
+            elif spliter == 'value':
+                return list(src.values())
+            else:
+                return list(src.items())
+        return list(src)
+    elif want_type:
+        if isinstance(src,want_type): return src
+    elif isinstance(src,str):
         try:
             return ast.literal_eval(src)
         except:
             try:
                 return json.loads(src)
             except:
-                if default in ['org',{'org'}]: return src
-                return default
-    if want_type:
-        if isinstance(src,want_type): return src
+                pass
     if default in ['org',{'org'}]: return src
     return default
 
+def string2data(src,default='org',want_type=None,spliter=None):
+    return TypeData(src,default,want_type,spliter)
 
 def str2url(string):
     return WEB().str2url(string)
@@ -6448,16 +6368,15 @@ def _u_byte2str(val,encode='latin1'):
 def CompVersion(src,compare_symbol,dest,compare_range='dest',version_symbol='.'):
     return VERSION().Compare(src,compare_symbol,dest,compare_range=compare_range,version_symbol=version_symbol)
 
-def Int(i,default={'org'},sym=None):
+def Int(i,default='org',sym=None):
     if isinstance(i,int): return i
-    if isinstance(i,str):
-        if sym:
-            i=i.split(sym)
-        else:
-            try:
-                return int(i)
-            except:
-                pass
+    if isinstance(i,str) and sym:
+        i=i.split(sym)
+    else:
+        try:
+            return int(i)
+        except:
+            pass
     if isinstance(i,(list,tuple)):
         tuple_out=False
         if isinstance(i,tuple): tuple_out=True
@@ -6878,6 +6797,34 @@ def Var(src,obj=None,default=None,mode='all',VarType=None):
                 if not Type(src,VarType): return default
             return src
     return default
+
+def WrapString(string,fspace=0,nspace=0,new_line='\n',flength=0,nlength=0,ntap=0,NFLT=False,mode='space'):
+    def _Tap_(src,length=0,ntap=0,start=0,space=0,mode='space'):
+        rc_str=[]
+        ss=Space(start,mode=mode)
+        if length > 0 and len(src)//length > 0:
+            jj=0
+            for jj in range(0,len(src)//length):
+                rc_str.append(ss+src[length*jj:(length*(jj+1))])
+                if ntap:
+                   ss=Space(space,mode=mode)+Space(ntap,mode=mode)
+                   ntap=0
+            rc_str.append(ss+src[(length*(jj+1)):])
+        else:
+            rc_str.append(ss+src)
+        return rc_str
+
+    if isinstance(string,str) and len(string) > 0:
+        rc_str=[]
+        string_a=string.split(new_line)
+        #First line design
+        if NFLT: fspace=0
+        rc_str=rc_str+_Tap_(string_a[0],length=flength,ntap=ntap,start=fspace,space=nspace,mode=mode)
+        #Body line design
+        for ii in string_a[1:]:
+            rc_str=rc_str+_Tap_(ii,length=nlength,ntap=ntap,start=nspace,space=nspace,mode=mode)
+        return new_line.join(rc_str)
+    return Space(fspace)+'''{}'''.format(string)
 
 
 #print(FList().keys())
