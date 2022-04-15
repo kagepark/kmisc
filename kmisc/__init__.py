@@ -6256,8 +6256,9 @@ def TypeData(src,default='org',want_type=None,spliter=None):
                 return list(src.items())
         return list(src)
     elif want_type:
-        if isinstance(src,want_type): return src
-    elif isinstance(src,str):
+        if isinstance(src,want_type):
+            return src
+    if isinstance(src,str):
         try:
             return ast.literal_eval(src)
         except:
