@@ -3119,51 +3119,68 @@ class WEB:
         # remove SSL waring error message (test)
         self.requests.packages.urllib3.disable_warnings()
 
+        log=opts.get('log',None)
+        log_level=opts.get('log_level',8)
+        ip=opts.get('ip',None)
+        port=opts.get('port',None)
         mode=opts.get('mode','get')
         max_try=opts.get('max_try',3)
         auth=opts.get('auth',None)
         user=opts.get('user',None)
-        ip=opts.get('ip',None)
-        port=opts.get('port',None)
         passwd=opts.get('passwd',None)
-        timeout=opts.get('timeout',None)
-        https=opts.get('https',False)
-        verify=opts.get('verify',True)
         request_url=opts.get('request_url',None)
-        log=opts.get('log',None)
-        log_level=opts.get('log_level',8)
         logfile=opts.get('logfile',None)
         ping=opts.get('ping',False)
-        if https:
-            verify=False
+        timeout=opts.get('timeout')
+        req_data={}
+        if isinstance(timeout,int): req_data['timeout']=timeout
+        if opts.get('https'): req_data['verify']=False
         if IsNone(auth) and user and passwd:
             if type(user) is not str or type(passwd) is not str:
-                printf("user='<user>',passwd='<pass>' : format(each string)",dsp='e',log=log,log_level=log_level,logfile=logfile)
                 return False,"user='<user>',passwd='<pass>' : format(each string)"
-            auth=(user,passwd)
-        if auth and type(auth) is not tuple:
-            printf("auth=('<user>','<pass>') : format(tuple)",dsp='e',log=log,log_level=log_level,logfile=logfile)
-            return False,"auth=('<user>','<pass>') : format(tuple)"
+            req_data['auth']=(user,passwd)
+        if auth:
+            if not isinstance(auth,tuple):
+                return False,"auth=('<user>','<pass>') : format(tuple)"
+            req_data['auth']=opts.get('auth')
         data=opts.get('data',None) # dictionary format
-        if data and type(data) is not dict:
-            printf("data={'<key>':'<val>',...} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
-            return False,"data={'<key>':'<val>',...} : format(dict)"
+        if data:
+            if not isinstance(data,dict):
+                return False,"data={'<key>':'<val>',...} : format(dict)"
+            req_data['data']=opts.get('data')
         json_data=opts.get('json',None) # dictionary format
-        if json_data and type(json_data) is not dict:
-            printf("data={'<key>':'<val>',...} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
-            return False,"json={'<key>':'<val>',...} : format(dict)"
+        if json_data:
+            if not isinstance(json_data,dict):
+                return False,"json={'<key>':'<val>',...} : format(dict)"
+            req_data['json']=opts.get('json_data')
         files=opts.get('files',None) # dictionary format
-        if files and type(files) is not dict:
-            printf("files = { '<file parameter name>': (<filename>, open(<filename>,'rb'))} : format(dict)",dsp='e',log=log,log_level=log_level,logfile=logfile)
-            return False,"files = { '<file parameter name>': (<filename>, open(<filename>,'rb'))} : format(dict)"
+        if files:
+            if not isinstance(files,dict):
+                return False,"files = { '<file parameter name>': (<filename>, open(<filename>,'rb'))} : format(dict)"
+            req_data['files']=opts.get('files')
+        headers=opts.get('headers') # dictionary format
+        if headers:
+            if isinstance(headers,str):
+                if headers == 'json':
+                    headers={ "Content-Type": "application/json"}
+                    if data:
+                        data=json.dumps(data)
+                        req_data['data']=data
+                    elif json_data:
+                        data=json.dumps(json_data)
+                        if 'json' in req_data: req_data.pop('json')
+                        req_data['data']=data
+            if not isinstance(headers,dict):
+                return False,'headers = { "Content-Type": "application/json"} : format(dict)'
+            req_data['headers']=headers
         if type(host_url) is str:
             chk_dest=re.compile('http[s]://([a-zA-Z0-9.]*)[:/]').findall(host_url)
             if len(chk_dest): chk_dest=chk_dest[0]
             if host_url.find('https://') == 0:
-                verify=False
+                req_data['verify']=False
         elif ip:
             chk_dest='{}'.format(ip)
-            if verify:
+            if opts.get('verify',True):
                 host_url='http://{}'.format(ip)
             else:
                 host_url='https://{}'.format(ip)
@@ -3178,18 +3195,16 @@ class WEB:
                 return False,'Can not access to destination({})'.format(chk_dest)
         ss = self.requests.Session()
         for j in range(0,max_try):
-            if IsSame(mode,'post'):
-                try:
-                    r =ss.post(host_url,verify=verify,auth=auth,data=data,files=files,timeout=timeout,json=json_data)
-                    return True,r
-                except:
-                    pass
-            else:
-                try:
-                    r =ss.get(host_url,verify=verify,auth=auth,data=data,files=files,timeout=timeout,json=json_data)
-                    return True,r
-                except:
-                    pass
+            try:
+                if IsSame(mode,'post'):
+                    r =ss.post(host_url,**req_data)
+                elif IsSame(mode,'patch'):
+                    r =ss.patch(host_url,**req_data)
+                else:
+                    r =ss.get(host_url,**req_data)
+                return True,r
+            except:
+                pass
             #except requests.exceptions.RequestException as e:
             host_url_a=host_url.split('/')[2]
             server_a=host_url_a.split(':')
