@@ -3180,7 +3180,7 @@ class WEB:
                 req_data['verify']=False
         elif ip:
             chk_dest='{}'.format(ip)
-            if opts.get('verify',True):
+            if req_data.get('verify',True):
                 host_url='http://{}'.format(ip)
             else:
                 host_url='https://{}'.format(ip)
