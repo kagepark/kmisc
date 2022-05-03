@@ -3152,7 +3152,7 @@ class WEB:
         if json_data:
             if not isinstance(json_data,dict):
                 return False,"json={'<key>':'<val>',...} : format(dict)"
-            req_data['json']=opts.get('json_data')
+            req_data['json']=json_data
         files=opts.get('files',None) # dictionary format
         if files:
             if not isinstance(files,dict):
