@@ -2021,7 +2021,7 @@ class IP:
                   chk_sec=TIME().Now(int)
                   if log_type == 'function':
                       log('x',direct=True,log_level=1)
-                  else:
+                  elif log_format == '.':
                       sys.stdout.write('x')
                       sys.stdout.flush()
                if init_sec:
@@ -2356,9 +2356,7 @@ class HOST:
         return default
 
     def Ip(self,ifname=None,mac=None,default=None):
-        #if ifname is None: 
         if IsNone(ifname):
-            #if mac is None : mac=self.Mac()
             if IsNone(mac) : mac=self.Mac()
             ifname=self.DevName(mac)
 
@@ -2376,7 +2374,7 @@ class HOST:
                 try:
                     return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
                 except:
-                    pass
+                    return default
         return socket.gethostbyname(socket.gethostname())
 
     def IpmiIp(self,default=None):
@@ -2395,7 +2393,7 @@ class HOST:
         if IP(ip).IsV4():
             dev_info=self.NetDevice()
             for dev in dev_info.keys():
-                if self.Ip(dev) == ip:
+                if self.Ip(ifname=dev) == ip:
                     return dev_info[dev]['mac']
         #ip or anyother input of device then getting default gw's dev
         if IsNone(dev): dev=self.DefaultRouteDev()
@@ -2405,7 +2403,7 @@ class HOST:
                 info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', Bytes(dev[:15])))
                 return Join(['%02x' % ord(char) for char in Str(info[18:24])],symbol=':')
             except:
-                pass
+                return default
         #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
         return MAC('%012x' % uuid.getnode()).FromStr()
 
