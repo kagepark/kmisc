@@ -6840,6 +6840,34 @@ def WrapString(string,fspace=0,nspace=0,new_line='\n',flength=0,nlength=0,ntap=0
         return new_line.join(rc_str)
     return Space(fspace)+'''{}'''.format(string)
 
+def Dict(*inp,**opt):
+    src={}
+    if len(inp) > 1:
+        src=inp[0]
+    if isinstance(src,dict):
+        if type(src).__name__ == 'QueryDict': # Update data at request.data of Django
+            try:
+                src._mutable=True
+            except:
+                sys.stderr.write("src(QueryDict) not support _mutable=True parameter\n")
+                sys.stderr.flush()
+        for dest in inp[1:]:
+            if not isinstance(dest,dict): continue
+            for i in dest:
+                if i in src and isinstance(src[i],dict) and isinstance(dest[i],dict):
+                    src[i]=Dict(src[i],dest[i])
+                else:
+                    src[i]=dest[i]
+    else:
+        src={}
+    if opt:
+        for i in opt:
+            if i in src and isinstance(src[i],dict) and isinstance(opt[i],dict):
+                src[i]=Dict(src[i],opt[i])
+            else:
+                src[i]=opt[i]
+    return src
+
 
 #print(FList().keys())
 #print(Get((0,1,2,3),'0|rc'))
