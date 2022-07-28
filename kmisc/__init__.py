@@ -4315,8 +4315,8 @@ def sprintf(string,*inps,**opts):
                 mx=0
                 for z in tmp:
                     if int(z) > mx: mx=int(z)
-                if inp:
-                    if len(inp) > mx: return string.format(*inp)
+                if inps:
+                    if len(inps) > mx: return string.format(*inps)
                 elif opts:
                     if len(opts) > mx: return string.format(*opts.values())
                 return False,"Need more input (tuple/list) parameters(require {})".format(mx)
@@ -4359,9 +4359,9 @@ def sprintf(string,*inps,**opts):
                 #return True,' '.join(string_a)
                 return True,Join(string_a,symbol=' ')
             elif i == 3:
-                if inp:
-                    if len(tmp) == len(inp): return string.format(*inp)
-                    return False,"Mismatched input (tuple/list) number (require:{}, input:{})".format(len(tmp),len(inp))
+                if inps:
+                    if len(tmp) == len(inps): return string.format(*inps)
+                    return False,"Mismatched input (tuple/list) number (require:{}, input:{})".format(len(tmp),len(inps))
                 elif opts:
                     if len(tmp) == len(opts): return string.format(*opts.values())
                     return False,"Mismatched input (tuple/list) number (require:{}, input:{})".format(len(tmp),len(opts))
