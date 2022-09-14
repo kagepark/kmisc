@@ -631,15 +631,9 @@ class FIND:
         # if src is instance or classobj then search in description and made function name at key
         if isinstance(src,(list,tuple)):
             rt=[]
-            for i in range(0,len(self.root)):
-                for j in inps:
-                    j=j.replace('*','.+').replace('?','.')
-                    mm=re.compile(j)
-                    if bool(re.match(mm,self.root[i])):
-                        if mode in ['index','idx']:
-                            rt.append(i)
-                        else:
-                            rt.append(src[i])
+            for i in range(0,len(src)):
+                a=self.Find(find,src[i],sym=sym,default=default,out=out,findall=findall,word=word,mode=mode,prs=prs,line_num=line_num,peel=peel,idx=idx)
+                if a: rt=rt+a
             if len(rt):
                 return rt
         elif isinstance(src,dict):
@@ -6167,8 +6161,11 @@ def pipe_msg(**opts):
     m={}
     if not pipe_file: return False
     if os.path.isfile(pipe_file):
-        with open(pipe_file,'rb') as f:
-            m=pickle.load(f)
+        try:
+            with open(pipe_file,'rb') as f:
+                m=pickle.load(f)
+        except:
+            pass
     if opts:
         m.update(opts)
         with open(pipe_file,'wb') as f:
