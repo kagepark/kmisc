@@ -3231,9 +3231,13 @@ class WEB:
         return src
 
 class EMAIL:
-    # Port Info
-    # GMAIL TTLS : 587
-    # Postfix    : 25
+    ############################
+    # GMAIL Information
+    # server  : smtp.gmail.com
+    # SSL Port: 465
+    # user    : email address
+    # password: email password
+    ############################
     def __init__(self,server='127.0.0.1',port=25,user=None,password=None,ssl=False,tls=False):
         self.server=server
         self.port=port
