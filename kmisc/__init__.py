@@ -2927,13 +2927,13 @@ class FILE:
                 return False
         return True
 
-    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None):
+    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None,force=False):
         if IsNone(filename):
             filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
         dir_name=os.path.dirname(filename)
         file_name=os.path.basename(filename)
         name, ext = os.path.splitext(file_name)
-        if type(suffix) is not str:
+        if type(suffix) is not str or force is True:
             suffix='-XXXXXXXX'
         num_type='.%0{}d'.format(len(suffix)-1)
         if dir_name == '.':
@@ -2948,15 +2948,16 @@ class FILE:
             if ext2:
                 return '{}{}'.format(name,ext2)
             return name
-        def new_dest(dest_dir,name,ext=None):
+        def new_dest(dest_dir,name,ext=None,force=False):
             if os.path.isdir(dest_dir) is False:
                 return False
             i=0
             new_file=new_name(name,ext)
             while True:
                 rfile=os.path.join(dest_dir,new_file)
-                if os.path.exists(rfile) is False:
+                if force is False and os.path.exists(rfile) is False:
                     return rfile
+                force=False
                 if suffix:
                     if '0' in suffix or 'n' in suffix or 'N' in suffix:
                         if suffix[-1] not in ['0','n']:
@@ -2977,7 +2978,7 @@ class FILE:
                 else:
                     new_file=new_name(name,ext,'.{}'.format(i))
                 i+=1
-        new_dest_file=new_dest(dir_name,name,ext)
+        new_dest_file=new_dest(dir_name,name,ext,force=force)
         if opt in ['file','f']:
            os.mknode(new_dest_file)
         elif opt in ['dir','d','directory']:
@@ -6423,8 +6424,8 @@ def sendanmail(to,subj,msg,html=True):
     Email=EMAIL()
     return Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
 
-def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp'):
-    return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir)
+def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',force=False):
+    return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir,force=force)
 
 def check_version(a,sym,b):
     return VERSION().Check(a,sym,b)
