@@ -3402,7 +3402,7 @@ class SCREEN:
                 return True
             return False
 
-    def Monitor(self,title,ip,ipmi_user,ipmi_pass,find=[],timeout=600):
+    def Monitor(self,title,ip,ipmi_user,ipmi_pass,find=[],timeout=600,session_out=10,stdout=False):
         if type(title) is not str or not title:
             print('no title')
             return False
@@ -3410,6 +3410,16 @@ class SCREEN:
         if scr_id:
             print('Already has the title at {}'.format(scr_id))
             return False
+        
+        if not IP(ip).IsBmcIp(port=(623,664,443)):
+            print('{} is not ipmi ip'.format(ip))
+            return False
+
+        # if Not support SOL 
+        if self.Info(ip,ipmi_user,ipmi_pass)[0] is False:
+            print('The BMC is not support SOL function')
+            return False
+
         cmd="ipmitool -I lanplus -H {} -U {} -P {} sol activate".format(ip,ipmi_user,ipmi_pass)
         # Linux OS Boot (Completely kernel loaded): find=['initrd0.img','\xff']
         # PXE Boot prompt: find=['boot:']
@@ -3417,67 +3427,69 @@ class SCREEN:
         # DHCP initial : find=['DHCP']
         # ex: aa=screen_monitor('test','ipmitool -I lanplus -H <bmc ip> -U ADMIN -P ADMIN sol activate',find=['initrd0.img','\xff'],timeout=300)
         log_file=self.Log(title,cmd)
+        if not log_file: 
+            return False
         init_time=TIME().Int()
-        if log_file:
-            mon_line=0
-            old_mon_line=-1
-            found=0
-            find_num=len(find)
-            cnt=0
-            while True:
-                if TIME().Int() - init_time > timeout :
-                    print('Monitoring timeout({} sec)'.format(timeout))
-                    if self.Kill(title):
-                        os.unlink(log_file)
-                    break
-                with open(log_file,'rb') as f:
-                    tmp=f.read()
-                #tmp=_u_byte2str(tmp)
-                tmp=Str(tmp)
-                if '\x1b' in tmp:
-                    tmp_a=tmp.split('\x1b')
-                elif '\r\n' in tmp:
-                    tmp_a=tmp.split('\r\n')
-                elif '\r' in tmp:
-                    tmp_a=tmp.split('\r')
-                else:
-                    tmp_a=tmp.split('\n')
-                tmp_n=len(tmp_a)
-                for ss in tmp_a[tmp_n-2:]:
-                    if 'SOL Session operational' in ss:
-                        # control+c : "^C", Enter: "^M", any command "<linux command> ^M"
-                        rshell('screen -S {} -p 0 -X stuff "^M"'.format(title))
-                        cnt+=1
-                        if cnt > 5:
-                            print('maybe not activated SOL or BMC issue')
-                            if self.Kill(title):
-                                os.unlink(log_file)
-                            return False
-                        continue
-                if find:
-                    for ii in tmp_a[mon_line:]:
-                        if find_num == 0:
-                            print(ii)
-                        else:
-                            for ff in range(0,find_num):
-                                find_i=find[found]
-                                if ii.find(find_i) < 0:
-                                    break
-                                found=found+1
-                                if found >= find_num:
-                                    if self.Kill(title):
-                                        os.unlink(log_file)
-                                    return True
-                    if tmp_n > 1:
-                        mon_line=tmp_n -1
+        mon_line=0
+        old_mon_line=-1
+        found=0
+        find_num=len(find)
+        time=TIME()
+        while True:
+            if TIME().Int() - init_time > timeout :
+                print('Monitoring timeout({} sec)'.format(timeout))
+                if self.Kill(title):
+                    os.unlink(log_file)
+                break
+            with open(log_file,'rb') as f:
+                tmp=f.read()
+            #tmp=_u_byte2str(tmp)
+            tmp=Str(tmp)
+            if stdout: print(tmp)
+                
+            if '\x1b' in tmp:
+                tmp_a=tmp.split('\x1b')
+            elif '\r\n' in tmp:
+                tmp_a=tmp.split('\r\n')
+            elif '\r' in tmp:
+                tmp_a=tmp.split('\r')
+            else:
+                tmp_a=tmp.split('\n')
+            tmp_n=len(tmp_a)
+            for ss in tmp_a[tmp_n-2:]:
+                if 'SOL Session operational' in ss:
+                    # control+c : "^C", Enter: "^M", any command "<linux command> ^M"
+                    rshell('screen -S {} -p 0 -X stuff "^M"'.format(title))
+                    if time.Out(session_out):
+                        print('maybe not updated any screen information or SOL issue (over {}seconds)'.format(session_out))
+                        if self.Kill(title):
+                            os.unlink(log_file)
+                        return False
+                    TIME().Sleep(2)
+                    continue
+            if find:
+                for ii in tmp_a[mon_line:]:
+                    if find_num == 0:
+                        print(ii)
                     else:
-                        mon_line=tmp_n
+                        for ff in range(0,find_num):
+                            find_i=find[found]
+                            if ii.find(find_i) < 0:
+                                break
+                            found=found+1
+                            if found >= find_num:
+                                if self.Kill(title):
+                                    os.unlink(log_file)
+                                return True
+                if tmp_n > 1:
+                    mon_line=tmp_n -1
                 else:
-                    if self.Kill(title):
-                        os.unlink(log_file)
-                    return True
-                TIME().Sleep(1)
-        return False
+                    mon_line=tmp_n
+            else:
+                if self.Kill(title):
+                    os.unlink(log_file)
+                return True
+            TIME().Sleep(1)
 
 
     def Id(self,title=None):
@@ -3512,7 +3524,46 @@ class SCREEN:
                         os.unlink(tmp_file)
                         return log_file
                     TIME().Sleep(0.1)
+            elif rc[0] == 127:
+                print(rc[2])
+                return False
 
+    def Info(self,ip,ipmi_user,ipmi_pass):
+        cmd="ipmitool -I lanplus -H {} -U {} -P '{}' sol info".format(ip,ipmi_user,ipmi_pass)
+        rc=rshell(cmd)
+        enable=False
+        channel=1
+        rate=9600
+        port=623
+        if rc[0] == 0:
+            for ii in rc[1].split('\n'):
+                ii_a=ii.split()
+                if ii_a[0] == 'Enabled' and ii_a[-1] == 'true':
+                    enable=True
+                elif ii_a[0] == 'Volatile':
+                    if '.' in ii_a[-1]:
+                        try:
+                            rate=int(float(ii_a[-1]) * 1000)
+                        except:
+                            pass
+                    else:
+                        try:
+                            rate=int(ii_a[-1])
+                        except:
+                            pass
+                elif ii_a[0] == 'Payload':
+                    if ii_a[1] == 'Channel':
+                        try:
+                            channel=int(ii_a[-2])
+                        except:
+                            pass
+                    elif ii_a[1] == 'Port':
+                        try:
+                            port=int(ii_a[-1])
+                        except:
+                            pass
+        return enable,rate,channel,port,'~~~ console=ttyS1,{}'.format(rate)
+                
 ####################################STRING##################################################
 def Cut(src,head_len=None,body_len=None,new_line='\n',out=str):
     if not isinstance(src,str): return False
@@ -3875,8 +3926,23 @@ def Get(*inps,**opts):
     #return OutFormat(src,out=out,strip=strip,peel=peel)
     return OutFormat(default,out=out,strip=strip,peel=peel)
 
-
-def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error','error','erro','ERRO',{'ERR'}],'WARN':['Warn','warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}],'TOUT':['timeout','TimeOut','time out','Time Out','TMOUT','TOUT',{'TOUT'}],'REVD':['cancel','Cancel','CANCEL','REV','REVD','Revoked','revoked','revoke','Revoke',{'REVD'}],'LOST':['lost','connection lost','Connection Lost','Connection lost','CONNECTION LOST',{'LOST'}]},default=False):
+def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass','Sure',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','Nothing','Empty','Null','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Erro','Error',{'ERR'},1,126,128,130,255],'WARN':['Warn','Warning',{'WAR'}],'UNKN':['Unknown','UNKN',"Don't know",'Not sure',{'UNK'}],'JUMP':['Jump',{'JUMP'}],'TOUT':['TimeOut','Time Out','TMOUT','TOUT',{'TOUT'}],'REVD':['Cancel','Canceled','REV','REVD','Revoked','Revoke',{'REVD'}],'LOST':['Lost','Connection Lost','Lost Connection',{'LOST'}],'NFND':['File not found','Not Found','Can not found',{'NFND'},127]},default=False,mode=None):
+    '''
+    Shell exit code:
+      1   - Catchall for general errors
+      2   - Misuse of shell builtins (according to Bash documentation)
+    126   - Command invoked cannot execute
+    127   - “command not found”
+    128   - Invalid argument to exit
+    128+n - Fatal error signal “n”
+    130   - Script terminated by Control-C
+    255\* - Exit status out of range
+    '''
+    if mode == 'get':
+        return rtd
+    elif mode == 'keys':
+        if isinstance(rtd,dict):
+            return rtd.keys()
     def trans(irt):
         type_irt=type(irt)
         for ii in rtd:
@@ -6063,27 +6129,6 @@ def is_xml(filename):
         return True
     return False
 
-def krc(rt,chk='_',rtd={'GOOD':[True,'True','Good','Ok','Pass',{'OK'},0],'FAIL':[False,'False','Fail',{'FAL'}],'NONE':[None,'None','N/A',{'NA'}],'IGNO':['IGNO','Ignore',{'IGN'}],'ERRO':['ERR','Error','error','erro','ERRO',{'ERR'}],'WARN':['Warn','warn',{'WAR'}],'UNKN':['Unknown','UNKN',{'UNK'}],'JUMP':['Jump',{'JUMP'}],'TOUT':['timeout','TimeOut','time out','Time Out','TMOUT','TOUT',{'TOUT'}],'REVD':['cancel','Cancel','CANCEL','REV','REVD','Revoked','revoked','revoke','Revoke',{'REVD'}],'LOST':['lost','connection lost','Connection Lost','Connection lost','CONNECTION LOST',{'LOST'}]},default=False):
-    def trans(irt):
-        type_irt=type(irt)
-        for ii in rtd:
-            for jj in rtd[ii]:
-                if type(jj) == type_irt and ((type_irt is str and jj.lower() == irt.lower()) or jj == irt):
-                    return ii
-        return 'UNKN'
-    rtc=Get(rt,'0|rc',out='raw',err='ignore',type=(list,tuple,dict))
-    nrtc=trans(rtc)
-    if chk != '_':
-        if not isinstance(chk,list): chk=[chk]
-        for cc in chk:
-            if trans(cc) == nrtc:
-                return True
-            if nrtc == 'UNKN' and default == 'org':
-                return rtc
-        if default == 'org': return rt
-        return default
-    return nrtc
-
 def replacestr(data,org,new):
     if isinstance(data,str):
         if not isinstance(org,str): org=_u_bytes2str(org)
@@ -6166,9 +6211,10 @@ def pipe_msg(**opts):
     m={}
     if not pipe_file: return False
     if os.path.isfile(pipe_file):
+        with open(pipe_file,'rb') as f:
+            buf=f.read()
         try:
-            with open(pipe_file,'rb') as f:
-                m=pickle.load(f)
+            m=pickle.loads(buf)
         except:
             pass
     if opts:
@@ -6209,8 +6255,8 @@ def Split(src,sym,default=None):
 def screen_kill(self,title):
     return SCREEN().Kill(title)
 
-def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600):
-    return SCREEN().Monitor(title,ip,ipmi_user,ipmi_pass,find=find,timeout=timeout_sec)
+def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600,session_out=10):
+    return SCREEN().Monitor(title,ip,ipmi_user,ipmi_pass,find=find,timeout=timeout_sec,sesson_out=session_out)
 
 def screen_id(title=None):
     return SCREEN().Id(title)
