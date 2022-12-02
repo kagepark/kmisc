@@ -6256,7 +6256,7 @@ def screen_kill(self,title):
     return SCREEN().Kill(title)
 
 def screen_monitor(title,ip,ipmi_user,ipmi_pass,find=[],timeout_sec=600,session_out=10):
-    return SCREEN().Monitor(title,ip,ipmi_user,ipmi_pass,find=find,timeout=timeout_sec,sesson_out=session_out)
+    return SCREEN().Monitor(title,ip,ipmi_user,ipmi_pass,find=find,timeout=timeout_sec,session_out=session_out)
 
 def screen_id(title=None):
     return SCREEN().Id(title)
