@@ -613,9 +613,9 @@ class STR(str):
         return src
 
     def Wrap(self,src='_#_',space='',space_mode='space',sym='\n',default='org',NFLT=False,out=str):
-        if isinstance(space,str):
-            space=len(space)
-        return WrapString(fspace=space,nspace=space,new_line=sym,NFLT=NFLT,mode=space_mode)
+        if IsNone(src,chk_val=[None,'_#_'],chk_only=True): src=self.src
+        if isinstance(space,str): space=len(space)
+        return WrapString(src,fspace=space,nspace=space,new_line=sym,NFLT=NFLT,mode=space_mode)
 
     def Tap(self,space='',sym='\n',default='org',NFLT=False,out=str):
         if isinstance(space,str):
@@ -701,8 +701,7 @@ class IP:
 
     def IsV4(self,ip=None):
         if not ip: ip=self.ip
-        if IpV4(ip,default=False) is False: return False
-        return True
+        return True if IpV4(ip) else False
 
     def IsBmcIp(self,ip=None,port=(623,664,443)):
         return self.IsOpenPort(port,ip=ip)
@@ -712,9 +711,7 @@ class IP:
         It connectionable port(?) like as ssh, ftp, telnet, web, ...
         '''
         default=opts.get('default',False)
-        ip=opts.get('ip')
-        if not ip:
-            ip=self.ip
+        ip=opts.get('ip',self.ip)
         if IpV4(ip,port=port,default=default): return True
         return False
 
@@ -735,8 +732,7 @@ class IP:
         return IpV4(ip,out=hex,default=default)
 
     def InRange(self,start_ip,end_ip,**opts):
-        ip=opts.get('ip')
-        if not ip: ip=self.ip
+        ip=opts.get('ip',self.ip)
         default=opts.get('default',False)
         startip=self.Ip2Num(start_ip)
         myip=self.Ip2Num(ip)
@@ -2750,16 +2746,6 @@ def append(src,addendum):
             return src+addendum
     return False
 
-def compare(a,sym,b,ignore=None):
-    if type(a) is not int or type(b) is not int:
-        return False
-    if not IsNone(ignore):
-        if eval('{} == {}'.format(a,ignore)) or eval('{} == {}'.format(b,ignore)):
-            return False
-    return eval('{} {} {}'.format(a,sym,b))
-
-##########################################################################################
-
 def is_lost(ip,**opts):
     timeout=opts.get('timeout',opts.get('timeout_sec',1800))
     interval=opts.get('interval',5)
@@ -2810,21 +2796,6 @@ def is_comeback(ip,**opts):
     if log:
         log(']\n',direct=True,log_level=1)
     return False,'Timeout/Unknown issue'
-
-def file_mode(val):
-    return FILE().Mode(val)
-    #if isinstance(val,int):
-    #    if val > 511:
-    #        return oct(val)[-4:]
-    #    elif val > 63:
-    #        return oct(val)
-    #else:
-    #    val=Str(val)
-    #    if val:
-    #        cnt=len(val)
-    #        num=int(val)
-    #        if cnt >=3 and cnt <=4 and num >= 100 and num <= 777:
-    #            return int(val,8)
 
 def get_file(filename,**opts):
     #return FILE(filename,**opts)
@@ -2956,61 +2927,6 @@ def log_format(*msg,**opts):
                 m_str='{0}{1}{2}{3}{4}'.format(start_new_line,m_str,intro_space,m,end_new_line)
         return m_str
 
-def dget(dict=None,keys=None):
-    if IsNone(dict) or IsNone(keys):
-        return False
-    tmp=dict.copy()
-    keys_path=keys.split('/')
-    if keys_path[0] == '': keys_path=keys_path[1:]
-    for ii in keys.split('/'):
-        if ii in tmp:
-           dtmp=tmp[ii]
-        else:
-           return False
-        tmp=dtmp
-    return tmp
-
-def dput(dic=None,keys=None,val=None,force=False,safe=True):
-    if not IsNone(dic) and keys:
-        tmp=dic
-        keys_arr=keys.split('/')
-        keys_num=len(keys_arr)
-        for ii in keys_arr[:(keys_num-1)]:
-            if ii in tmp:
-                if type(tmp[ii]) == type({}):
-                    dtmp=tmp[ii]
-                else:
-                    if IsNone(tmp[ii]):
-                        tmp[ii]={}
-                        dtmp=tmp[ii]
-                    else:
-                        if force:
-                            vtmp=tmp[ii]
-                            tmp[ii]={vtmp:None}
-                            dtmp=tmp[ii]
-                        else:
-                            return False
-            else:
-                if force:
-                    tmp[ii]={}
-                    dtmp=tmp[ii]
-                else:
-                    return False
-            tmp=dtmp
-        if val == '_blank_':
-            val={}
-        if keys_arr[keys_num-1] in tmp.keys():
-            if safe:
-                if tmp[keys_arr[keys_num-1]]:
-                    return False
-            tmp.update({keys_arr[keys_num-1]:val})
-            return True
-        else:
-            if force:
-                tmp.update({keys_arr[keys_num-1]:val})
-                return True
-    return False
-
 def md5(string):
     return hashlib.md5(Bytes(string)).hexdigest()
 
@@ -3098,25 +3014,6 @@ def is_tempfile(filepath,tmp_dir='/tmp'):
           return False
    return True
 
-
-def isfile(filename=None):
-   if Type(filename,'str',data=True) and os.path.isfile(filename):
-      return True
-   return False
-
-def str_format_print(string,rc=False):
-    if type(string) is str:
-        if len(string.split("'")) > 1:
-            rc_str='"%s"'%(string)
-        else:
-            rc_str="'%s'"%(string)
-    else:
-        rc_str=string
-    if rc:
-        return rc_str
-    else:
-        print(rc_str)
-
 def git_ver(git_dir=None):
     if not IsNone(git_dir) and os.path.isdir('{0}/.git'.format(git_dir)):
         gver=rshell('''cd {0} && git describe --tags'''.format(git_dir))
@@ -3132,12 +3029,6 @@ def load_kmod(modules,re_load=False):
         os.system('lsmod | grep {0} >& /dev/null || modprobe --ignore-install {1} || modprobe {1} || modprobe -ib {1}'.format(ii.replace('-','_'),ii))
         #os.system('lsmod | grep {0} >& /dev/null || modprobe -i -f {1}'.format(ii.split('-')[0],ii))
 
-def reduce_string(string,symbol=' ',snum=0,enum=None):
-    string_a=Cut(string,symbol=symbol,out=list)
-    sidx=FixIndex(string_a,snum)
-    eidx=FixIndex(string_a,enum if isinstance(enum,int) else len(string_a))
-    return Join(string_a[sidx:edix],' ')
-   
 def find_cdrom_dev(size=None):
     load_kmod(['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage'])
     if os.path.isdir('/sys/block') is False:
@@ -3807,12 +3698,105 @@ def sizeConvert(sz=None,unit='b:g'):
             sz=dec(sz)
     return sz
 
-def sendanmail(to,subj,msg,html=True):
-    Email=EMAIL()
-    return Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
+############################################
+#Temporary function
+############################################
+def compare(a,sym,b,ignore=None):
+    if type(a) is not int or type(b) is not int:
+        return False
+    if not IsNone(ignore):
+        if eval('{} == {}'.format(a,ignore)) or eval('{} == {}'.format(b,ignore)):
+            return False
+    return eval('{} {} {}'.format(a,sym,b))
 
-def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',force=False):
-    return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir,force=force)
+def dput(dic=None,keys=None,val=None,force=False,safe=True):
+    if not IsNone(dic) and keys:
+        tmp=dic
+        keys_arr=keys.split('/')
+        keys_num=len(keys_arr)
+        for ii in keys_arr[:(keys_num-1)]:
+            if ii in tmp:
+                if type(tmp[ii]) == type({}):
+                    dtmp=tmp[ii]
+                else:
+                    if IsNone(tmp[ii]):
+                        tmp[ii]={}
+                        dtmp=tmp[ii]
+                    else:
+                        if force:
+                            vtmp=tmp[ii]
+                            tmp[ii]={vtmp:None}
+                            dtmp=tmp[ii]
+                        else:
+                            return False
+            else:
+                if force:
+                    tmp[ii]={}
+                    dtmp=tmp[ii]
+                else:
+                    return False
+            tmp=dtmp
+        if val == '_blank_':
+            val={}
+        if keys_arr[keys_num-1] in tmp.keys():
+            if safe:
+                if tmp[keys_arr[keys_num-1]]:
+                    return False
+            tmp.update({keys_arr[keys_num-1]:val})
+            return True
+        else:
+            if force:
+                tmp.update({keys_arr[keys_num-1]:val})
+                return True
+    return False
+
+def dget(dict=None,keys=None):
+    if IsNone(dict) or IsNone(keys):
+        return False
+    tmp=dict.copy()
+    keys_path=keys.split('/')
+    if keys_path[0] == '': keys_path=keys_path[1:]
+    for ii in keys.split('/'):
+        if ii in tmp:
+           dtmp=tmp[ii]
+        else:
+           return False
+        tmp=dtmp
+    return tmp
+
+def isfile(filename=None):
+   if Type(filename,'str',data=True) and os.path.isfile(filename):
+      return True
+   return False
+
+def str_format_print(string,rc=False):
+    if type(string) is str:
+        if len(string.split("'")) > 1:
+            rc_str='"%s"'%(string)
+        else:
+            rc_str="'%s'"%(string)
+    else:
+        rc_str=string
+    if rc:
+        return rc_str
+    else:
+        print(rc_str)
+
+def reduce_string(string,symbol=' ',snum=0,enum=None):
+    string_a=Cut(string,symbol=symbol,out=list)
+    sidx=FixIndex(string_a,snum)
+    eidx=FixIndex(string_a,enum if isinstance(enum,int) else len(string_a))
+    return Join(string_a[sidx:edix],' ')
+
+def sreplace(pattern,sub,string):
+    return re.sub('^%s' % pattern, sub, string)
+
+def ereplace(pattern,sub,string):
+    return re.sub('%s$' % pattern, sub, string)
+
+def rreplace(source_string, replace_what, replace_with):
+    head, _sep, tail = source_string.rpartition(replace_what)
+    return head + replace_with + tail
 
 def argtype(arg,want='_',get_data=['_']):
     type_arg=type(arg)
@@ -3833,9 +3817,25 @@ def argtype(arg,want='_',get_data=['_']):
             return True
     return False
 
-############################
-#Temporary function map
-############################
+def Lower(src,default='org'):
+    if isinstance(src,str): return src.lower()
+    if default in ['org',{'org'}]: return src
+    return default
+
+def Upper(src,default='org'):
+    if isinstance(src,str): return src.upper()
+    if default in ['org',{'org'}]: return src
+    return default
+############################################
+#Temporary function map for replacement
+############################################
+def sendanmail(to,subj,msg,html=True):
+    Email=EMAIL()
+    return Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
+
+def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',force=False):
+    return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir,force=force)
+
 def get_host_name():
     return HOST().Name()
 
@@ -3863,51 +3863,29 @@ def get_net_dev_ip(ifname):
 def get_net_device(name=None):
     return HOST().NetDevice(name)
 
-def Pwd(cwd=None):
-    return FILE().Path(cwd)
-
 def get_my_directory(cwd=None):
     return FILE().Path(cwd)
-
-def Lower(src,default='org'):
-    if isinstance(src,str): return src.lower()
-    if default in ['org',{'org'}]: return src
-    return default
-
-def Upper(src,default='org'):
-    if isinstance(src,str): return src.upper()
-    if default in ['org',{'org'}]: return src
-    return default
 
 def str2url(string):
     return WEB().str2url(string)
 
 def web_server_ip(request):
-    web=WEB(request)
-    return web.ServerIp()
+    return WEB(request).GetIP(mode='server')
 
 def web_client_ip(request):
-    web=WEB(request)
-    return web.ClientIp()
-
-def web_session(request):
-    web=WEB(request)
-    return web.Session()
+    return WEB(request).GetIP(mode='client')
 
 def web_req(host_url=None,**opts):
     return WEB().Request(host_url,**opts)
 
-def logging(*msg,**opts):
-    return printf(*msg,**opts)
+def web_session(request):
+    return WEB(request).Session()
 
 def file_rw(name,data=None,out='string',append=False,read=None,overwrite=True):
     return FILE().Rw(name,data=data,out=out,append=append,read=read,overwrite=overwrite,finfo={})
 
 def rm_file(filelist):
     return FILE().Rm(filelist)
-
-def append2list(*inps,**opts):
-    return LIST(inps[0]).Append(*inps[1:],**opts)
 
 def screen_kill(self,title):
     return SCREEN().Kill(title)
@@ -3921,33 +3899,129 @@ def screen_id(title=None):
 def screen_logging(title,cmd):
     return SCREEN().Log(title,cmd)
 
-def sreplace(pattern,sub,string):
-    return re.sub('^%s' % pattern, sub, string)
+def now():
+    return TIME().Int()
 
-def ereplace(pattern,sub,string):
-    return re.sub('%s$' % pattern, sub, string)
+def int_sec():
+    return TIME().Int()
+
+def get_function_args(func,mode='defaults'):
+    return FunctionArgs(func,mode=mode)
+
+def Var(src,obj=None,default=None,mode='all',VarType=None):
+    return Variable(src=src,obj=obj,parent=0,default=default,mode=mode,VarType=VarType)
+
+def get_data(data,key=None,ekey=None,default=None,method=None,strip=True,find=[],out_form=None):
+    return Get(data,key=key,ekey=ekey,default=default,method=method,strip=strip,find=find,out_form=out_form,peel=True)
+
+def is_function(find,src=None):
+    return IsFunction(src,find=find)
+
+def get_caller_fcuntion_name(detail=False):
+    return CallerName(detail=detail)
+
+def get_function_list(obj=None):
+    return FunctionList(obj)
+
+def get_pfunction_name():
+    return FunctionName(parent=1)
+
+def get_function_name():
+    return FunctionName()
+
+def clean_ansi(src):
+    return CleanAnsi(src)
+
+def move2first(item,pool):
+    return LIST(pool).Move2first(item)
+
+def Pwd(cwd=None):
+    return FILE().Path(cwd)
+
+def check_version(a,sym,b):
+    return CompVersion(a,sym,b)
+
+def integer(a,default=0):
+    return Int(a,default=default)
+
+def list2str(arr):
+    return Join(arr,symbol=' ')
+
+def _u_str2int(val,encode='utf-8'):
+    return Bytes2Int(val,encode=encode,default='org')
+
+def _u_bytes(val,encode='utf-8'):
+    return Bytes(val,encode=encode)
+
+def _u_bytes2str(val,encode='latin1'):
+    return Str(val,encode=encode)
+
+def _u_byte2str(val,encode='latin1'):
+    return Str(val,encode=encode)
+
+def append2list(*inps,**opts):
+    return LIST(inps[0]).Append(*inps[1:],**opts)
+
+def get_value(src,key=None,default=None,check=[str,list,tuple,dict],err=False):
+    return Get(src,key,default=default,_type_=check,err=err)
+
+def logging(*msg,**opts):
+    return printf(*msg,**opts)
+
+def is_py3():
+    return PyVer(3)
+
+def ip2num(ip):
+    return IpV4(ip,out='int')
+
+def is_ipv4(ipaddr=None):
+    return True if IpV4(ipaddr) else False
+
+def is_bmc_ipv4(ipaddr,port=(623,664,443)):
+    return True if IpV4(ipaddr,port=port) else False
+
+def is_port_ip(ipaddr,port):
+    return True if IpV4(ipaddr,port=port) else False
+
+def ipv4(ipaddr=None,chk=False):
+    return IpV4(ipaddr)
+
+def ip_in_range(ip,start,end):
+    return IP(ip).InRange(start,end)
+
+def string2data(src,default='org',want_type=None,spliter=None):
+    return TypeData(src,default,want_type,spliter)
+
+def mac2str(mac,case='lower'):
+    return MacV4(mac,case=case)
+
+def str2mac(mac,sym=':',case='lower',chk=False):
+    return MacV4(mac,symbol=sym,case=case)
+
+def is_mac4(mac=None,symbol=':',convert=True):
+    return True if MacV4(mac,symbol=sym,case=case) else False
+
+def Wrap(src,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
+    if isinstance(space,str): space=len(space)
+    return WrapString(src,fspace=space,nspace=space,new_line=sym,NFLT=NFLT,mode=space_mode,default=default,out=out)
+
+def ddict(*inps,**opts):
+    return Dict(*inps,**opts)
+
+def replacestr(data,org,new):
+    return Replace(data,org,new)
 
 def findstr(string,find,prs=None,split_symbol='\n',patern=True):
     return FIND(string).Find(find,sym=split_symbol,prs=prs,peel=False)
 
-def now():
-    return TIME().Int()
+def get_key(dic=None,find=None):
+    return GetKey(dic,find=find)
 
-#print(FList().keys())
-#print(Get((0,1,2,3),'0|rc'))
-#print(krc((0,1,2,3),chk=True))
-#print(IsNone(None))
-#print(IsNone({}))
-#print(IsNone(''))
-#print(IsSame('1',1))
-#print(IsIn(1,(2,'1',3)))
-#print(IsIn(1,(2,'1',3),sense=True))
-#print(Get(TIME))
-#print(Get(TIME()))
-#print(Get(TIME,'__name__'))
-#print(Get(TIME(),'__name__'))
-#print(Get(TIME(),'init_sec2'))
-#print(Get(TIME(),'init_sec'))
-#print(TIME().__dict__)
-#aa=unicode('b')
-#print(Type(aa))
+def find_key_from_value(dic=None,find=None):
+    return GetKey(dic,find=find)
+
+def is_cancel(func):
+    return IsCancel(func)
+
+def file_mode(val):
+    return FILE().Mode(val)
