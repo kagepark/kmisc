@@ -3999,7 +3999,7 @@ def str2mac(mac,sym=':',case='lower',chk=False):
     return MacV4(mac,symbol=sym,case=case)
 
 def is_mac4(mac=None,symbol=':',convert=True):
-    return True if MacV4(mac,symbol=sym,case=case) else False
+    return True if MacV4(mac,symbol=symbol) else False
 
 def Wrap(src,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
     if isinstance(space,str): space=len(space)
