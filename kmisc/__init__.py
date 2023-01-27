@@ -3129,17 +3129,20 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0):
                     return False,'Sending Socket Timeout'
     return False,'Sending Fail'
 
-def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30):
+def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None):
     # decode code here
-    def recvall(sock,count,progress=False): # Packet
+    def recvall(sock,count,progress=False,progress_msg=None): # Packet
         buf = b''
         file_size_d=int('{0}'.format(count))
-        if progress: print('\n')
+        #if progress: print('\n')
         tn=0
         newbuf=None
         while count:
             if progress:
-                StdOut('\rDownloading... [ {} % ]'.format(int((file_size_d-count) / file_size_d * 100)))
+                if progress_msg:
+                    StdOut('\r{} [ {} % ]'.format(progress_msg,int((file_size_d-count) / file_size_d * 100)))
+                else:
+                    StdOut('\rDownloading... [ {} % ]'.format(int((file_size_d-count) / file_size_d * 100)))
             try:
                 newbuf = sock.recv(count)
             except socket.error as e:
@@ -3155,7 +3158,10 @@ def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30):
             buf += newbuf
             count -= len(newbuf)
         if progress: 
-            StdOut('\rDownloading... [ 100 % ]\n')
+            if progress_msg:
+                StdOut('\r{} [ 100 % ]\n'.format(progress_msg))
+            else:
+                StdOut('\rDownloading... [ 100 % ]\n')
         return True,buf
     ok,head=recvall(sock,10)
     if krc(ok,chk=True):
@@ -3166,7 +3172,9 @@ def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30):
             except:
                 return [False,'Fail for read header({})'.format(head)]
             if st_head[3] == Bytes2Int(key,encode='utf-8',default='org'):
-                ok,data=recvall(sock,st_head[0],progress=progress)
+                # File not found Error log size is 57. So if 57 then ignore progress
+                if st_head[0] == 57: progress=False
+                ok,data=recvall(sock,st_head[0],progress=progress,progress_msg=progress_msg)
                 if krc(ok,chk=True):
                     if st_head[2] == 't':
                         # decode code here
@@ -3181,7 +3189,7 @@ def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30):
         return ['lost','Connection lost']
     return [ok,head]
 
-def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[0,5],progress=None,enc=False,upacket=None,SSLC=False,log=True):
+def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[0,5],progress=None,enc=False,upacket=None,SSLC=False,log=True,progress_msg=None):
     sent=False,'Unknown issue'
     for ii in range(0,try_num):
         if upacket: # Update packet function for number of try information ([#/<total #>])
@@ -3198,7 +3206,7 @@ def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait
         except:
             os.system("""[ -f /tmp/.{0}.{1}.crt ] && rm -f /tmp/.{0}.{1}.crt""".format(IP,PORT))
         if sent[0]:
-            nrcd=net_receive_data(sock,key=key,progress=progress)
+            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg)
             return nrcd
         else:
             if timeout >0:
