@@ -2310,137 +2310,18 @@ def DirName(src,default=None):
     if dirname == '': return '.'
     return dirname
 
-class CLI:
-    def __init__(self,cmd=None):
-        self.cmd=cmd
-
-    def Print(self,cmd='_#_',*inps,**opts):
-        if IsNone(cmd,chk_val=['_#_'],chk_only=True): cmd=self.cmd
-        if IsNone(cmd): return False
-        rt=sprintf(cmd,*inps,**opts)
-        return rt
-
-    def Args(self,data='_#_',breaking='-'):
-        if IsNone(data,chk_val=['_#_'],chk_only=True): data=self.src
-        def inside_data(rt,breaking,data_a,ii,symbol):
-            tt=data_a[ii][1:]
-            if len(data_a) > ii:
-                for jj in range(ii+1,len(data_a)):
-                    if data_a[jj] and data_a[jj].startswith(breaking):
-                        for tt in range(ii,jj+1):
-                            rt.append(data_a[tt])
-                        return jj
-                    if (data_a[jj] and data_a[jj][0] != symbol and data_a[jj][-1] == symbol) or (data_a[jj] and data_a[jj][0] == symbol):
-                        tt=tt+""" {}""".format(data_a[jj][:-1])
-                        rt.append(tt)
-                        tt=''
-                        return jj
-                    else:
-                        tt=tt+""" {}""".format(data_a[jj])
-            return None
-
-
-        data_a=data.split(' ')
-        rt=[]
-        ii=0
-        while ii < len(data_a):
-            if not data_a[ii]:
-                ii+=1
-                continue
-            if data_a[ii][0] == '"' and data_a[ii][-1] == '"':
-                rt.append(data_a[ii][1:-1])
-            elif data_a[ii][0] == "'" and data_a[ii][-1] == "'":
-                rt.append(data_a[ii][1:-1])
-            elif data_a[ii][0] == "'" and data[ii][-1] != "'":
-                a=inside_data(rt,breaking,data_a,ii,"'")
-                if not IsNone(a): ii=a
-            elif data_a[ii][0] == '"' and data[ii][-1] != '"':
-                a=inside_data(rt,breaking,data_a,ii,'"')
-                if not IsNone(a): ii=a
-            else:
-                rt.append(data_a[ii])
-            ii+=1
-        return rt
-
-    def Get(self,fmt,cmd='_#_',split='\n',fixed_fmt=False,opt_sym=['-','--']):
-        if IsNone(cmd,chk_val=['_#_'],chk_only=True): cmd=self.cmd
-        if IsNone(cmd): return False
-        #Output: [[{data},line numver,original string],...]
-        #{data}: {'parameter':{'type':...,'opt':...,'exist':True/False,'data':...},...}
-        #fmt: <cmd> <opt> {<parameter>[:<type>]} ....
-        #<type>: NONE => No data, just check that prameter only
-        #        IP: check data is IP format
-        #        INT: convert data to Int
-        #        STR: default (String data)
-        #ex) 
-        #   src='''~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status'''
-        #   fmt='''ipmitool -H {IP:IP} -U {User} -P {User} chassis power status'''
-        #   => [[{'IP': {'type': 'IP', 'opt': '-H', 'exist': True, 'data': '192.168.3.100'}, 'User': {'type': 'STR', 'opt': '-U', 'exist': True, 'data': 'ADMIN'}, 'passwd': {'type': 'STR', 'opt': '-P', 'exist': True, 'data': 'AD MIN'}}, 0, "~]$ ipmitool -I lanplug -H 192.168.3.100 -U ADMIN -P 'AD MIN' chassis power status"]]
-        ########
-        # ToDo #
-        ########
-        # If fixed_fmt(True) then get "ipmi {IP} {USER} {PASSWD}" format, ipmi is the key for the finding command line.
-        # Add <taking number> at {<name>:<type>:<taking number>}
-        # <take number> : default 1
-        #   2  : get data two sys arg value
-        #   -1 : get data until <split> or <opt_sym>
-        def pill(data,pill_list=["'''",'"""','"',"'"]):
-            for ii in pill_list:
-                if len(data) > len(ii) * 2:
-                    if data[:len(ii)] == ii and data[-len(ii):] == ii:
-                        return data[len(ii):-len(ii)]
-            return data
-
-        rt=[] # (data,line,source string)
-        # format
-        fmt_a=fmt.split()
-        fmt_v={}
-        for ii in range(0,len(fmt_a)):
-            fmt_p=pill(fmt_a[ii])
-            if '{' in fmt_p and '}' in fmt_p:
-                var=fmt_p[1:-1].split(':')
-                if var[0] in fmt_v:
-                    print('Duplicated variable name({})'.format(var[0]))
-                    return False
-                if len(var) == 3:
-                    if not var[1]: var[1]='STR'
-                    fmt_v[var[0]]={'type':var[1],'opt':fmt_a[ii-1],'num':var[2]}
-                elif len(var) == 2:
-                    if not var[1]: var[1]='STR'
-                    fmt_v[var[0]]={'type':var[1],'opt':fmt_a[ii-1],'num':1}
-                else:
-                    fmt_v[var[0]]={'type':'STR','opt':fmt_a[ii-1],'num':1}
-        # Source
-        src_l_a=cmd.split(split)
-        for src_ln in range(0,len(src_l_a)):
-            src_a=self.Args(data=src_l_a[src_ln])
-            if fmt_a[0] in src_a:
-                rt_i=[copy.deepcopy(fmt_v),src_ln,src_l_a[src_ln]]
-                src_i=src_a.index(fmt_a[0])
-                new_src_a=src_a[src_i:]
-                for ii in fmt_v:
-                    # Found parameter in the line
-                    if rt_i[0][ii].get('opt') in new_src_a:
-                        rt_i[0][ii]['exist']=True
-                        # If just check option without data then ignore below.
-                        if rt_i[0][ii].get('type') != 'NONE':
-                            opt_i=new_src_a.index(rt_i[0][ii].get('opt'))
-                            if len(new_src_a) > opt_i:
-                                # Get Data
-                                found_data=pill(new_src_a[opt_i+1])
-                                # Verify Data format
-                                if rt_i[0][ii].get('type') == 'IP':
-                                    if km.IP(found_data).IsV4():
-                                        rt_i[0][ii]['data']=found_data
-                                elif rt_i[0][ii].get('type') == 'INT':
-                                    try:
-                                        rt_i[0][ii]['data']=int(found_data)
-                                    except:
-                                        pass
-                                else:
-                                    rt_i[0][ii]['data']=found_data
-                rt.append(rt_i)
-        return rt
+def Args2Str(args,default='org'):
+    if isinstance(args,(tuple,list)):
+        args=list(args)
+        for i in range(0,len(args)):
+            if "'" in args[i]:
+                args[i]='''"{}"'''.format(args[i])
+            elif '"' in args[i]:
+                args[i]="""'{}'""".format(args[i])
+            elif ' ' in args[i]:
+                args[i]='''"{}"'''.format(args[i])
+        return ' '.join(args)
+    return args
 
 def Update(src,*inps,**opts):
     at=opts.pop('at',0)
