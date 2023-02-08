@@ -2323,6 +2323,25 @@ def Args2Str(args,default='org'):
         return ' '.join(args)
     return args
 
+def check_value(src,find,idx=None):
+    '''Check key or value in the dict, list or tuple then True, not then False'''
+    if isinstance(src, (list,tuple,str,dict)):
+        if idx is None:
+            if find in src:
+                return True
+        else:
+            if isinstance(src,str):
+                if idx < 0:
+                    if src[idx-len(find):idx] == find:
+                        return True
+                else:
+                    if src[idx:idx+len(find)] == find:
+                        return True
+            else:
+                if Get(src,idx,out='raw') == find:
+                    return True
+    return False
+
 def Update(src,*inps,**opts):
     at=opts.pop('at',0)
     err=opts.pop('err',False)
@@ -2743,7 +2762,7 @@ def get_file(filename,**opts):
             os.chdir(pwd)
     return rc
 
-def save_file(data,dest):
+def save_file(data,dest,filename=None):
 #    return data.Extract(dest=dest,sub_dir=True)
     if not isinstance(data,dict) or not isinstance(dest,str) : return False
     if os.path.isdir(dest) is False: os.system('mkdir -p {0}'.format(dest))
@@ -2753,7 +2772,10 @@ def save_file(data,dest):
             os.chmod(dest,fmode)
     else:
         # if file then save
-        new_file=os.path.join(dest,data['name'])
+        if isinstance(filename,str) and filename:
+            new_file=os.path.join(dest,filename)
+        else:
+            new_file=os.path.join(dest,data['name'])
         if 'data' in data:
             with open(new_file,'wb') as f:
                 f.write(data['data'])
