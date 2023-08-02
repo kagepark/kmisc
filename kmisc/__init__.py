@@ -699,8 +699,13 @@ class IP:
     def __init__(self,ip=None):
         self.ip=ip
 
+    def GetIP(self,ip=None):
+        if IsNone(ip,chk_val=['_#_']): 
+            return self.ip
+        return ip
+
     def IsV4(self,ip=None):
-        if not ip: ip=self.ip
+        ip=self.GetIP(ip)
         return True if IpV4(ip) else False
 
     def IsBmcIp(self,ip=None,port=(623,664,443)):
@@ -711,28 +716,29 @@ class IP:
         It connectionable port(?) like as ssh, ftp, telnet, web, ...
         '''
         default=opts.get('default',False)
-        ip=opts.get('ip',self.ip)
+        ip=self.GetIP(opts.get('ip'))
         if IpV4(ip,port=port,default=default): return True
         return False
 
     def IsUsedPort(self,port,ip='_#_'):
-        if IsNone(ip,chk_val=['_#_'],chk_only=True):ip=self.ip
+        #if IsNone(ip,chk_val=['_#_'],chk_only=True):ip=self.ip
+        ip=self.GetIP(ip)
         return IpV4(ip,port=port,used=True)
 
     def Ip2Num(self,ip=None,default=False):
-        if not ip: ip=self.ip
+        ip=self.GetIP(ip)
         return IpV4(ip,out=int,default=default)
 
     def Ip2Str(self,ip=None,default=False):
-        if not ip:ip=self.ip
+        ip=self.GetIP(ip)
         return IpV4(ip,out=str,default=default)
 
     def Ip2hex(self,ip=None,default=False):
-        if not ip: ip=self.ip
+        ip=self.GetIP(ip)
         return IpV4(ip,out=hex,default=default)
 
     def InRange(self,start_ip,end_ip,**opts):
-        ip=opts.get('ip',self.ip)
+        ip=self.GetIP(opts.get('ip'))
         default=opts.get('default',False)
         startip=self.Ip2Num(start_ip)
         myip=self.Ip2Num(ip)
@@ -743,8 +749,7 @@ class IP:
         return default
 
     def LostNetwork(self,**opts):
-        ip=opts.get('ip')
-        if not ip: ip=self.ip
+        ip=self.GetIP(opts.get('ip'))
         default=opts.get('default',False)
         timeout_sec=opts.get('timeout',1800)
         interval=opts.get('interval',2)
@@ -760,12 +765,12 @@ class IP:
         return default
 
     def V4(self,ip='_#_',out='str',default=False):
-        if IsNone(ip,chk_val=['_#_'],chk_only=True): ip=self.ip
+        #if IsNone(ip,chk_val=['_#_'],chk_only=True): ip=self.ip
+        ip=self.GetIP(ip)
         return IpV4(ip,out=out,default=default)
 
     def Online(self,**opts):
-        ip=opts.get('ip')
-        if not ip: ip=self.ip
+        ip=self.GetIP(opts.get('ip'))
         default=opts.get('default',False)
         timeout_sec=opts.get('timeout',1800)
         interval=opts.get('interval',3)
@@ -804,7 +809,8 @@ class IP:
         return default,'IP format error'
 
     def Ping(self,host='_#_',count=0,interval=1,keep_good=0, timeout=0,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
-        if IsNone(host,chk_val=['_#_'],chk_only=True): host=self.ip
+        #if IsNone(host,chk_val=['_#_'],chk_only=True): host=self.ip
+        host=self.GetIP(host)
         return kp.ping(host,count=count,interval=interval,keep_good=keep_good,timeout=timeout,lost_mon=lost_mon,log=log,stop_func=stop_func,log_format=log_format,cancel_func=cancel_func)
 
 def IsJson(src):
@@ -1439,6 +1445,7 @@ class FILE:
                                 data=f.readline()
                         elif not file_only:
                             data=os.open(name,os.O_RDONLY)
+                            os.close(data)
                         else:
                             with open(name,'rb') as f:
                                 data=f.read()
@@ -1461,6 +1468,7 @@ class FILE:
                         try:
                             f=os.open(name,os.O_RDWR)
                             os.write(f,data)
+                            os.close(f)
                         except:
                             return False,None
                     else:
@@ -3004,7 +3012,12 @@ def find_usb_dev(size=None,max_size=None):
 #Payload Channel                 : 1 (0x01)
 #Payload Port                    : 623
 
-def net_send_data(sock,data,key='kg',enc=False,timeout=0):
+def net_send_data(sock,data,key='kg',enc=False,timeout=0,close=False):
+    # if close=True then just send data and close socket
+    # if close=False then it need close socket code
+    # ex)
+    #      aa=net_send_data(sock,.....)
+    #      if aa[0] is True: sock.close()
     if type(sock).__name__ in ['socket','_socketobject','SSLSocket'] and data and type(key) is str and len(key) > 0 and len(key) < 7:
         start_time=TIME().Int()
         # encode code here
@@ -3023,8 +3036,11 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0):
         ndata=struct.pack('>IssI',len(pdata),data_type,enc_tf,nkey)+pdata
         try:
             sock.sendall(ndata)
+            if close: sock.close()
             return True,'OK'
         except:
+            if close:
+                if sock: sock.close()
             if timeout > 0:
                 #timeout=sock.gettimeout()
                 if TIME().Int() - start_time > timeout-1:
