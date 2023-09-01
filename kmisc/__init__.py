@@ -52,6 +52,10 @@ import kmport as kp
 
 from http.cookies import Morsel # This module for requests when you use build by pyinstaller command
 
+global printf_log_base
+global printf_caller_detail
+global printf_caller_tree
+global krc_define
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
 #log_file=None
 log_intro=3
@@ -787,7 +791,7 @@ class IP:
                     if log:
                         log(']\n',direct=True,log_level=1)
                     return False,'Timeout monitor'
-                if IsCancel(cancel_func):
+                if IsBreak(cancel_func):
                     if log:
                         log(']\n',direct=True,log_level=1)
                     return True,'Stopped monitor by Custom'
@@ -2685,7 +2689,7 @@ def is_comeback(ip,**opts):
             if log:
                 log(']\n',direct=True,log_level=1)
             return False,'Timeout monitor'
-        if IsCancel(cancel_func) or stop_func is True:
+        if IsBreak(cancel_func) or stop_func is True:
             if log:
                 log(']\n',direct=True,log_level=1)
             return True,'Stopped monitor by Custom'
@@ -3948,7 +3952,7 @@ def find_key_from_value(dic=None,find=None):
     return GetKey(dic,find=find)
 
 def is_cancel(func):
-    return IsCancel(func)
+    return IsBreak(func)
 
 def file_mode(val):
     return FILE().Mode(val)
