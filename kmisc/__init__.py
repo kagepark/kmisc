@@ -1,7 +1,6 @@
 #!/bin/python
 # -*- coding: utf-8 -*-
 # Kage personal stuff
-#
 from __future__ import print_function
 import os
 import re
@@ -13,55 +12,52 @@ import time
 import uuid
 import zlib
 import copy
-import smtplib
-import tarfile
-import zipfile
+import json
 import random
 import struct
 import string
-import fnmatch
-import pickle
-import tarfile
-import zipfile
 import pickle
 import random
-import inspect
 import base64
 import hashlib
+import fnmatch
+import smtplib
+import tarfile
+import zipfile
+import tarfile
+import zipfile
+import inspect
+import traceback
 import importlib
 import subprocess
-import traceback
-import fcntl,socket,struct
-import json
 import email.utils
-import xml.etree.ElementTree as ET
+import kmport as kp
+from kmport import *
 from sys import modules
-from sys import path as mod_path
-from sys import version_info
 from pprint import pprint
+import fcntl,socket,struct
+from email import encoders
+from sys import version_info
 from threading import Thread
 from datetime import datetime
-from email import encoders
+from http.cookies import Morsel # This module for requests when you use build by pyinstaller command
+from sys import path as mod_path
+import xml.etree.ElementTree as ET
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from multiprocessing import Process, Queue
 from distutils.version import LooseVersion
-from kmport import *
-import kmport as kp
+from multiprocessing import Process, Queue
+from email.mime.multipart import MIMEMultipart
 
-from http.cookies import Morsel # This module for requests when you use build by pyinstaller command
 
-global printf_log_base
-global printf_caller_detail
-global printf_caller_tree
 global krc_define
-url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
-#log_file=None
+global printf_log_base
+global printf_caller_tree
+global printf_caller_detail
 log_intro=3
-log_new_line='\n'
 pipe_file=None
-
+log_new_line='\n'
+url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
 cdrom_ko=['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage']
 
 def Abs(*inps,**opts):
@@ -2399,56 +2395,6 @@ def Update(src,*inps,**opts):
         if opts:
            src.update(opts)
     return src
-
-def Random(length=8,strs=None,mode='*',letter='*',default=1):
-    if mode in [int,'int','num','number']:
-        if isinstance(strs,(list,tuple)) and len(strs) == 2:
-            try:
-                s=int(strs[0])
-                n=int(strs[1])
-                return random.randint(s,n)
-            except:
-                pass
-        s=0
-        n=''
-        for i in range(0,length):
-            n=n+'9'
-        if n:
-            return random.randint(s,int(n))
-        return default
-    new=''
-#    if mode in [int,'int','num']:
-#        for i in range(0,length):
-#            new='{0}{1}'.format(new,random.randint(0,9))
-#        return int(num)
-    if not isinstance(strs,str) or not strs:
-        strs=''
-        if 'alpha' in mode or mode in ['all','*']:
-            if letter == 'upper':
-                strs=string.ascii_uppercase
-            elif letter == 'lower':
-                strs=string.ascii_lowercase
-            elif letter in ['*','all']:
-                strs=string.ascii_letters
-        if 'num' in mode or mode in ['all','*']:
-            strs=strs+string.digits
-        if 'char' in mode or 'sym' in mode or mode in ['all','*']:
-            strs=strs+string.punctuation
-#        if mode in ['all','*','alphanumchar']:
-#            strs='0aA-1b+2Bc=C3d_D,4.eE?5"fF6g7G!h8H@i9#Ij$JkK%lLmMn^N&oO*p(Pq)Q/r\Rs:St;TuUv{V<wW}x[Xy>Y]z|Z'
-#        elif mode in ['alphachar']:
-#            strs='aA-b+Bc=Cd_D,.eE?"fFgG!hH@i#Ij$JkK%lLmMn^N&oO*p(Pq)Q/r\Rs:St;TuUv{V<wW}x[Xy>Y]z|Z'
-#        elif mode in ['alphanum']:
-#            strs='aA1b2BcC3dD4eE5fF6g7Gh8Hi9IjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
-#        elif mode in ['char']:
-#            strs='-+=_,.?"!@#$%^&*()/\:;{<}x[>]|'
-#        else:
-#            strs='aAbBcCdDeEfFgGhHiIjJkKlLmMnNoOpPqQrRsStTuUvVwWxXyYzZ'
-    if not strs: strs=string.ascii_letters
-    strn=len(strs)-1
-    for i in range(0,length):
-        new='{0}{1}'.format(new,strs[random.randint(0,strn)])
-    return new
 
 def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
     rt=[]
