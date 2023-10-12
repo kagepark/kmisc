@@ -14,7 +14,6 @@ import zlib
 import copy
 import json
 import random
-import struct
 import string
 import pickle
 import random
@@ -31,8 +30,6 @@ import traceback
 import importlib
 import subprocess
 import email.utils
-import kmport as kp
-from kmport import *
 from sys import modules
 from pprint import pprint
 import fcntl,socket,struct
@@ -48,6 +45,17 @@ from email.mime.base import MIMEBase
 from distutils.version import LooseVersion
 from multiprocessing import Process, Queue
 from email.mime.multipart import MIMEMultipart
+try:
+    from kmport import *
+except:
+    pip_user_install='--user' if os.environ.get('VIRTUAL_ENV') is None else ''
+    os.system('''for i in 1 2 3 4 5; do python3 -m pip install pip --upgrade {} 2>&1 | grep "however version" |grep "is available" >& /dev/null || break; done'''.format(pip_user_install))
+    os.system('python3 -m pip install kmport {}'.format(pip_user_install))
+    try:
+        from kmport import *
+    except:
+        print('Can not install kmport')
+        os._exit(1)
 
 
 global krc_define
@@ -758,8 +766,8 @@ class IP:
         log=opts.get('log',None)
         init_time=None
         if self.IsV4(ip):
-            if not kp.ping(ip,count=5):
-                if not kp.ping(ip,count=0,timeout=timeout_sec,keep_good=keep_good,interval=interval,cancel_func=cancel_func,log=log):
+            if not ping(ip,count=5):
+                if not ping(ip,count=0,timeout=timeout_sec,keep_good=keep_good,interval=interval,cancel_func=cancel_func,log=log):
                     return True
             return False
         return default
@@ -811,7 +819,7 @@ class IP:
     def Ping(self,host='_#_',count=0,interval=1,keep_good=0, timeout=0,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
         #if IsNone(host,chk_val=['_#_'],chk_only=True): host=self.ip
         host=self.GetIP(host)
-        return kp.ping(host,count=count,interval=interval,keep_good=keep_good,timeout=timeout,lost_mon=lost_mon,log=log,stop_func=stop_func,log_format=log_format,cancel_func=cancel_func)
+        return ping(host,count=count,interval=interval,keep_good=keep_good,timeout=timeout,lost_mon=lost_mon,log=log,stop_func=stop_func,log_format=log_format,cancel_func=cancel_func)
 
 def IsJson(src):
     try:
@@ -2962,7 +2970,7 @@ def find_usb_dev(size=None,max_size=None):
 #Payload Channel                 : 1 (0x01)
 #Payload Port                    : 623
 
-def net_send_data(sock,data,key='kg',enc=False,timeout=0,close=False):
+def net_send_data(sock,data,key='kg',enc=False,timeout=0,close=False,instant=True,log=None):
     # if close=True then just send data and close socket
     # if close=False then it need close socket code
     # ex)
@@ -2986,10 +2994,11 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0,close=False):
         ndata=struct.pack('>IssI',len(pdata),data_type,enc_tf,nkey)+pdata
         try:
             sock.sendall(ndata)
-            if close: sock.close()
+            if close and instant is not False:
+                sock.close()
             return True,'OK'
         except:
-            if close:
+            if close and instant is not False:
                 if sock: sock.close()
             if timeout > 0:
                 #timeout=sock.gettimeout()
@@ -2998,9 +3007,9 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0,close=False):
                     return False,'Sending Socket Timeout'
     return False,'Sending Fail'
 
-def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None):
+def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None,log=None):
     # decode code here
-    def recvall(sock,count,progress=False,progress_msg=None): # Packet
+    def recvall(sock,count,progress=False,progress_msg=None,log=None): # Packet
         buf = b''
         file_size_d=int('{0}'.format(count))
         #if progress: print('\n')
@@ -3009,14 +3018,14 @@ def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progre
         while count:
             if progress:
                 if progress_msg:
-                    StdOut('\r{} [ {} % ]'.format(progress_msg,int((file_size_d-count) / file_size_d * 100)))
+                    printf('\r{} [ {} % ]'.format(progress_msg,int((file_size_d-count) / file_size_d * 100)),log=log)
                 else:
-                    StdOut('\rDownloading... [ {} % ]'.format(int((file_size_d-count) / file_size_d * 100)))
+                    printf('\rDownloading... [ {} % ]'.format(int((file_size_d-count) / file_size_d * 100)),log=log,dsp='e')
             try:
                 newbuf = sock.recv(count)
             except socket.error as e:
                 if tn < retry:
-                    print("[ERROR] timeout value:{} retry: {}/{}\n{}".format(sock.gettimeout(),tn,retry,e))
+                    printf("[ERROR] timeout value:{} retry: {}/{}\n{}".format(sock.gettimeout(),tn,retry,e),log=log,dsp='e')
                     tn+=1
                     TIME().Sleep(1)
                     sock.settimeout(retry_timeout)
@@ -3028,9 +3037,9 @@ def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progre
             count -= len(newbuf)
         if progress: 
             if progress_msg:
-                StdOut('\r{} [ 100 % ]\n'.format(progress_msg))
+                printf('\r{} [ 100 % ]\n'.format(progress_msg),log=log)
             else:
-                StdOut('\rDownloading... [ 100 % ]\n')
+                printf('\rDownloading... [ 100 % ]\n',log=log,dsp='e')
         return True,buf
     ok,head=recvall(sock,10)
     if krc(ok,chk=True):
@@ -3039,70 +3048,73 @@ def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progre
                 #st_head=struct.unpack('>IssI',Bytes(head))
                 st_head=struct.unpack('>IssI',Bytes(head))
             except:
-                return [False,'Fail for read header({})'.format(head)]
+                return False,'Fail for read header({})'.format(head)
             if st_head[3] == Bytes2Int(key,encode='utf-8',default='org'):
                 # File not found Error log size is 57. So if 57 then ignore progress
                 if st_head[0] == 57: progress=False
-                ok,data=recvall(sock,st_head[0],progress=progress,progress_msg=progress_msg)
+                ok,data=recvall(sock,st_head[0],progress=progress,progress_msg=progress_msg,log=log)
                 if krc(ok,chk=True):
                     if st_head[2] == 't':
                         # decode code here
                         # data=decode(data)
                         pass
-                    if data: return [st_head[1],pickle.loads(data)]
-                    return [True,None]
+                    if data: return st_head[1],pickle.loads(data)
+                    return True,None
                 else:
-                    return [ok,data]
+                    return ok,data
             else:
-                return [False,'Wrong key']
-        return ['lost','Connection lost']
-    return [ok,head]
+                return False,'Wrong key'
+        return 'lost','Connection lost'
+    return ok,head
 
-def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[0,5],progress=None,enc=False,upacket=None,SSLC=False,log=True,progress_msg=None):
+def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[0,5],progress=None,enc=False,upacket=None,SSLC=False,progress_msg=None,instant=True,log=None):
     sent=False,'Unknown issue'
     for ii in range(0,try_num):
         if upacket: # Update packet function for number of try information ([#/<total #>])
             data=upacket('ntry',[ii+1,try_num],data)
         start_time=TIME().Int()
-        sock=net_get_socket(IP,PORT,timeout=timeout,SSLC=SSLC)
+        ok,sock=net_get_socket(IP,PORT,timeout=timeout,SSLC=SSLC,log=log)
         if try_num > 0: 
             rtry_wait=(timeout//try_num)+1
         else:
             rtry_wait=try_wait
-        sent=False,'Unknown issue'
+        sent=False,'Unknown issue',sock
         try:
-            sent=net_send_data(sock,data,key=key,enc=enc)
+            sent=net_send_data(sock,data,key=key,enc=enc,log=log)
         except:
             os.system("""[ -f /tmp/.{0}.{1}.crt ] && rm -f /tmp/.{0}.{1}.crt""".format(IP,PORT))
         if sent[0]:
-            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg)
-            return nrcd
+            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log)
+            return nrcd,'done',sock
         else:
             if timeout >0:
                 if TIME().Int() - start_time >= timeout-1:
-                    return [False,'Socket Send Timeout']
+                    return False,'Socket Send Timeout',sock
                 #return [False,'Data protocol version mismatch']
-        if sock: sock.close()
+        if sock and instant is True:
+            sock.close()
+            sock=None
         if try_num > 1:
-            if log:
-                print('try send data ... [{}/{}]'.format(ii+1,try_num))
+            printf('try send data ... [{}/{}]'.format(ii+1,try_num),log=log)
             TIME().Sleep(try_wait)
-    return [False,'Send fail({}) :\n{}'.format(sent[1],data)]
+    return False,'Send fail({}) :\n{}'.format(sent[1],data),sock
 
-def net_get_socket(host,port,timeout=3,dbg=0,SSLC=False): # host : Host name or IP
+def net_get_socket(host,port,timeout=3,dbg=6,SSLC=False,log=None): # host : Host name or IP
     try:
         af, socktype, proto, canonname, sa = socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)[0]
     except:
-        print('Can not get network informatin of {}:{}'.format(host,port))
-        return False
+        _e_='Can not get network informatin of {}:{}'.format(host,port)
+        return False,_e_
     try:
         soc = socket.socket(af, socktype, proto)
         if timeout > 0:
             soc.settimeout(timeout)
     except socket.error as msg:
-        print('could not open socket of {0}:{1}\n{2}'.format(host,port,msg))
-        return False
+        _e_='could not open socket of {0}:{1}\n{2}'.format(host,port,msg)
+        printf(_e_,log=log,dsp='e')
+        return False,_e_
     ###### SSL Wrap ######
+    _e_=None
     if SSLC:
         for i in range(0,5):
             icertfile='/tmp/.{}.{}.crt'.format(host,port)
@@ -3119,22 +3131,21 @@ def net_get_socket(host,port,timeout=3,dbg=0,SSLC=False): # host : Host name or 
             try:
                 soc=ssl.wrap_socket(soc,ca_certs=icertfile,cert_reqs=ssl.CERT_REQUIRED)
                 soc.connect((host,port))
-                return soc
+                return soc,'ok'
             except socket.error as msg:
-                if dbg > 3:
-                    print(msg)
+                printf(msg,log=log,log_level=dbg,mode='e')
                 TIME().Sleep(1)
     ########################
     else:
         try:
             soc.connect(sa)
-            return soc
+            return soc,'ok'
         except socket.error as msg:
-            if dbg > 3:
-                print('can not connect at {0}:{1}\n{2}'.format(host,port,msg))
-    return False
+            _e_='can not connect at {0}:{1}\n{2}'.format(host,port,msg)
+            printf(_e_,log=log,log_level=dbg,dsp='e')
+    return False,_e_
 
-def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None):
+def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None,log=None):
     ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssoc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if timeout > 0:
@@ -3142,10 +3153,10 @@ def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_conne
     try:
         ssoc.bind((server_ip, server_port))
     except socket.error as msg:
-        print('Bind failed. Error : {0}'.format(msg))
+        printf('Bind failed. Error : {0}'.format(msg),log=log,mode='e',logfile=log_file)
         os._exit(1)
     ssoc.listen(max_connection)
-    print('Start server for {0}:{1}'.format(server_ip,server_port))
+    printf('Start server for {0}:{1}'.format(server_ip,server_port),log=log,logfile=log_file)
     # for handling task in separate jobs we need threading
     while True:
         conn, addr = ssoc.accept()
@@ -3157,10 +3168,10 @@ def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_conne
             else:
                 Thread(target=main_func_name, args=(conn, ip, port, log_file)).start()
         except:
-            print('No more generate thread for client from {0}:{1}'.format(ip,port))
+            printf('No more generate thread for client from {0}:{1}'.format(ip,port),dsp='e',log=log,logfile=log_file)
     ssoc.close()
 
-def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None):
+def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None,log=None):
     ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssoc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if timeout > 0:
@@ -3168,10 +3179,10 @@ def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,ma
     try:
         ssoc.bind((server_ip, server_port))
     except socket.error as msg:
-        print('Bind failed. Error : {0}'.format(msg))
+        printf('Bind failed. Error : {0}'.format(msg),log=log,dsp='e',logfile=log_file)
         os._exit(1)
     ssoc.listen(max_connection)
-    print('Start server for {0}:{1}'.format(server_ip,server_port))
+    printf('Start server for {0}:{1}'.format(server_ip,server_port),log=log,dsp='e',logfile=log_file)
     # for handling task in separate jobs we need threading
     conn, addr = ssoc.accept()
     ip, port = str(addr[0]), str(addr[1])
@@ -3326,14 +3337,14 @@ def cert_file(keyfile,certfile,C='US',ST='CA',L='San Jose',O='KGC',OU='KG',CN=No
         return key_file,crt_file
     return None,None
 
-def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],progress=None,enc=False,upacket=None,dbg=0,wait_time=3,SSLC=False):
-    sent=False,'Unknown issue'
+def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],progress=None,enc=False,upacket=None,dbg=6,wait_time=3,SSLC=False,instant=True,log=None):
+    sent=False,'Unknown issue',None
     for ii in range(0,try_num):
         if upacket: # Update packet function for number of try information ([#/<total #>])
             data=upacket('ntry',[ii+1,try_num],data)
-        sock=net_get_socket(IP,PORT,timeout=timeout,dbg=dbg,SSLC=SSLC)
+        ok,sock=net_get_socket(IP,PORT,timeout=timeout,dbg=dbg,SSLC=SSLC,log=log)
         
-        if sock is False:
+        if ok is False:
             if dbg >= 3:
                 print('Can not get socket data [{}/{}], wait {}s'.format(ii+1,try_num,wait_time))
             else:
@@ -3341,21 +3352,21 @@ def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],
                 sys.stdout.flush()
             TIME().Sleep(wait_time)
             continue
-        sent=False,'Unknown issue'
+        sent=False,'Unknown issue',sock
         try:
-            sent=net_send_data(sock,data,key=key,enc=enc)
+            sent=net_send_data(sock,data,key=key,enc=enc,log=log)
         except:
-            print('send fail, try again ... [{}/{}]'.format(ii+1,try_num))
+            printf('send fail, try again ... [{}/{}]'.format(ii+1,try_num),log=log)
         if sent[0]:
-            if sock:
+            if sock and instant:
                 sock.close()
-            return [True,'sent']
+                sock=None
+            return True,'sent',sock
         if try_num > 1:
             wait_time=Random(length=0,strs=try_wait,mode='int')
-            if dbg >= 3:
-                print('try send data ... [{}/{}], wait {}s'.format(ii+1,try_num,wait_time))
+            printf('try send data ... [{}/{}], wait {}s'.format(ii+1,try_num,wait_time),log=log,log_level=dbg)
             TIME().Sleep(wait_time)
-    return [False,'Send fail({}) :\n{}'.format(sent[1],data)]
+    return False,'Send fail({}) :\n{}'.format(sent[1],data),sock
 
 
 def encode(string):
