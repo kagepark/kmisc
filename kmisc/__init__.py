@@ -16,33 +16,23 @@ import json
 import random
 import string
 import pickle
-import random
 import base64
 import hashlib
 import fnmatch
 import smtplib
-import tarfile
 import zipfile
 import tarfile
-import zipfile
-import inspect
-import traceback
-import importlib
-import subprocess
 import email.utils
 from sys import modules
 from pprint import pprint
 import fcntl,socket,struct
 from email import encoders
-from sys import version_info
 from threading import Thread
 from datetime import datetime
 from http.cookies import Morsel # This module for requests when you use build by pyinstaller command
-from sys import path as mod_path
 import xml.etree.ElementTree as ET
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
-from distutils.version import LooseVersion
 from multiprocessing import Process, Queue
 from email.mime.multipart import MIMEMultipart
 try:
@@ -228,52 +218,6 @@ def Delete(*inps,**opts):
         return rt
     return default
 
-class COLOR:
-    def __init__(self,**opts):
-       self.color_db=opts.get('color',{'blue': 34, 'grey': 30, 'yellow': 33, 'green': 32, 'cyan': 36, 'magenta': 35, 'white': 37, 'red': 31})
-       self.bg_color_db=opts.get('bg',{'cyan': 46, 'white': 47, 'grey': 40, 'yellow': 43, 'blue': 44, 'magenta': 45, 'red': 41, 'green': 42})
-       self.attr_db=opts.get('attr',{'reverse': 7, 'blink': 5,'concealed': 8, 'underline': 4, 'bold': 1})
-
-    def Color_code(self,name,default=None):
-       return self.color_db.get(name,default)
-
-    def Background_code(self,name,default=None):
-       return self.color_db.get(name,default)
-
-    def Attr_code(self,name,default=None):
-       return self.color_db.get(name,default)
-
-    def Get(self,color,mode='color',default=None):
-       color_code=None
-       if mode == 'color':
-           color_code=self.Color_code(color,default=default)
-       elif mode in ['background','bg']:
-           color_code=self.Background_code(color,default=default)
-       elif mode in ['attr','attribute']:
-           color_code=self.Attr_code(color,default=default)
-       return color_code
-
-    def String(self,msg,color,bg=False,attr=False,mode='shell'):
-       if mode in ['html','HTML']:
-           if bg:
-               return '''<p style="background-color: {}">{}</p>'''.format(format(color,msg))
-           else:
-               return '''<font color={}>{}</font>'''.format(color,msg)
-       else:
-           if bg:
-               color_code=self.Get(color,mode='bg',default=None)
-           elif attr:
-               color_code=self.Get(color,mode='attr',default=None)
-           else:
-               color_code=self.Get(color,default=None)
-           if IsNone(color_code):
-               return msg
-           if IsNone(os.getenv('ANSI_COLORS_DISABLED')):
-               reset='''\033[0m'''
-               fmt_msg='''\033[%dm%s'''
-               msg=fmt_msg % (color_code,msg)
-               return msg+reset
-
 class DIFF:
     def __init__(self):
         pass
@@ -308,328 +252,6 @@ class DIFF:
     def File(self):
         pass
 
-
-class LIST(list):
-    def __init__(self,*inps):
-        if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
-            self.root=list(inps[0])
-        else:
-            self.root=list(inps)
-
-#    def __new__(cls,*inps):
-#        if len(inps) == 1 and isinstance(inps[0],(list,tuple)):
-#            return list(inps[0])
-#        else:
-#            return list(inps)
-
-    # reply self.root back to the Class's output a=List(['a']), return the data to a
-    def __repr__(self):
-        return repr(self.root)
-
-    def Convert(self,src,path=False,default=False,symbol=':white_space:',**opts):
-        if isinstance(src,str) and src:
-            if path and isinstance(symbol,str):
-                if symbol == ':white_space:':
-                    symbol='/'
-                start=0
-                if src[0] == symbol:
-                    start=1
-                if src[-1] == symbol:
-                    return src.split(symbol)[start:-1]
-                return src.split(symbol)[start:]
-            else:
-                if symbol == ':white_space:':
-                    return src.strip().split()
-                elif isinstance(symbol,str):
-                    return src.split(symbol)
-                elif isinstance(symbol,(tuple,list)):
-                    #regexPattern = '|'.join(map(re.escape,tuple(symbol)))
-                    regexPattern = Join(map(re.escape,tuple(symbol)),symbol='|')
-                    return re.split(regexPattern,src)
-                return default
-        elif isinstance(src,(list,tuple)):
-            return list(src)
-        else:
-            return [src]
- 
-    def Append(self,*inps,**opts):
-        uniq=opts.get('uniq',False)
-        symbol=opts.get('symbol',':white_space:')
-        path=opts.get('path',False)
-        default=opts.get('default',False)
-        for pp in inps:
-            if Type(pp,('bytes','str')):
-                if symbol == ':white_space:':
-                    pp=pp.strip()
-                    symbol=' '
-                if path: symbol='/'
-                for rp in Split(pp,symbol,default=[]):
-                    if rp == default: continue
-                    if uniq and rp in self.root: continue
-                    if path:
-                        if rp == '.': continue
-                        if rp == '..' and len(self.root):
-                            del self.root[-1]
-                            continue
-                    self.root.append(rp)
-            else:
-                if uniq and pp in self.root: continue
-                self.root.append(pp)
-        return self.root
-
-    def append(self,inp):
-        self.root.append(inp)
-
-    def Uniq(self,*inps,**opts):
-        symbol=opts.get('symbol',':white_space:')
-        path=opts.get('path',False)
-        default=opts.get('default',False)
-        rt=[]
-        for pp in self.root + list(inps):
-            if Type(pp,('bytes','str')):
-                if symbol == ':white_space:':
-                    pp=pp.strip()
-                    symbol=' '
-                if path: symbol='/'
-                for rp in Split(pp,symbol,default=[]):
-                    if rp not in rt and rp != default:
-                        if path:
-                            if rp == '.': continue
-                            if rp == '..' and len(rt):
-                                del rt[-1]
-                                continue
-                        rt.append(rp)
-            else:
-                if pp not in rt: rt.append(pp)
-        self.root=rt
-        return self.root
-
-    def Delete(self,*inps,**opts):
-        find=opts.get('find','index')
-        default=opts.get('default',False)
-        self.root=rm(self.root,*inps,data=True if find in ['data','element','value'] else False,default=default)
-
-    def Get(self,*inps,**opts):
-        if not inps: return self.root
-        find=opts.get('find','data')
-        default=opts.get('default',None)
-        out=opts.get('out',list)
-        err=opts.get('err',False)
-        if len(self.root) == 0 and err:
-            return default
-        rt=[]
-        if find in ['index','idx']:
-            rt=List(self.root,find=inps,mode='err' if err else 'auto',default=default)
-        else:
-            rt=List(self.root,idx=inps,mode='err' if err else 'auto',default=default)
-        if rt:
-            if out in [tuple,'tuple']:
-                return tuple(rt)
-            elif IsNone(out,chk_val=[None,'','raw']):
-                if len(rt) == 1: return rt[0]
-            return rt
-        return default
-
-    def Index(self,*inps):
-        return self.Get(*inps,find='index')
-
-    def Insert(self,*inps,**opts):
-        start=opts.get('at',0)
-        default=opts.get('default',False)
-        err=opts.get('err',False)
-        if isinstance(at,str):
-            if at in ['start','first']: self.root=list(inps)+self.root
-            if at in ['end','last']: self.root=self.root+list(inps)
-        elif len(self.root) == 0:
-            self.root=list(inps)
-        elif isinstance(start,int) and len(self.root) > start:
-            self.root=self.root[:start]+list(inps)+self.root[start:]
-        else:
-            if err:
-                return default
-            self.root=self.root+list(inps)
-
-    def Update(self,*inps,**opts):
-        at=opts.get('at',0)
-        err=opts.get('err',False)
-        default=opts.get('default',False)
-        n=len(self.root)
-        if n == 0:
-            if err is True:
-                return default
-            else:
-                self.root=list(inps)
-        elif isinstance(at,int) and n > at:
-            for i in range(0,len(inps)):
-                if n > at+i:
-                    self.root[at+i]=inps[i]
-                elif err is True:
-                    return default
-                else:
-                    self.root=self.root+list(inps)[i:]
-                    break
-        elif isinstance(at,(tuple,list)):
-            if len(inps) == len(at):
-                for i in range(0,len(at)):
-                    if isinstance(at[i],int) and n > at[i]:
-                        self.root[at[i]]=inps[i]
-                    elif err is True:
-                        return default
-                    else:
-                        self.root.append(inps[i])
-
-    def Find(self,*inps,**opts):
-        find=opts.get('find','index')
-        default=opts.get('default',[])
-        rt=[]
-        for i in range(0,len(self.root)):
-            for j in inps:
-                j=j.replace('*','.+').replace('?','.')
-                mm=re.compile(j)
-                if bool(re.match(mm,self.root[i])):
-                    if find in ['index','idx']:
-                        rt.append(i)
-                    else:
-                        rt.append(self.root[i])
-        if len(rt):
-            return rt
-        return default
-
-    def Copy(self):
-        return self.root[:]
-    def copy(self):
-        return self.root[:]
-
-    def Tuple(self):
-        return tuple(self.root)
-
-    def Move2first(self,find):
-        if isinstance(find,(list,tuple)):
-            self.Delete(*find,find='data')
-            self.root=list(find)+self.root
-        else:
-            self.Delete(*(find,),find='data')
-            self.root=[find]+self.root
-        return self.root
-
-    def Move2end(self,find):
-        if isinstance(find,(list,tuple)):
-            self.Delete(*find,find='data')
-            self.root=self.root+list(find)
-        else:
-            self.Delete(*(find,),find='data')
-            self.root=self.root+[find]
-        return self.root
-
-    def Sort(self,reverse=False,func=None,order=None,field=None):
-        self.root=Sort(self.root,revers=revers,func=func,order=order,field=field)
-
-class STR(str):
-    def __init__(self,src,byte=None):
-        if isinstance(byte,bool):
-            if byte:
-                self.src=Bytes(src)
-            else:
-                self.src=Str(src)
-        else:
-            self.src=src
-
-    def Rand(self,length=8,strs=None,mode='*'):
-        return Random(length=length,strs=strs,mode=mode)
-
-    def Cut(self,head_len=None,body_len=None,new_line='\n',out=str):
-        if not isinstance(self.src,str):
-           self.src='''{}'''.format(self.src)
-        return Cut(self.src,head_len,body_len,new_line,out)
-
-    def Space(num=1,fill=' ',mode='space'):
-        return Space(num,fill,mode)
-
-    def Reduce(self,start=0,end=None,sym=None,default=None):
-        if isinstance(self.src,str):
-            if sym:
-                arr=self.src.split(sym)
-                if isinstance(end,int):
-                    return Join(arr[start:end],symbol=sym)
-                else:
-                    return Join(arr[start],symbol=sym)
-            else:
-                if isinstance(end,int):
-                    return self.src[start:end]
-                else:
-                    return self.src[start:]
-        return default
-
-    def Find(self,find,src='_#_',prs=None,sym='\n',pattern=True,default=[],out=None,findall=True,word=False,line_num=False,peel=None):
-        if IsNone(src,chk_val=['_#_'],chk_only=True): src=self.src
-        return FIND(src).Find(find,prs=prs,sym=sym,default=default,out=out,findall=findall,word=word,mode='value',line_num=line_num,peel=peel)
-
-    def Index(self,find,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
-        if not isinstance(self.src,str): return default
-        rt=[]
-        source=self.src.split(sym)
-        for row in range(0,len(source)):
-            for ff in self.Find(find,src=source[row],pattern=pattern,word=word,findall=findall,default=[],out=list):
-                if findall:
-                    rt=rt+[(row,[m.start() for m in re.finditer(ff,source[row])])]
-                else:
-                    idx=source[row].index(ff,start,end)
-                    if idx >= 0:
-                        rt.append((row,idx))
-        if rt:
-            if out in ['tuple',tuple]: return tuple(rt)
-            if out not in ['list',list] and len(rt) == 1 and rt[0][0] == 0: 
-                if len(rt[0][1]) == 1:return rt[0][1][0]
-                return rt[0][1]
-            return rt
-        return default
-
-    def Replace(self,replace_what,replace_to,default=None):
-        if isinstance(self.src,str):
-            if replace_what[-1] == '$' or replace_what[0] == '^':
-                return re.sub(replace_what, replace_to, self.src)
-            else:
-                head, _sep, tail = self.src.rpartition(replace_what)
-                return head + replace_to + tail
-        return default
-
-    def RemoveNewline(self,src='_#_',mode='edge',newline='\n',byte=None):
-        if IsNone(src,chk_val=['_#_'],chk_only=True): src=self.src
-        if isinstance(byte,bool):
-            if byte:
-                src=Bytes(src)
-            else:
-                src=Str(src)
-        src_a=Split(src,newline,default=False)
-        if src_a is False:
-            return src
-        if mode in ['edge','both']:
-            if not src_a[0].strip() and not src_a[-1].strip():
-                return Join(src_a[1:-1],symbol=newline)
-            elif not src_a[0].strip():
-                return Join(src_a[1:],symbol=newline)
-            elif not src_a[-1].strip():
-                return Join(src_a[:-1],symbol=newline)
-        elif mode in ['first','start',0]:
-            if not src_a[0].strip():
-                return Join(src_a[1:],symbol=newline)
-        elif mode in ['end','last',-1]:
-            if not src_a[-1].strip():
-                return Join(src_a[:-1],symbol=newline)
-        elif mode in ['*','all','everything']:
-            return Join(src_a,symbol='')
-        return src
-
-    def Wrap(self,src='_#_',space='',space_mode='space',sym='\n',default='org',NFLT=False,out=str):
-        if IsNone(src,chk_val=[None,'_#_'],chk_only=True): src=self.src
-        if isinstance(space,str): space=len(space)
-        return WrapString(src,fspace=space,nspace=space,new_line=sym,NFLT=NFLT,mode=space_mode)
-
-    def Tap(self,space='',sym='\n',default='org',NFLT=False,out=str):
-        if isinstance(space,str):
-            space=len(space)
-        return WrapString(fspace=space,nspace=space,new_line=sym,NFLT=NFLT)
-
 class CONVERT:
     def __init__(self,src):
         self.src=src
@@ -654,10 +276,10 @@ class CONVERT:
             return default
 
     def Mac2Str(self,case='lower',default=False):
-        return MAC(self.src).ToStr(case,default)
+        return MacV4(self.src,case=case,default=default)
 
     def Str2Mac(self,case='lower',default=False,sym=':',chk=False):
-        return MAC(self.src).FromStr(case=case,default=default,sym=sym,chk=chk)
+        return MacV4(self.src,case=case,default=default,symbol=sym)
 
     def Size(self,unit='b:g',default=False):
         return sizeConvert(self.src,unit=unit)
@@ -665,161 +287,774 @@ class CONVERT:
     def Url(self):
         return str2url(self.src)
 
-class MAC:
-    def __init__(self,src=None):
-        self.src=src
+class FILE:
+    '''
+    sub_dir  : True (Get files in recuring directory)
+    data     : True (Get File Data)
+    md5sum   : True (Get File's MD5 SUM)
+    link2file: True (Make a real file instead sym-link file)
+    '''
+    def __init__(self,*inp,**opts):
+        self.root_path=opts.get('root_path',None)
+        #if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
+        #if self.root_path is None: self.root_path=self.Path()
+        if IsNone(self.root_path): self.root_path=self.Path()
+        info=opts.get('info',None)
+        if isinstance(info,dict):
+            self.info=info
+        else:
+            self.info={}
+            sub_dir=opts.get('sub_dir',opts.get('include_sub_dir',opts.get('include_dir',False)))#???
+            data=opts.get('data',False)
+            md5sum=opts.get('md5sum',False)
+            link2file=opts.get('link2file',False) # If True then copy file-data of sym-link file, so get it real file instead of sym-link file
+            self.filelist={}
+            for filename in inp:
+                root,flist=self.FileList(filename,sub_dir=sub_dir,dirname=True)
+                if root not in self.filelist: self.filelist[root]=[]
+                self.filelist[root]=self.filelist[root]+flist
+            for ff in self.filelist:
+                self.info.update(self.Get(ff,*self.filelist[ff],data=data,md5sum=md5sum,link2file=link2file))
 
-    def IsV4(self,**opts):
-        if MacV4(self.src,**opts): return True
+    def FileList(self,name,sub_dir=False,dirname=False,default=[]):
+        if isinstance(name,str):
+            if name[0] == '/':  # Start from root path
+                if os.path.isfile(name) or os.path.islink(name): return os.path.dirname(name),[os.path.basename(name)]
+                if os.path.isdir(name):
+                    if sub_dir:
+                        rt = []
+                        pwd=os.getcwd()
+                        os.chdir(name)
+                        for base, dirs, files in os.walk('.'):
+                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
+                            rt.extend(os.path.join(base[2:], f) for f in files)
+                        os.chdir(pwd)
+                        return Path(name),rt
+                    else:
+                        return Path(name),[f for f in os.listdir(name)]
+            elif self.root_path: # start from defined root path
+                #chk_path=os.path.join(self.root_path,name)
+                chk_path=Path(self.root_path,name)
+                if os.path.isfile(chk_path) or os.path.islink(chk_path): return Path(self.root_path),[name]
+                if os.path.isdir(chk_path):
+                    if sub_dir:
+                        rt = []
+                        pwd=os.getcwd()
+                        os.chdir(self.root_path) # Going to defined root path
+                        # Get recuring file list of the name (when current dir then '.')
+                        for base, dirs, files in os.walk(name):
+                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
+                            rt.extend(os.path.join(base[2:], f) for f in files)
+                        os.chdir(pwd) # recover to the original path
+                        return Path(self.root_path),rt
+                    else:
+                        if name == '.': name=''
+                        return Path(self.root_path),[os.path.join(name,f) for f in os.listdir('{}/{}'.format(self.root_path,name))]
+        return default
+
+    def CdPath(self,base,path):
+        rt=base
+        for ii in path.split('/'):
+            if ii not in rt: return False
+            rt=rt[ii]
+        return rt
+
+    def FileName(self,filename):
+        if isinstance(filename,str):
+            filename_info=os.path.basename(filename).split('.')
+            if 'tar' in filename_info:
+                idx=filename_info.index('tar')
+            else:
+                idx=-1
+            #return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+            return Join(filename_info[:idx],symbol='.'),Join(filename_info[idx:],symbol='.')
+        return None,None
+
+    def FileType(self,filename,default=False):
+        if not isinstance(filename,str) or not os.path.isfile(filename): return default
+        Import('import magic')
+        aa=magic.from_buffer(open(filename,'rb').read(2048))
+        if aa: return aa.split()[0].lower()
+        return 'unknown'
+
+    def GetInfo(self,path=None,*inps):
+        if isinstance(path,str):
+            if not self.info and os.path.exists(path):
+                data={}
+                self.MkInfo(data,path)
+            else:
+                data=self.CdPath(path)
+            if isinstance(data,dict):
+                if not inps and ' i ' in data: return data[' i ']
+                rt=[]
+                for ii in inps:
+                    if ii == 'data' and ii in data: rt.append(data[ii])
+                    if ' i ' in data and ii in data[' i ']: rt.append(data[' i '][ii])
+                return rt
+
+    def Get(self,root_path,*filenames,**opts):
+        data=opts.get('data',False)
+        md5sum=opts.get('md5sum',False)
+        link2file=opts.get('link2file',False)
+        base={}
+
+        def MkInfo(rt,filename=None,**opts):
+            #if not isinstance(rt,dict) or not isinstance(filename,str): return default
+            if ' i ' not in rt: rt[' i ']={}
+            if filename:
+                state=os.stat(filename)
+                rt[' i ']['exist']=True
+                rt[' i ']['size']=state.st_size
+                rt[' i ']['mode']=oct(state.st_mode)[-4:]
+                rt[' i ']['atime']=state.st_atime
+                rt[' i ']['mtime']=state.st_mtime
+                rt[' i ']['ctime']=state.st_ctime
+                rt[' i ']['gid']=state.st_gid
+                rt[' i ']['uid']=state.st_uid
+            if opts: rt[' i '].update(opts)
+
+        def MkPath(base,path,root_path):
+            rt=base
+            chk_dir='{}'.format(root_path)
+            for ii in path.split('/'):
+                if ii:
+                    chk_dir=Path(chk_dir,ii)
+                    if ii not in rt:
+                        rt[ii]={}
+                        if os.path.isdir(chk_dir): MkInfo(rt[ii],chk_dir,type='dir')
+                    rt=rt[ii]
+            return rt
+
+        for filename in filenames:
+            tfilename=Path(root_path,filename)
+            if os.path.exists(tfilename):
+                rt=MkPath(base,filename,root_path)
+                if os.path.islink(tfilename): # it is a Link File
+                    if os.path.isfile(filename): # it is a File
+                        if link2file:
+                            name,ext=self.FileName(tfilename)
+                            _md5=None
+                            if data or md5sum: # MD5SUM or Data
+                                filedata=self.Rw(tfilename,out='byte')
+                                if filedata[0]:
+                                    if data: rt['data']=filedata[1]
+                                    if md5sum: _md5=md5(filedata[1])
+                            MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
+                    else:
+                        MkInfo(rt,filename=tfilename,type='link',dest=os.readlink(tfilename))
+                elif os.path.isdir(tfilename): # it is a directory
+                    MkInfo(rt,tfilename,type='dir')
+                elif os.path.isfile(tfilename): # it is a File
+                    name,ext=self.FileName(tfilename)
+                    _md5=None
+                    if data or md5sum: # MD5SUM or Data
+                        filedata=self.Rw(tfilename,out='byte')
+                        if filedata[0]:
+                            if data: rt['data']=filedata[1]
+                            if md5sum: _md5=md5(filedata[1])
+                    MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
+            else:
+                MkInfo(rt,filename,exist=False)
+        if base:
+            return {root_path:base}
+        return {}
+
+    def GetInfoFile(self,name,roots=None): #get file info dict from Filename path
+        if IsNone(roots): roots=self.FindRP()
+        if isinstance(name,str):
+            for root in roots:
+                rt=self.info.get(root,{})
+                for ii in name.split('/'):
+                    if ii not in rt: break
+                    rt=rt[ii]
+                fileinfo=rt.get(' i ',{})
+                if fileinfo: return fileinfo
         return False
 
-    def FromStr(self,case='lower',default=False,sym=':',chk=False):
-        return MacV4(self.src,case=case,default=default,symbol=sym)
+    def GetList(self,name=None,roots=None): #get file info dict from Filename path
+        if IsNone(roots): roots=self.FindRP()
+        for root in roots:
+            if isinstance(root,str):
+                rt=self.info.get(root,{})
+                if name != root:
+                    rt=self.CdPath(rt,name)
+                if isinstance(rt,dict):
+                    for ii in rt:
+                        if ii == ' i ': continue
+                        if rt[ii].get(' i ',{}).get('type') == 'dir':
+                            print(ii+'/')
+                        else:
+                            print(ii)
+        return False
 
-    def ToStr(self,case='lower',default=False):
-        return MacV4(self.src,case=case,default=default,symbol='')
+    def GetFileList(self,name=None,roots=None): #get file info dict from Filename path
+        if IsNone(roots): roots=self.FindRP()
+        for root in roots:
+            if isinstance(root,str):
+                rt=self.info.get(root,{})
+                if name != root:
+                    rt=self.CdPath(rt,name)
+                if isinstance(rt,dict):
+                    for ii in rt:
+                        if ii == ' i ': continue
+                        if rt[ii].get(' i ',{}).get('type') == 'dir': continue
+                        print(ii)
+        return False
 
-    def GetIfname(self):
-        if not self.FromStr(): return False
-        net_dir='/sys/class/net'
-        if os.path.isdir(net_dir):
-            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-            for dev in dirnames:
-                fmac=cat('{}/{}/address'.format(dirpath,dev),no_end_newline=True)
-                if type(fmac) is str and fmac.strip().lower() == self.src.lower():
-                    return dev
+    def ExecFile(self,filename,bin_name=None,default=None,work_path='/tmp'):
+        # check the filename is excutable in the system bin file then return the file name
+        # if compressed file then extract the file and find bin_name file in the extracted directory
+        #   and found binary file then return then binary file path
+        # if filename is excutable file then return the file path
+        # if not found then return default value
+        exist=self.GetInfoFile(filename)
+        if exist:
+            if exist['type'] in ['elf'] and exist['mode'] == 33261:return filename
+            if self.Extract(filename,work_path=work_path):
+                if bin_name:
+                    rt=[]
+                    for ff in self.Find(work_path,filename=bin_name):
+                        if self.Info(ff).get('mode') == 33261:
+                            rt.append(ff)
+                    return rt
+        else:
+            if find_executable(filename): return filename
+        return default
 
-    def FromIfname(self,ifname,default=None):
-        if isinstance(ifname,str):
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                if PyVer(3):
-                    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', Bytes(ifname[:15],encode='utf-8')))
-                    return ':'.join(['%02x' % char for char in info[18:24]])
+    def Basename(self,filename,default=False):
+        if isinstance(filename,str):return os.path.basename(filename)
+        return default
+
+    def Dirname(self,filename,bin_name=None,default=False):
+        if not isinstance(filename,str): return default
+        if IsNone(bin_name): return os.path.dirname(filename)
+        if not isinstance(bin_name,str): return default
+        bin_info=bin_name.split('/')
+        bin_n=len(bin_info)
+        filename_info=filename.split('/')
+        filename_n=len(filename_info)
+        for ii in range(0,bin_n):
+            if filename_info[filename_n-1-ii] != bin_info[bin_n-1-ii]: return default
+        #return '/'.join(filename_info[:-bin_n])
+        return Join(filename_info[:-bin_n],symbol='/')
+
+    def Find(self,filename,default=[]):
+        if not isinstance(filename,str): return default
+        filename=os.path.basename(filename)
+        if os.path.isdir(self.root_path):
+            rt = []
+            for base, dirs, files in os.walk(self.root_path):
+                found = fnmatch.filter(files, filename)
+                rt.extend(os.path.join(base, f) for f in found)
+            return rt
+        return default
+
+#    def Decompress(self,filename,work_path='/tmp',info={},del_org_file=False):
+#        if not info and isinstance(filename,str) and os.path.isfile(filename): info=self.Get(filename)
+#        filetype=info.get('type',None)
+#        fileext=info.get('ext',None)
+#        if filetype and fileext:
+#            # Tar stuff
+#            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
+#                tf=tarfile.open(filename)
+#                tf.extractall(work_path)
+#                tf.close()
+#            elif fileext in ['zip'] and filetype in ['compress']:
+#                with zipfile.ZipFile(filename,'r') as zf:
+#                    zf.extractall(work_path)
+#            if del_org_file: os.unline(filename)
+#            return True
+#        return False
+
+    def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={},file_only=True,default={'err'}):
+        if isinstance(name,str):
+            #if data is None: # Read from file
+            if IsNone(data): # Read from file
+                if os.path.isfile(name) or (not file_only and os.path.exists(name)):
+                    try:
+                        if read in ['firstread','firstline','first_line','head','readline']:
+                            with open(name,'rb') as f:
+                                data=f.readline()
+                        elif not file_only:
+                            data=os.open(name,os.O_RDONLY)
+                            os.close(data)
+                        else:
+                            with open(name,'rb') as f:
+                                data=f.read()
+                        if out in ['string','str']:
+                            return True,Str(data)
+                        else:
+                            return True,data
+                    except:
+                        pass
+                if default == {'err'}:
+                    return False,'File({}) not found'.format(name)
+                return False,default
+            else: # Write to file
+                file_path=os.path.dirname(name)
+                if not file_path or os.path.isdir(file_path): # current dir or correct directory
+                    if append:
+                        with open(name,'ab') as f:
+                            f.write(Bytes(data))
+                    elif not file_only:
+                        try:
+                            f=os.open(name,os.O_RDWR)
+                            os.write(f,data)
+                            os.close(f)
+                        except:
+                            return False,None
+                    else:
+                        with open(name,'wb') as f:
+                            f.write(Bytes(data))
+                        if isinstance(finfo,dict) and finfo: self.SetIdentity(name,**finfo)
+                        #mode=self.Mode(mode)
+                        #if mode: os.chmod(name,int(mode,base=8))
+                        #if uid and gid: os.chown(name,uid,gid)
+                        #if mtime and atime: os.utime(name,(atime,mtime))# Time update must be at last order
+                    return True,None
+                if default == {'err'}:
+                    return False,'Directory({}) not found'.format(file_path)
+                return False,default
+        if default == {'err'}:
+            return False,'Unknown type({}) filename'.format(name)
+        return False,default
+
+    def Mode(self,val,mode='chmod',default=False):
+        '''
+        convert File Mode to mask
+        mode
+           'chmod' : default, convert to mask (os.chmod(<file>,<mask>))
+           'int'   : return to int number of oct( ex: 755 )
+           'oct'   : return oct number (string)
+           'str'   : return string (-rwxr--r--)
+        default: False
+        '''
+        def _mode_(oct_data,mode='chmod'):
+            #convert to octal to 8bit mask, int, string
+            if mode == 'chmod':
+                return int(oct_data,base=8)
+            elif mode in ['int',int]:
+                return int(oct_data.replace('o',''),base=10)
+            elif mode in ['str',str]:
+                m=[]
+                #for i in list(str(int(oct_data,base=10))):
+                t=False
+                for n,i in enumerate(str(int(oct_data.replace('o',''),base=10))):
+                    if n == 0:
+                        if i == '1': t=True
+                    if n > 0:
+                        if i == '7':
+                            m.append('rwx')
+                        elif i == '6':
+                            m.append('rw-')
+                        elif i == '5':
+                            m.append('r-x')
+                        elif i == '4':
+                            m.append('r--')
+                        elif i == '3':
+                            m.append('-wx')
+                        elif i == '2':
+                            m.append('-w-')
+                        elif i == '1':
+                            m.append('--x')
+                str_mod=Join(m,'')
+                if t: return str_mod[:-1]+'t'
+                return str_mod
+            return oct_data
+        if isinstance(val,int):
+            #if val > 511:       #stat.st_mode (32768 ~ 33279)
+            #stat.st_mode (file: 32768~36863, directory: 16384 ~ 20479)
+            if 32768 <= val <= 36863 or 16384 <= val <= 20479:   #stat.st_mode
+                #return _mode_(oct(val)[-4:],mode) # to octal number (oct(val)[-4:])
+                return _mode_(oct(val & 0o777),mode) # to octal number (oct(val)[-4:])
+            elif 511 >= val > 63:      #mask
+                return _mode_(oct(val),mode)      # to ocal number(oct(val))
+            else:
+                return _mode_('%04d'%(val),mode)      # to ocal number(oct(val))
+        else:
+            val=Str(val,default=None)
+            if isinstance(val,str):
+                val_len=len(val)
+                num=Int(val,default=None)
+                if isinstance(num,int):
+                    if 3 <= len(val) <=4 and 100 <= num <= 777: #string type of permission number(octal number)
+                        return _mode_('%04d'%(num),mode)
                 else:
-                    info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
-                    return ':'.join(['%02x' % ord(char) for char in info[18:24]])
+                    val_len=len(val)
+                    if 9<= val_len <=10:
+                        if val_len == 10 and val[0] in ['-','d','s']:
+                            val=val[1:]
+                    else:
+                        StdErr('Bad permission length')
+                        return default
+                    if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]):
+                        StdErr('Bad permission format (read-write)')
+                        return default
+                    if not all(val[k] in 'xs-' for k in [2,5]):
+                        StdErr('Bad permission format (execute)')
+                        return default
+                    if val[8] not in 'xt-':
+                        StdErr( 'Bad permission format (execute other)')
+                        return default
+                    m = 0
+                    if val[0] == 'r': m |= stat.S_IRUSR
+                    if val[1] == 'w': m |= stat.S_IWUSR
+                    if val[2] == 'x': m |= stat.S_IXUSR
+                    if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
+
+                    if val[3] == 'r': m |= stat.S_IRGRP
+                    if val[4] == 'w': m |= stat.S_IWGRP
+        if isinstance(val,int):
+            #if val > 511:       #stat.st_mode (32768 ~ 33279)
+            #stat.st_mode (file: 32768~36863, directory: 16384 ~ 20479)
+            if 32768 <= val <= 36863 or 16384 <= val <= 20479:   #stat.st_mode
+                #return _mode_(oct(val)[-4:],mode) # to octal number (oct(val)[-4:])
+                return _mode_(oct(val & 0o777),mode) # to octal number (oct(val)[-4:])
+            elif 511 >= val > 63:      #mask
+                return _mode_(oct(val),mode)      # to ocal number(oct(val))
+            else:
+                return _mode_('%04d'%(val),mode)      # to ocal number(oct(val))
+        else:
+            val=Str(val,default=None)
+            if isinstance(val,str):
+                val_len=len(val)
+                num=Int(val,default=None)
+                if isinstance(num,int):
+                    if 3 <= len(val) <=4 and 100 <= num <= 777: #string type of permission number(octal number)
+                        return _mode_('%04d'%(num),mode)
+                else:
+                    val_len=len(val)
+                    if 9<= val_len <=10:
+                        if val_len == 10 and val[0] in ['-','d','s']:
+                            val=val[1:]
+                    else:
+                        StdErr('Bad permission length')
+                        return default
+                    if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]):
+                        StdErr('Bad permission format (read-write)')
+                        return default
+                    if not all(val[k] in 'xs-' for k in [2,5]):
+                        StdErr('Bad permission format (execute)')
+                        return default
+                    if val[8] not in 'xt-':
+                        StdErr( 'Bad permission format (execute other)')
+                        return default
+                    m = 0
+                    if val[0] == 'r': m |= stat.S_IRUSR
+                    if val[1] == 'w': m |= stat.S_IWUSR
+                    if val[2] == 'x': m |= stat.S_IXUSR
+                    if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
+
+                    if val[3] == 'r': m |= stat.S_IRGRP
+                    if val[4] == 'w': m |= stat.S_IWGRP
+        if isinstance(val,int):
+            #if val > 511:       #stat.st_mode (32768 ~ 33279)
+            #stat.st_mode (file: 32768~36863, directory: 16384 ~ 20479)
+            if 32768 <= val <= 36863 or 16384 <= val <= 20479:   #stat.st_mode
+                #return _mode_(oct(val)[-4:],mode) # to octal number (oct(val)[-4:])
+                return _mode_(oct(val & 0o777),mode) # to octal number (oct(val)[-4:])
+            elif 511 >= val > 63:      #mask
+                return _mode_(oct(val),mode)      # to ocal number(oct(val))
+            else:
+                return _mode_('%04d'%(val),mode)      # to ocal number(oct(val))
+        else:
+            val=Str(val,default=None)
+            if isinstance(val,str):
+                val_len=len(val)
+                num=Int(val,default=None)
+                if isinstance(num,int):
+                    if 3 <= len(val) <=4 and 100 <= num <= 777: #string type of permission number(octal number)
+                        return _mode_('%04d'%(num),mode)
+                else:
+                    val_len=len(val)
+                    if 9<= val_len <=10:
+                        if val_len == 10 and val[0] in ['-','d','s']:
+                            val=val[1:]
+                    else:
+                        StdErr('Bad permission length')
+                        return default
+                    if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]):
+                        StdErr('Bad permission format (read-write)')
+                        return default
+                    if not all(val[k] in 'xs-' for k in [2,5]):
+                        StdErr('Bad permission format (execute)')
+                        return default
+                    if val[8] not in 'xt-':
+                        StdErr( 'Bad permission format (execute other)')
+                        return default
+                    m = 0
+                    if val[0] == 'r': m |= stat.S_IRUSR
+                    if val[1] == 'w': m |= stat.S_IWUSR
+                    if val[2] == 'x': m |= stat.S_IXUSR
+                    if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
+
+                    if val[3] == 'r': m |= stat.S_IRGRP
+                    if val[4] == 'w': m |= stat.S_IWGRP
+                    if val[5] == 'x': m |= stat.S_IXGRP
+                    if val[5] == 's': m |= stat.S_IXGRP | stat.S_ISGID
+
+                    if val[6] == 'r': m |= stat.S_IROTH
+                    if val[7] == 'w': m |= stat.S_IWOTH
+                    if val[8] == 'x': m |= stat.S_IXOTH
+                    if val[8] == 't': m |= stat.S_IXOTH | stat.S_ISVTX
+                    return _mode_(oct(m),mode)
+        return default
+    # Find filename's root path and filename according to the db
+    def FindRP(self,filename=None,default=None):
+        if isinstance(filename,str) and self.info:
+            info_keys=list(self.info.keys())
+            info_num=len(info_keys)
+            if filename[0] != '/':
+                if info_num == 1: return info_keys[0]
+                return self.root_path
+            aa='/'
+            filename_a=filename.split('/')
+            for ii in range(1,len(filename_a)):
+                aa=Path(aa,filename_a[ii])
+                if aa in info_keys:
+                    #remain_path='/'.join(filename_a[ii+1:])
+                    remain_path=Join(filename_a[ii+1:],symbol='/')
+                    if info_num == 1: return aa,remain_path
+                    # if info has multi root path then check filename in the db of each root_path
+                    if self.GetInfoFile(remain_path,aa): return aa,remain_path
+        elif self.info:
+            return list(self.info.keys())
+        return default
+
+    def ExtractRoot(self,**opts):
+        root_path=opts.get('root_path',[])
+        dirpath=opts.get('dirpath')
+        sub_dir=opts.get('sub_dir',False)
+        if isinstance(root_path,str):
+            root_path=[root_path]
+        #if not os.path.isdir(opts.get('dest')): os.makedirs(opts.get('dest'))
+        if self.Mkdir(opts.get('dest'),force=True) is False: return False
+        for rp in root_path:
+            new_dest=opts.get('dest')
+            if dirpath:
+                rt=self.CdPath(self.info[rp],dirpath)
+                if rt is False:
+                    print('{} not found'.format(dirpath))
+                    return
+            else:
+                dirpath=''
+                rt=self.info[rp]
+
+            rinfo=rt.get(' i ',{})
+            rtype=rinfo.get('type')
+            #dir:directory,None:root directory
+            if not IsNone(rtype,chk_val=['dir',None,'']): # File / Link
+                mydest=os.path.dirname(dirpath)
+                myname=os.path.basename(dirpath)
+                if mydest:
+                    mydest=os.path.join(new_dest,mydest)
+                else:
+                    mydest=new_dest
+                #if not os.path.isdir(mydest): os.makedirs(mydest)
+                if self.Mkdir(mydest,force=True,info=rinfo) is False: return False
+                if rtype == 'link':
+                    os.symlink(rinfo['dest'],os.path.join(mydest,myname))
+                    self.SetIdentity(os.path.join(mydest,myname),**rinfo)
+                else: # File
+                    if 'data' in rt: self.Rw(Path(mydest,myname),data=rt['data'],finfo=rinfo)
+                    else: print('{} file have no data'.format(dirpath))
+#                self.SetIdentity(os.path.join(mydest,myname),**rinfo)
+            else: # directory or root DB
+                for ii in rt:
+                    if ii == ' i ': continue
+                    finfo=rt[ii].get(' i ',{})
+                    ftype=finfo.get('type')
+                    if ftype == 'dir':
+                        mydir=os.path.join(new_dest,ii)
+                        self.Mkdir(mydir,force=True,info=finfo)
+                        #self.SetIdentity(mydir,**finfo)
+                        # Sub directory
+                        if sub_dir: self.ExtractRoot(dirpath=os.path.join(dirpath,ii),root_path=rp,dest=os.path.join(new_dest,ii),sub_dir=sub_dir)
+                        #if dmtime and datime: os.utime(mydir,(datime,dmtime)) # Time update must be at last order
+                    elif ftype == 'link':
+                        iimm=os.path.join(new_dest,ii)
+                        if not os.path.exists(iimm):
+                            os.symlink(finfo['dest'],iimm)
+                            self.SetIdentity(iimm,**finfo)
+                    else: # File
+                        if 'data' in rt[ii]: self.Rw(os.path.join(new_dest,ii),data=rt[ii]['data'],finfo=finfo)
+                        else: print('{} file have no data'.format(ii))
+
+    def Mkdir(self,path,force=False,info={}):
+        if not isinstance(path,str): return None
+        if os.path.exists(path): return None
+        if force:
+            try:
+                os.makedirs(path)
+                if isinstance(info,dict) and info: self.SetIdentity(path,**info)
+            except:
+                return False
+        else:
+            try:
+                os.mkdir(path)
+                if isinstance(info,dict) and info: self.SetIdentity(path,**info)
+            except:
+                return False
+        return True
+
+    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None,force=False):
+        if IsNone(filename):
+            filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
+        dir_name=os.path.dirname(filename)
+        file_name=os.path.basename(filename)
+        name, ext = os.path.splitext(file_name)
+        if type(suffix) is not str or force is True:
+            suffix='-XXXXXXXX'
+        num_type='.%0{}d'.format(len(suffix)-1)
+        if dir_name == '.':
+            dir_name=os.path.dirname(os.path.realpath(__file__))
+        elif dir_name == '':
+            dir_name=base_dir
+        def new_name(name,ext=None,ext2=None):
+            if ext:
+                if ext2:
+                    return '{}{}{}'.format(name,ext,ext2)
+                return '{}{}'.format(name,ext)
+            if ext2:
+                return '{}{}'.format(name,ext2)
+            return name
+        def new_dest(dest_dir,name,ext=None,force=False):
+            if os.path.isdir(dest_dir) is False:
+                return False
+            i=0
+            new_file=new_name(name,ext)
+            while True:
+                rfile=os.path.join(dest_dir,new_file)
+                if force is False and os.path.exists(rfile) is False:
+                    return rfile
+                force=False
+                if suffix:
+                    if '0' in suffix or 'n' in suffix or 'N' in suffix:
+                        if suffix[-1] not in ['0','n']:
+                            new_file=new_name(name,num_type%i,ext)
+                        else:
+                            new_file=new_name(name,ext,num_type%i)
+                    elif 'x' in suffix or 'X' in suffix:
+                        rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
+                        if suffix[-1] not in ['X','x']:
+                            new_file=new_name(name,rnd_str,ext)
+                        else:
+                            new_file=new_name(name,ext,rnd_str)
+                    else:
+                        if i == 0:
+                            new_file=new_name(name,ext,'.{}'.format(suffix))
+                        else:
+                            new_file=new_name(name,ext,'.{}.{}'.format(suffix,i))
+                else:
+                    new_file=new_name(name,ext,'.{}'.format(i))
+                i+=1
+        new_dest_file=new_dest(dir_name,name,ext,force=force)
+        if opt in ['file','f']:
+           os.mknode(new_dest_file)
+        elif opt in ['dir','d','directory']:
+           os.mkdir(new_dest_file)
+        else:
+           return new_dest_file
+
+    def SetIdentity(self,path,**opts):
+        if os.path.exists(path):
+            chmod=self.Mode(opts.get('mode',None))
+            uid=opts.get('uid',None)
+            gid=opts.get('gid',None)
+            atime=opts.get('atime',None)
+            mtime=opts.get('mtime',None)
+            try:
+                if chmod: os.chmod(path,int(chmod,base=8))
+                if uid and gid: os.chown(path,uid,gid)
+                if mtime and atime: os.utime(path,(atime,mtime)) # Time update must be at last order
             except:
                 pass
-        return default
 
-class IP:
-    def __init__(self,ip=None):
-        self.ip=ip
+    def Extract(self,*path,**opts):
+        dest=opts.get('dest',None)
+        root_path=opts.get('root_path',None)
+        sub_dir=opts.get('sub_dir',False)
+        if IsNone(dest): return False
+        if not path:
+            self.ExtractRoot(root_path=self.FindRP(),dest=dest,sub_dir=sub_dir)
+        else:
+            for filepath in path:
+                fileRF=self.FindRP(filepath)
+                if isinstance(fileRF,tuple):
+                    root_path=[fileRF[0]]
+                    filename=fileRF[1]
+                    self.ExtractRoot(root_path=root_path,dirpath=filename,dest=dest,sub_dir=sub_dir)
+                elif isinstance(fileRF,list):
+                    self.ExtractRoot(root_path=fileRF,dest=dest,sub_dir=sub_dir)
 
-    def GetIP(self,ip=None):
-        if IsNone(ip,chk_val=['_#_']): 
-            return self.ip
-        return ip
+    def Save(self,filename):
+        pv=b'3'
+        if PyVer(2): pv=b'2'
+        #self.Rw(filename,data=pv+bz2.compress(pickle.dumps(self.info,protocol=2)))
+        self.Rw(filename,data=pv+Compress(pickle.dumps(self.info,protocol=2),mode='lz4'))
 
-    def IsV4(self,ip=None):
-        ip=self.GetIP(ip)
-        return True if IpV4(ip) else False
-
-    def IsBmcIp(self,ip=None,port=(623,664,443)):
-        return self.IsOpenPort(port,ip=ip)
-
-    def IsOpenPort(self,port,**opts):
-        '''
-        It connectionable port(?) like as ssh, ftp, telnet, web, ...
-        '''
-        default=opts.get('default',False)
-        ip=self.GetIP(opts.get('ip'))
-        if IpV4(ip,port=port,default=default): return True
-        return False
-
-    def IsUsedPort(self,port,ip='_#_'):
-        #if IsNone(ip,chk_val=['_#_'],chk_only=True):ip=self.ip
-        ip=self.GetIP(ip)
-        return IpV4(ip,port=port,used=True)
-
-    def Ip2Num(self,ip=None,default=False):
-        ip=self.GetIP(ip)
-        return IpV4(ip,out=int,default=default)
-
-    def Ip2Str(self,ip=None,default=False):
-        ip=self.GetIP(ip)
-        return IpV4(ip,out=str,default=default)
-
-    def Ip2hex(self,ip=None,default=False):
-        ip=self.GetIP(ip)
-        return IpV4(ip,out=hex,default=default)
-
-    def InRange(self,start_ip,end_ip,**opts):
-        ip=self.GetIP(opts.get('ip'))
-        default=opts.get('default',False)
-        startip=self.Ip2Num(start_ip)
-        myip=self.Ip2Num(ip)
-        endip=self.Ip2Num(end_ip)
-        if isinstance(startip,int) and isinstance(myip,int) and isinstance(endip,int):
-            if startip <= myip <= endip: return True
+    def Open(self,filename):
+        if not os.path.isfile(filename):
+            print('{} not found'.format(filename))
             return False
-        return default
-
-    def LostNetwork(self,**opts):
-        ip=self.GetIP(opts.get('ip'))
-        default=opts.get('default',False)
-        timeout_sec=opts.get('timeout',1800)
-        interval=opts.get('interval',2)
-        keep_good=opts.get('keep_good',30)
-        cancel_func=opts.get('cancel_func',None)
-        log=opts.get('log',None)
-        init_time=None
-        if self.IsV4(ip):
-            if not ping(ip,count=5):
-                if not ping(ip,count=0,timeout=timeout_sec,keep_good=keep_good,interval=interval,cancel_func=cancel_func,log=log):
-                    return True
+        data=self.Rw(filename)
+        if data[0]:
+            pv=data[1][0]
+            if pv == '3' and PyVer(2):
+                print('The data version is not matched. Please use Python3')
+                return False
+            # decompress data
+            try:
+                #dcdata=bz2.BZ2Decompressor().decompress(data[1][1:])
+                dcdata=Decompress(data[1][1:],mode='lz4')
+            except:
+                print('This is not KFILE format')
+                return False
+            try:
+                self.info=pickle.loads(dcdata) # Load data
+            except:
+                try:
+                    self.info=pickle.loads(dcdata,encoding='latin1') # Convert 2 to 3 format
+                except:
+                    print('This is not KFILE format')
+                    return False
+        else:
+            print('Can not read {}'.format(filename))
             return False
-        return default
 
-    def V4(self,ip='_#_',out='str',default=False):
-        #if IsNone(ip,chk_val=['_#_'],chk_only=True): ip=self.ip
-        ip=self.GetIP(ip)
-        return IpV4(ip,out=out,default=default)
+    def Cd(self,data,path,sym='/'):
+        if Type(data,'module') and data == os:
+            if isinstance(path,str):
+                data.chdir(path)
+                return data
+        else:
+            if isinstance(path,int): path='{}'.format(path)
+            for ii in path.split(sym):
+                if isinstance(data,dict):
+                    if ii in data:
+                        data=data[ii]
+                elif isinstance(data,(list,tuple)):
+                    if not isinstance(ii,str) or not ii.isdigit(): continue
+                    ii=int(ii)
+                    if len(data) > ii:
+                        data=data[ii]
+            return data
 
-    def Online(self,**opts):
-        ip=self.GetIP(opts.get('ip'))
-        default=opts.get('default',False)
-        timeout_sec=opts.get('timeout',1800)
-        interval=opts.get('interval',3)
-        keep=opts.get('keep',20)
-        cancel_func=opts.get('cancel_func',None)
-        log=opts.get('log',None)
-        time=TIME()
-        run_time=time.Int()
-        if self.IsV4(ip):
-            if log:
-                log('[',direct=True,log_level=1)
-            while True:
-                if time.Out(timeout_sec):
-                    if log:
-                        log(']\n',direct=True,log_level=1)
-                    return False,'Timeout monitor'
-                if IsBreak(cancel_func):
-                    if log:
-                        log(']\n',direct=True,log_level=1)
-                    return True,'Stopped monitor by Custom'
-                if self.Ping(ip,cancel_func=cancel_func):
-                    if (time.Int() - run_time) > keep:
-                        if log:
-                            log(']\n',direct=True,log_level=1)
-                        return True,'OK'
-                    if log:
-                        log('-',direct=True,log_level=1)
+    def Path(self,filename=None):
+        if filename:
+            return os.path.dirname(os.path.realpath(filename))
+        return os.path.dirname(os.path.realpath((inspect.stack()[-1])[1]))
+        #if '__file__' in globals() : return os.path.dirname(os.path.realpath(__file__))
+
+    def Rm(self,filelist):
+        if isinstance(filelist,str):
+            filelist=filelist.split(',')
+        if isinstance(filelist,(list,tuple)):
+            for ii in list(filelist):
+                if os.path.isfile(ii):
+                    os.unlink(ii)
                 else:
-                    run_time=time.Int()
-                    if log:
-                        log('.',direct=True,log_level=1)
-                time.Sleep(interval)
-            if log:
-                log(']\n',direct=True,log_level=1)
-            return False,'Timeout/Unknown issue'
-        return default,'IP format error'
-
-    def Ping(self,host='_#_',count=0,interval=1,keep_good=0, timeout=0,lost_mon=False,log=None,stop_func=None,log_format='.',cancel_func=None):
-        #if IsNone(host,chk_val=['_#_'],chk_only=True): host=self.ip
-        host=self.GetIP(host)
-        return ping(host,count=count,interval=interval,keep_good=keep_good,timeout=timeout,lost_mon=lost_mon,log=log,stop_func=stop_func,log_format=log_format,cancel_func=cancel_func)
+                    print('not found {0}'.format(ii))
 
 def IsJson(src):
     try:
@@ -1087,7 +1322,7 @@ class HOST:
     def Mac(self,ip=None,dev=None,default=None,ifname=None):
         #if dev is None and ifname: dev=ifname
         if IsNone(dev) and ifname: dev=ifname
-        if IP(ip).IsV4():
+        if IpV4(ip):
             dev_info=self.NetDevice()
             for dev in dev_info.keys():
                 if self.Ip(ifname=dev) == ip:
@@ -1102,7 +1337,7 @@ class HOST:
             except:
                 return default
         #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        return MAC('%012x' % uuid.getnode()).FromStr()
+        return MacV4('%012x' % uuid.getnode())
 
     def DevName(self,mac=None,default=None):
         if IsNone(mac):
@@ -1158,781 +1393,85 @@ class HOST:
         return default
 
     def Alive(self,ip,keep=20,interval=3,timeout=1800,default=False,log=None,cancel_func=None):
-        return IP(ip).Online(keep=keep,interval=interval,timeout=timeout,default=default,log=log,cancel_func=cancel_func)[1]
+        time=TIME()
+        run_time=time.Int()
+        if IpV4(ip):
+            if log:
+                log('[',direct=True,log_level=1)
+            while True:
+                if time.Out(timeout_sec):
+                    if log:
+                        log(']\n',direct=True,log_level=1)
+                    return False,'Timeout monitor'
+                if IsBreak(cancel_func):
+                    if log:
+                        log(']\n',direct=True,log_level=1)
+                    return True,'Stopped monitor by Custom'
+                if ping(ip,cancel_func=cancel_func):
+                    if (time.Int() - run_time) > keep:
+                        if log:
+                            log(']\n',direct=True,log_level=1)
+                        return True,'OK'
+                    if log:
+                        log('-',direct=True,log_level=1)
+                else:
+                    run_time=time.Int()
+                    if log:
+                        log('.',direct=True,log_level=1)
+                time.Sleep(interval)
+            if log:
+                log(']\n',direct=True,log_level=1)
+            return False,'Timeout/Unknown issue'
+        return default,'IP format error'
 
     def Ping(self,ip,keep_good=10,timeout=3600):
-        return IP(ip).Ping(keep_good=10,timeout=timeout)
+        if IpV4(ip):
+            return ping(ip,keep_good=keep_good,timeout=timeout)
 
-class FILE:
-    '''
-    sub_dir  : True (Get files in recuring directory)
-    data     : True (Get File Data)
-    md5sum   : True (Get File's MD5 SUM)
-    link2file: True (Make a real file instead sym-link file)
-    '''
-    def __init__(self,*inp,**opts):
-        self.root_path=opts.get('root_path',None)
-        #if self.root_path is None: self.root_path=os.path.dirname(os.path.abspath(__file__))
-        #if self.root_path is None: self.root_path=self.Path()
-        if IsNone(self.root_path): self.root_path=self.Path()
-        info=opts.get('info',None)
-        if isinstance(info,dict):
-            self.info=info
-        else:
-            self.info={}
-            sub_dir=opts.get('sub_dir',opts.get('include_sub_dir',opts.get('include_dir',False)))#???
-            data=opts.get('data',False)
-            md5sum=opts.get('md5sum',False)
-            link2file=opts.get('link2file',False) # If True then copy file-data of sym-link file, so get it real file instead of sym-link file
-            self.filelist={}
-            for filename in inp:
-                root,flist=self.FileList(filename,sub_dir=sub_dir,dirname=True)
-                if root not in self.filelist: self.filelist[root]=[]
-                self.filelist[root]=self.filelist[root]+flist
-            for ff in self.filelist:
-                self.info.update(self.Get(ff,*self.filelist[ff],data=data,md5sum=md5sum,link2file=link2file))
+class COLOR:
+    def __init__(self,**opts):
+       self.color_db=opts.get('color',{'blue': 34, 'grey': 30, 'yellow': 33, 'green': 32, 'cyan': 36, 'magenta': 35, 'white': 37, 'red': 31})
+       self.bg_color_db=opts.get('bg',{'cyan': 46, 'white': 47, 'grey': 40, 'yellow': 43, 'blue': 44, 'magenta': 45, 'red': 41, 'green': 42})
+       self.attr_db=opts.get('attr',{'reverse': 7, 'blink': 5,'concealed': 8, 'underline': 4, 'bold': 1})
 
-    def FileList(self,name,sub_dir=False,dirname=False,default=[]):
-        if isinstance(name,str):
-            if name[0] == '/':  # Start from root path
-                if os.path.isfile(name) or os.path.islink(name): return os.path.dirname(name),[os.path.basename(name)]
-                if os.path.isdir(name):
-                    if sub_dir:
-                        rt = []
-                        pwd=os.getcwd()
-                        os.chdir(name)
-                        for base, dirs, files in os.walk('.'): 
-                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
-                            rt.extend(os.path.join(base[2:], f) for f in files)
-                        os.chdir(pwd)
-                        return Path(name),rt
-                    else:
-                        return Path(name),[f for f in os.listdir(name)]
-            elif self.root_path: # start from defined root path
-                #chk_path=os.path.join(self.root_path,name)
-                chk_path=Path(self.root_path,name)
-                if os.path.isfile(chk_path) or os.path.islink(chk_path): return Path(self.root_path),[name]
-                if os.path.isdir(chk_path):
-                    if sub_dir:
-                        rt = []
-                        pwd=os.getcwd()
-                        os.chdir(self.root_path) # Going to defined root path
-                        # Get recuring file list of the name (when current dir then '.')
-                        for base, dirs, files in os.walk(name):
-                            if dirname: rt.extend(os.path.join(base[2:], d) for d in dirs)
-                            rt.extend(os.path.join(base[2:], f) for f in files)
-                        os.chdir(pwd) # recover to the original path
-                        return Path(self.root_path),rt 
-                    else:
-                        if name == '.': name=''
-                        return Path(self.root_path),[os.path.join(name,f) for f in os.listdir('{}/{}'.format(self.root_path,name))]
-        return default
+    def Color_code(self,name,default=None):
+       return self.color_db.get(name,default)
 
-    def CdPath(self,base,path):
-        rt=base
-        for ii in path.split('/'):
-            if ii not in rt: return False
-            rt=rt[ii]
-        return rt
-            
-    def FileName(self,filename):
-        if isinstance(filename,str):
-            filename_info=os.path.basename(filename).split('.')
-            if 'tar' in filename_info:
-                idx=filename_info.index('tar')
-            else:
-                idx=-1
-            #return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
-            return Join(filename_info[:idx],symbol='.'),Join(filename_info[idx:],symbol='.')
-        return None,None
+    def Background_code(self,name,default=None):
+       return self.color_db.get(name,default)
 
-    def FileType(self,filename,default=False):
-        if not isinstance(filename,str) or not os.path.isfile(filename): return default
-        Import('import magic')
-        aa=magic.from_buffer(open(filename,'rb').read(2048))
-        if aa: return aa.split()[0].lower()
-        return 'unknown'
+    def Attr_code(self,name,default=None):
+       return self.color_db.get(name,default)
 
-    def GetInfo(self,path=None,*inps):
-        if isinstance(path,str):
-            if not self.info and os.path.exists(path):
-                data={}
-                self.MkInfo(data,path)
-            else:
-                data=self.CdPath(path)
-            if isinstance(data,dict):
-                if not inps and ' i ' in data: return data[' i ']
-                rt=[]
-                for ii in inps:
-                    if ii == 'data' and ii in data: rt.append(data[ii])
-                    if ' i ' in data and ii in data[' i ']: rt.append(data[' i '][ii])
-                return rt
-
-    def Get(self,root_path,*filenames,**opts):
-        data=opts.get('data',False)
-        md5sum=opts.get('md5sum',False)
-        link2file=opts.get('link2file',False)
-        base={}
-
-        def MkInfo(rt,filename=None,**opts):
-            #if not isinstance(rt,dict) or not isinstance(filename,str): return default
-            if ' i ' not in rt: rt[' i ']={}
-            if filename:
-                state=os.stat(filename)
-                rt[' i ']['exist']=True
-                rt[' i ']['size']=state.st_size
-                rt[' i ']['mode']=oct(state.st_mode)[-4:]
-                rt[' i ']['atime']=state.st_atime
-                rt[' i ']['mtime']=state.st_mtime
-                rt[' i ']['ctime']=state.st_ctime
-                rt[' i ']['gid']=state.st_gid
-                rt[' i ']['uid']=state.st_uid
-            if opts: rt[' i '].update(opts)
-
-        def MkPath(base,path,root_path):
-            rt=base
-            chk_dir='{}'.format(root_path)
-            for ii in path.split('/'):
-                if ii:
-                    chk_dir=Path(chk_dir,ii)
-                    if ii not in rt:
-                        rt[ii]={}
-                        if os.path.isdir(chk_dir): MkInfo(rt[ii],chk_dir,type='dir')
-                    rt=rt[ii]
-            return rt
-
-        for filename in filenames:
-            tfilename=Path(root_path,filename)
-            if os.path.exists(tfilename):
-                rt=MkPath(base,filename,root_path)
-                if os.path.islink(tfilename): # it is a Link File
-                    if os.path.isfile(filename): # it is a File
-                        if link2file:
-                            name,ext=self.FileName(tfilename)
-                            _md5=None
-                            if data or md5sum: # MD5SUM or Data
-                                filedata=self.Rw(tfilename,out='byte')
-                                if filedata[0]:
-                                    if data: rt['data']=filedata[1]
-                                    if md5sum: _md5=md5(filedata[1])
-                            MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
-                    else:
-                        MkInfo(rt,filename=tfilename,type='link',dest=os.readlink(tfilename))
-                elif os.path.isdir(tfilename): # it is a directory
-                    MkInfo(rt,tfilename,type='dir')
-                elif os.path.isfile(tfilename): # it is a File
-                    name,ext=self.FileName(tfilename)
-                    _md5=None
-                    if data or md5sum: # MD5SUM or Data
-                        filedata=self.Rw(tfilename,out='byte')
-                        if filedata[0]:
-                            if data: rt['data']=filedata[1]
-                            if md5sum: _md5=md5(filedata[1])
-                    MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
-            else:
-                MkInfo(rt,filename,exist=False)
-        if base:
-            return {root_path:base}
-        return {}
-
-    def GetInfoFile(self,name,roots=None): #get file info dict from Filename path
-        if IsNone(roots): roots=self.FindRP()
-        if isinstance(name,str):
-            for root in roots:
-                rt=self.info.get(root,{})
-                for ii in name.split('/'):
-                    if ii not in rt: break
-                    rt=rt[ii]
-                fileinfo=rt.get(' i ',{})
-                if fileinfo: return fileinfo
-        return False
-
-    def GetList(self,name=None,roots=None): #get file info dict from Filename path
-        if IsNone(roots): roots=self.FindRP()
-        for root in roots:
-            if isinstance(root,str):
-                rt=self.info.get(root,{})
-                if name != root:
-                    rt=self.CdPath(rt,name)
-                if isinstance(rt,dict):
-                    for ii in rt:
-                        if ii == ' i ': continue
-                        if rt[ii].get(' i ',{}).get('type') == 'dir':
-                            print(ii+'/')
-                        else:
-                            print(ii)
-        return False
-
-    def GetFileList(self,name=None,roots=None): #get file info dict from Filename path
-        if IsNone(roots): roots=self.FindRP()
-        for root in roots:
-            if isinstance(root,str):
-                rt=self.info.get(root,{})
-                if name != root:
-                    rt=self.CdPath(rt,name)
-                if isinstance(rt,dict):
-                    for ii in rt:
-                        if ii == ' i ': continue
-                        if rt[ii].get(' i ',{}).get('type') == 'dir': continue
-                        print(ii)
-        return False
-
-    def ExecFile(self,filename,bin_name=None,default=None,work_path='/tmp'):
-        # check the filename is excutable in the system bin file then return the file name
-        # if compressed file then extract the file and find bin_name file in the extracted directory
-        #   and found binary file then return then binary file path
-        # if filename is excutable file then return the file path
-        # if not found then return default value
-        exist=self.GetInfoFile(filename)
-        if exist:
-            if exist['type'] in ['elf'] and exist['mode'] == 33261:return filename
-            if self.Extract(filename,work_path=work_path):
-                if bin_name:
-                    rt=[]
-                    for ff in self.Find(work_path,filename=bin_name):
-                        if self.Info(ff).get('mode') == 33261:
-                            rt.append(ff)
-                    return rt
-        else:
-            if find_executable(filename): return filename
-        return default
-
-    def Basename(self,filename,default=False):
-        if isinstance(filename,str):return os.path.basename(filename)
-        return default
-        
-    def Dirname(self,filename,bin_name=None,default=False):
-        if not isinstance(filename,str): return default
-        if IsNone(bin_name): return os.path.dirname(filename)
-        if not isinstance(bin_name,str): return default
-        bin_info=bin_name.split('/')
-        bin_n=len(bin_info)
-        filename_info=filename.split('/')
-        filename_n=len(filename_info)
-        for ii in range(0,bin_n):
-            if filename_info[filename_n-1-ii] != bin_info[bin_n-1-ii]: return default
-        #return '/'.join(filename_info[:-bin_n])
-        return Join(filename_info[:-bin_n],symbol='/')
-
-    def Find(self,filename,default=[]):
-        if not isinstance(filename,str): return default
-        filename=os.path.basename(filename)
-        if os.path.isdir(self.root_path):
-            rt = []
-            for base, dirs, files in os.walk(self.root_path):
-                found = fnmatch.filter(files, filename)
-                rt.extend(os.path.join(base, f) for f in found)
-            return rt
-        return default
- 
-#    def Decompress(self,filename,work_path='/tmp',info={},del_org_file=False):
-#        if not info and isinstance(filename,str) and os.path.isfile(filename): info=self.Get(filename)
-#        filetype=info.get('type',None)
-#        fileext=info.get('ext',None)
-#        if filetype and fileext:
-#            # Tar stuff
-#            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
-#                tf=tarfile.open(filename)
-#                tf.extractall(work_path)
-#                tf.close()
-#            elif fileext in ['zip'] and filetype in ['compress']:
-#                with zipfile.ZipFile(filename,'r') as zf:
-#                    zf.extractall(work_path)
-#            if del_org_file: os.unline(filename)
-#            return True
-#        return False
-
-    def Rw(self,name,data=None,out='byte',append=False,read=None,overwrite=True,finfo={},file_only=True,default={'err'}):
-        if isinstance(name,str):
-            #if data is None: # Read from file
-            if IsNone(data): # Read from file
-                if os.path.isfile(name) or (not file_only and os.path.exists(name)):
-                    try:
-                        if read in ['firstread','firstline','first_line','head','readline']:
-                            with open(name,'rb') as f:
-                                data=f.readline()
-                        elif not file_only:
-                            data=os.open(name,os.O_RDONLY)
-                            os.close(data)
-                        else:
-                            with open(name,'rb') as f:
-                                data=f.read()
-                        if out in ['string','str']:
-                            return True,Str(data)
-                        else:
-                            return True,data
-                    except:
-                        pass
-                if default == {'err'}:
-                    return False,'File({}) not found'.format(name)
-                return False,default
-            else: # Write to file
-                file_path=os.path.dirname(name)
-                if not file_path or os.path.isdir(file_path): # current dir or correct directory
-                    if append:
-                        with open(name,'ab') as f:
-                            f.write(Bytes(data))
-                    elif not file_only:
-                        try:
-                            f=os.open(name,os.O_RDWR)
-                            os.write(f,data)
-                            os.close(f)
-                        except:
-                            return False,None
-                    else:
-                        with open(name,'wb') as f:
-                            f.write(Bytes(data))
-                        if isinstance(finfo,dict) and finfo: self.SetIdentity(name,**finfo)
-                        #mode=self.Mode(mode)
-                        #if mode: os.chmod(name,int(mode,base=8))
-                        #if uid and gid: os.chown(name,uid,gid)
-                        #if mtime and atime: os.utime(name,(atime,mtime))# Time update must be at last order
-                    return True,None
-                if default == {'err'}:
-                    return False,'Directory({}) not found'.format(file_path)
-                return False,default
-        if default == {'err'}:
-            return False,'Unknown type({}) filename'.format(name)
-        return False,default
-
-    def Mode(self,val,mode='chmod',default=False):
-        '''
-        convert File Mode to mask
-        mode 
-           'chmod' : default, convert to mask (os.chmod(<file>,<mask>))
-           'int'   : return to int number of oct( ex: 755 )
-           'oct'   : return oct number (string)
-           'str'   : return string (-rwxr--r--)
-        default: False
-        '''
-        def _mode_(oct_data,mode='chmod'):
-            #convert to octal to 8bit mask, int, string
-            if mode == 'chmod':
-                return int(oct_data,base=8)
-            elif mode in ['int',int]:
-                return int(oct_data.replace('o',''),base=10)
-            elif mode in ['str',str]:
-                m=[]
-                #for i in list(str(int(oct_data,base=10))):
-                t=False
-                for n,i in enumerate(str(int(oct_data.replace('o',''),base=10))):
-                    if n == 0:
-                        if i == '1': t=True
-                    if n > 0:
-                        if i == '7':
-                            m.append('rwx')
-                        elif i == '6':
-                            m.append('rw-')
-                        elif i == '5':
-                            m.append('r-x')
-                        elif i == '4':
-                            m.append('r--')
-                        elif i == '3':
-                            m.append('-wx')
-                        elif i == '2':
-                            m.append('-w-')
-                        elif i == '1':
-                            m.append('--x')
-                str_mod=Join(m,'')
-                if t: return str_mod[:-1]+'t'
-                return str_mod
-            return oct_data
-        if isinstance(val,int):
-            #if val > 511:       #stat.st_mode (32768 ~ 33279)
-            #stat.st_mode (file: 32768~36863, directory: 16384 ~ 20479)
-            if 32768 <= val <= 36863 or 16384 <= val <= 20479:   #stat.st_mode
-                #return _mode_(oct(val)[-4:],mode) # to octal number (oct(val)[-4:])
-                return _mode_(oct(val & 0o777),mode) # to octal number (oct(val)[-4:])
-            elif 511 >= val > 63:      #mask
-                return _mode_(oct(val),mode)      # to ocal number(oct(val))
-            else:
-                return _mode_('%04d'%(val),mode)      # to ocal number(oct(val))
-        else:
-            val=Str(val,default=None)
-            if isinstance(val,str):
-                val_len=len(val)
-                num=Int(val,default=None)
-                if isinstance(num,int):
-                    if 3 <= len(val) <=4 and 100 <= num <= 777: #string type of permission number(octal number)
-                        return _mode_('%04d'%(num),mode)
-                else:
-                    val_len=len(val)
-                    if 9<= val_len <=10:
-                        if val_len == 10 and val[0] in ['-','d','s']:
-                            val=val[1:]
-                    else:
-                        StdErr('Bad permission length')
-                        return default
-                    if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]):
-                        StdErr('Bad permission format (read-write)')
-                        return default
-                    if not all(val[k] in 'xs-' for k in [2,5]):
-                        StdErr('Bad permission format (execute)')
-                        return default
-                    if val[8] not in 'xt-':
-                        StdErr( 'Bad permission format (execute other)')
-                        return default
-                    m = 0
-                    if val[0] == 'r': m |= stat.S_IRUSR
-                    if val[1] == 'w': m |= stat.S_IWUSR
-                    if val[2] == 'x': m |= stat.S_IXUSR
-                    if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
-
-                    if val[3] == 'r': m |= stat.S_IRGRP
-                    if val[4] == 'w': m |= stat.S_IWGRP
-        if isinstance(val,int):
-            #if val > 511:       #stat.st_mode (32768 ~ 33279)
-            #stat.st_mode (file: 32768~36863, directory: 16384 ~ 20479)
-            if 32768 <= val <= 36863 or 16384 <= val <= 20479:   #stat.st_mode
-                #return _mode_(oct(val)[-4:],mode) # to octal number (oct(val)[-4:])
-                return _mode_(oct(val & 0o777),mode) # to octal number (oct(val)[-4:])
-            elif 511 >= val > 63:      #mask
-                return _mode_(oct(val),mode)      # to ocal number(oct(val))
-            else:
-                return _mode_('%04d'%(val),mode)      # to ocal number(oct(val))
-        else:
-            val=Str(val,default=None)
-            if isinstance(val,str):
-                val_len=len(val)
-                num=Int(val,default=None)
-                if isinstance(num,int):
-                    if 3 <= len(val) <=4 and 100 <= num <= 777: #string type of permission number(octal number)
-                        return _mode_('%04d'%(num),mode)
-                else:
-                    val_len=len(val)
-                    if 9<= val_len <=10:
-                        if val_len == 10 and val[0] in ['-','d','s']:
-                            val=val[1:]
-                    else:
-                        StdErr('Bad permission length')
-                        return default
-                    if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]):
-                        StdErr('Bad permission format (read-write)')
-                        return default
-                    if not all(val[k] in 'xs-' for k in [2,5]):
-                        StdErr('Bad permission format (execute)')
-                        return default
-                    if val[8] not in 'xt-':
-                        StdErr( 'Bad permission format (execute other)')
-                        return default
-                    m = 0
-                    if val[0] == 'r': m |= stat.S_IRUSR
-                    if val[1] == 'w': m |= stat.S_IWUSR
-                    if val[2] == 'x': m |= stat.S_IXUSR
-                    if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
-
-                    if val[3] == 'r': m |= stat.S_IRGRP
-                    if val[4] == 'w': m |= stat.S_IWGRP
-        if isinstance(val,int):
-            #if val > 511:       #stat.st_mode (32768 ~ 33279)
-            #stat.st_mode (file: 32768~36863, directory: 16384 ~ 20479)
-            if 32768 <= val <= 36863 or 16384 <= val <= 20479:   #stat.st_mode
-                #return _mode_(oct(val)[-4:],mode) # to octal number (oct(val)[-4:])
-                return _mode_(oct(val & 0o777),mode) # to octal number (oct(val)[-4:])
-            elif 511 >= val > 63:      #mask
-                return _mode_(oct(val),mode)      # to ocal number(oct(val))
-            else:
-                return _mode_('%04d'%(val),mode)      # to ocal number(oct(val))
-        else:
-            val=Str(val,default=None)
-            if isinstance(val,str):
-                val_len=len(val)
-                num=Int(val,default=None)
-                if isinstance(num,int):
-                    if 3 <= len(val) <=4 and 100 <= num <= 777: #string type of permission number(octal number)
-                        return _mode_('%04d'%(num),mode)
-                else:
-                    val_len=len(val)
-                    if 9<= val_len <=10:
-                        if val_len == 10 and val[0] in ['-','d','s']:
-                            val=val[1:]
-                    else:
-                        StdErr('Bad permission length')
-                        return default
-                    if not all(val[k] in 'rw-' for k in [0,1,3,4,6,7]):
-                        StdErr('Bad permission format (read-write)')
-                        return default
-                    if not all(val[k] in 'xs-' for k in [2,5]):
-                        StdErr('Bad permission format (execute)')
-                        return default
-                    if val[8] not in 'xt-':
-                        StdErr( 'Bad permission format (execute other)')
-                        return default
-                    m = 0
-                    if val[0] == 'r': m |= stat.S_IRUSR
-                    if val[1] == 'w': m |= stat.S_IWUSR
-                    if val[2] == 'x': m |= stat.S_IXUSR
-                    if val[2] == 's': m |= stat.S_IXUSR | stat.S_ISUID
-
-                    if val[3] == 'r': m |= stat.S_IRGRP
-                    if val[4] == 'w': m |= stat.S_IWGRP
-                    if val[5] == 'x': m |= stat.S_IXGRP
-                    if val[5] == 's': m |= stat.S_IXGRP | stat.S_ISGID
-
-                    if val[6] == 'r': m |= stat.S_IROTH
-                    if val[7] == 'w': m |= stat.S_IWOTH
-                    if val[8] == 'x': m |= stat.S_IXOTH
-                    if val[8] == 't': m |= stat.S_IXOTH | stat.S_ISVTX
-                    return _mode_(oct(m),mode)
-        return default
-
-
-    # Find filename's root path and filename according to the db
-    def FindRP(self,filename=None,default=None):
-        if isinstance(filename,str) and self.info:
-            info_keys=list(self.info.keys())
-            info_num=len(info_keys)
-            if filename[0] != '/': 
-                if info_num == 1: return info_keys[0]
-                return self.root_path
-            aa='/'
-            filename_a=filename.split('/')
-            for ii in range(1,len(filename_a)):
-                aa=Path(aa,filename_a[ii]) 
-                if aa in info_keys:
-                    #remain_path='/'.join(filename_a[ii+1:])
-                    remain_path=Join(filename_a[ii+1:],symbol='/')
-                    if info_num == 1: return aa,remain_path
-                    # if info has multi root path then check filename in the db of each root_path
-                    if self.GetInfoFile(remain_path,aa): return aa,remain_path
-        elif self.info:
-            return list(self.info.keys())
-        return default
-            
-    def ExtractRoot(self,**opts):
-        root_path=opts.get('root_path',[])
-        dirpath=opts.get('dirpath')
-        sub_dir=opts.get('sub_dir',False)
-        if isinstance(root_path,str):
-            root_path=[root_path]
-        #if not os.path.isdir(opts.get('dest')): os.makedirs(opts.get('dest'))
-        if self.Mkdir(opts.get('dest'),force=True) is False: return False
-        for rp in root_path:
-            new_dest=opts.get('dest')
-            if dirpath:
-                rt=self.CdPath(self.info[rp],dirpath)
-                if rt is False: 
-                    print('{} not found'.format(dirpath))
-                    return
-            else:
-                dirpath=''
-                rt=self.info[rp]
-
-            rinfo=rt.get(' i ',{})
-            rtype=rinfo.get('type')
-            #dir:directory,None:root directory
-            if not IsNone(rtype,chk_val=['dir',None,'']): # File / Link
-                mydest=os.path.dirname(dirpath)
-                myname=os.path.basename(dirpath)
-                if mydest:
-                    mydest=os.path.join(new_dest,mydest)
-                else:
-                    mydest=new_dest
-                #if not os.path.isdir(mydest): os.makedirs(mydest)
-                if self.Mkdir(mydest,force=True,info=rinfo) is False: return False
-                if rtype == 'link':
-                    os.symlink(rinfo['dest'],os.path.join(mydest,myname))
-                    self.SetIdentity(os.path.join(mydest,myname),**rinfo)
-                else: # File
-                    if 'data' in rt: self.Rw(Path(mydest,myname),data=rt['data'],finfo=rinfo)
-                    else: print('{} file have no data'.format(dirpath))
-#                self.SetIdentity(os.path.join(mydest,myname),**rinfo)
-            else: # directory or root DB
-                for ii in rt:
-                    if ii == ' i ': continue
-                    finfo=rt[ii].get(' i ',{})
-                    ftype=finfo.get('type')
-                    if ftype == 'dir': 
-                        mydir=os.path.join(new_dest,ii)
-                        self.Mkdir(mydir,force=True,info=finfo)
-                        #self.SetIdentity(mydir,**finfo)
-                        # Sub directory
-                        if sub_dir: self.ExtractRoot(dirpath=os.path.join(dirpath,ii),root_path=rp,dest=os.path.join(new_dest,ii),sub_dir=sub_dir)
-                        #if dmtime and datime: os.utime(mydir,(datime,dmtime)) # Time update must be at last order
-                    elif ftype == 'link':
-                        iimm=os.path.join(new_dest,ii)
-                        if not os.path.exists(iimm):
-                            os.symlink(finfo['dest'],iimm)
-                            self.SetIdentity(iimm,**finfo)
-                    else: # File
-                        if 'data' in rt[ii]: self.Rw(os.path.join(new_dest,ii),data=rt[ii]['data'],finfo=finfo)
-                        else: print('{} file have no data'.format(ii))
-
-    def Mkdir(self,path,force=False,info={}):
-        if not isinstance(path,str): return None
-        if os.path.exists(path): return None
-        if force:
-            try:
-                os.makedirs(path)
-                if isinstance(info,dict) and info: self.SetIdentity(path,**info)
-            except:
-                return False
-        else:
-            try:
-                os.mkdir(path)
-                if isinstance(info,dict) and info: self.SetIdentity(path,**info)
-            except:
-                return False
-        return True
-
-    def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None,force=False):
-        if IsNone(filename):
-            filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
-        dir_name=os.path.dirname(filename)
-        file_name=os.path.basename(filename)
-        name, ext = os.path.splitext(file_name)
-        if type(suffix) is not str or force is True:
-            suffix='-XXXXXXXX'
-        num_type='.%0{}d'.format(len(suffix)-1)
-        if dir_name == '.':
-            dir_name=os.path.dirname(os.path.realpath(__file__))
-        elif dir_name == '':
-            dir_name=base_dir
-        def new_name(name,ext=None,ext2=None):
-            if ext:
-                if ext2:
-                    return '{}{}{}'.format(name,ext,ext2)
-                return '{}{}'.format(name,ext)
-            if ext2:
-                return '{}{}'.format(name,ext2)
-            return name
-        def new_dest(dest_dir,name,ext=None,force=False):
-            if os.path.isdir(dest_dir) is False:
-                return False
-            i=0
-            new_file=new_name(name,ext)
-            while True:
-                rfile=os.path.join(dest_dir,new_file)
-                if force is False and os.path.exists(rfile) is False:
-                    return rfile
-                force=False
-                if suffix:
-                    if '0' in suffix or 'n' in suffix or 'N' in suffix:
-                        if suffix[-1] not in ['0','n']:
-                            new_file=new_name(name,num_type%i,ext)
-                        else:
-                            new_file=new_name(name,ext,num_type%i)
-                    elif 'x' in suffix or 'X' in suffix:
-                        rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
-                        if suffix[-1] not in ['X','x']:
-                            new_file=new_name(name,rnd_str,ext)
-                        else:
-                            new_file=new_name(name,ext,rnd_str)
-                    else:
-                        if i == 0:
-                            new_file=new_name(name,ext,'.{}'.format(suffix))
-                        else:
-                            new_file=new_name(name,ext,'.{}.{}'.format(suffix,i))
-                else:
-                    new_file=new_name(name,ext,'.{}'.format(i))
-                i+=1
-        new_dest_file=new_dest(dir_name,name,ext,force=force)
-        if opt in ['file','f']:
-           os.mknode(new_dest_file)
-        elif opt in ['dir','d','directory']:
-           os.mkdir(new_dest_file)
-        else:
-           return new_dest_file
-
-    def SetIdentity(self,path,**opts):
-        if os.path.exists(path):
-            chmod=self.Mode(opts.get('mode',None))
-            uid=opts.get('uid',None)
-            gid=opts.get('gid',None)
-            atime=opts.get('atime',None)
-            mtime=opts.get('mtime',None)
-            try:
-                if chmod: os.chmod(path,int(chmod,base=8))
-                if uid and gid: os.chown(path,uid,gid)
-                if mtime and atime: os.utime(path,(atime,mtime)) # Time update must be at last order
-            except:
-                pass
-
-    def Extract(self,*path,**opts):
-        dest=opts.get('dest',None)
-        root_path=opts.get('root_path',None)
-        sub_dir=opts.get('sub_dir',False)
-        if IsNone(dest): return False
-        if not path: 
-            self.ExtractRoot(root_path=self.FindRP(),dest=dest,sub_dir=sub_dir)
-        else:
-            for filepath in path:
-                fileRF=self.FindRP(filepath)
-                if isinstance(fileRF,tuple):
-                    root_path=[fileRF[0]]
-                    filename=fileRF[1]
-                    self.ExtractRoot(root_path=root_path,dirpath=filename,dest=dest,sub_dir=sub_dir)
-                elif isinstance(fileRF,list):
-                    self.ExtractRoot(root_path=fileRF,dest=dest,sub_dir=sub_dir)
-
-    def Save(self,filename):
-        pv=b'3'
-        if PyVer(2): pv=b'2'
-        #self.Rw(filename,data=pv+bz2.compress(pickle.dumps(self.info,protocol=2)))
-        self.Rw(filename,data=pv+Compress(pickle.dumps(self.info,protocol=2),mode='lz4'))
-
-    def Open(self,filename):
-        if not os.path.isfile(filename):
-            print('{} not found'.format(filename))
-            return False
-        data=self.Rw(filename)
-        if data[0]:
-            pv=data[1][0]
-            if pv == '3' and PyVer(2):
-                print('The data version is not matched. Please use Python3')
-                return False
-            # decompress data
-            try:
-                #dcdata=bz2.BZ2Decompressor().decompress(data[1][1:])
-                dcdata=Decompress(data[1][1:],mode='lz4')
-            except:
-                print('This is not KFILE format')
-                return False
-            try:
-                self.info=pickle.loads(dcdata) # Load data
-            except:
-                try:
-                    self.info=pickle.loads(dcdata,encoding='latin1') # Convert 2 to 3 format
-                except:
-                    print('This is not KFILE format')
-                    return False
-        else:
-            print('Can not read {}'.format(filename))
-            return False
-
-    def Cd(self,data,path,sym='/'):
-        if Type(data,'module') and data == os:
-            if isinstance(path,str):
-                data.chdir(path)
-                return data
-        else:
-            if isinstance(path,int): path='{}'.format(path)
-            for ii in path.split(sym):
-                if isinstance(data,dict):
-                    if ii in data:
-                        data=data[ii]
-                elif isinstance(data,(list,tuple)):
-                    if not isinstance(ii,str) or not ii.isdigit(): continue
-                    ii=int(ii)
-                    if len(data) > ii:
-                        data=data[ii]
-            return data
-
-    def Path(self,filename=None):
-        if filename:
-            return os.path.dirname(os.path.realpath(filename))
-        return os.path.dirname(os.path.realpath((inspect.stack()[-1])[1]))
-        #if '__file__' in globals() : return os.path.dirname(os.path.realpath(__file__))
-
-    def Rm(self,filelist):
-        if isinstance(filelist,str):
-            filelist=filelist.split(',')
-        if isinstance(filelist,(list,tuple)):
-            for ii in list(filelist):
-                if os.path.isfile(ii):
-                    os.unlink(ii)
-                else:
-                    print('not found {0}'.format(ii))
+    def Get(self,color,mode='color',default=None):
+       color_code=None
+       if mode == 'color':
+           color_code=self.Color_code(color,default=default)
+       elif mode in ['background','bg']:
+           color_code=self.Background_code(color,default=default)
+       elif mode in ['attr','attribute']:
+           color_code=self.Attr_code(color,default=default)
+       return color_code
+    def String(self,msg,color,bg=False,attr=False,mode='shell'):
+       if mode in ['html','HTML']:
+           if bg:
+               return '''<p style="background-color: {}">{}</p>'''.format(format(color,msg))
+           else:
+               return '''<font color={}>{}</font>'''.format(color,msg)
+       else:
+           if bg:
+               color_code=self.Get(color,mode='bg',default=None)
+           elif attr:
+               color_code=self.Get(color,mode='attr',default=None)
+           else:
+               color_code=self.Get(color,default=None)
+           if IsNone(color_code):
+               return msg
+           if IsNone(os.getenv('ANSI_COLORS_DISABLED')):
+               reset='''\033[0m'''
+               fmt_msg='''\033[%dm%s'''
+               msg=fmt_msg % (color_code,msg)
+               return msg+reset
 
 class EMAIL:
     ############################
@@ -2256,58 +1795,10 @@ class SCREEN:
                 
 ####################################STRING##################################################
 def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,out_format=list):
-    if TypeName(string) not in ['str','bytes']:
-        string='{0}'.format(string)
-    if not isinstance(max_len,int):
-        if out_format in [str,'str','string']: return string
-        return [string]
-
-    tmp=[]
-    space=Space(max_len-sub_len) if isinstance(sub_len,int) else ''
-    for ii in string.split(new_line):
-        ll=Cut(ii,head_len=max_len,body_len=sub_len,out=list)
-        tmp.append(Join(ll,new_line,append_front=space))
-    if out_format in [str,'str','string']: return Join(tmp,new_line)
-    return tmp
+    front_space=0 if front_space is True else None
+    return Cut(string,head_len=max_len,body_len=sub_len,new_line=new_line,front_space=front_space,out=out_format,newline_head=True)
 
 ####################################KEYS##################################################
-def Insert(src,*inps,**opts):
-    start=opts.pop('at',0)
-    default=opts.pop('default',False)
-    err=opts.pop('err',False)
-    force=opts.pop('force',False)
-    uniq=opts.pop('uniq',False)
-    if isinstance(src,(list,tuple,str)):
-        tuple_out=False
-        if isinstance(src,tuple) and force:
-            src=list(src)
-            tuple_out=True
-        if uniq:
-            new=[]
-            for ii in inps:
-                if ii not in src:
-                    new.append(ii)
-            inps=tuple(new)
-        if isinstance(at,str):
-            if at in ['start','first']: src=list(inps)+src
-            if at in ['end','last']: src=src+list(inps)
-        elif len(src) == 0:
-            src=list(inps)
-        elif isinstance(start,int) and len(src) > start:
-            src=src[:start]+list(inps)+src[start:]
-        else:
-            if err:
-                return default
-            src=src+list(inps)
-        if tuple_out: return tuple(src)
-    elif isinstance(src,dict):
-        for ii in inps:
-            if isinstance(ii,dict):
-                 src.update(ii)
-        if opts:
-            src.update(opts)
-    return src
-
 def FirstKey(src,default=None):
     return Next(src,default=default)
 
@@ -2357,52 +1848,6 @@ def check_value(src,find,idx=None):
                 if Get(src,idx,out='raw') == find:
                     return True
     return False
-
-def Update(src,*inps,**opts):
-    at=opts.pop('at',0)
-    err=opts.pop('err',False)
-    default=opts.pop('default',False)
-    force=opts.pop('force',False)
-    sym=opts.pop('sym',None)
-    if isinstance(src,(list,tuple,str)):
-        if isinstance(src,str) and sym: src=src.split(sym)
-        tuple_out=False
-        if isinstance(src,tuple) and force:
-            src=list(src)
-            tuple_out=True
-        n=len(src)
-        if n == 0:
-            if err is True:
-                return default
-            else:
-                src=list(inps)
-        elif isinstance(at,int) and n > at:
-            for i in range(0,len(inps)):
-                if n > at+i:
-                    src[at+i]=inps[i]
-                elif err is True:
-                    return default
-                else:
-                    src=src+list(inps)[i:]
-                    break
-        elif isinstance(at,(tuple,list)):
-            if len(inps) == len(at):
-                for i in range(0,len(at)):
-                    if isinstance(at[i],int) and n > at[i]:
-                        src[at[i]]=inps[i]
-                    elif err is True:
-                        return default
-                    else:
-                        src.append(inps[i])
-        if tuple_out: return tuple(src)
-        return src
-    elif isinstance(src,dict):
-        for ii in inps:
-           if isinstance(ii,dict):
-               src.update(ii)
-        if opts:
-           src.update(opts)
-    return src
 
 def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,pattern=False,findall=False,out=None):
     rt=[]
@@ -2554,19 +1999,6 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
             if del_org_file: os.unline(data)
             return True
 
-def cat(filename,no_end_newline=False,no_edge=False,byte=False,newline='\n',no_first_newline=False,no_all_newline=False,file_only=True,default={'err'}):
-    tmp=FILE().Rw(filename,file_only=file_only,default=default)
-    tmp=Get(tmp,1)
-    if no_edge:
-        return STR(tmp).RemoveNewline(mode='edge',byte=byte,newline=newline)
-    elif no_end_newline:
-        return STR(tmp).RemoveNewline(mode='end',byte=byte,newline=newline)
-    elif no_first_newline:
-        return STR(tmp).RemoveNewline(mode='first',byte=byte,newline=newline)
-    elif no_all_newline:
-        return STR(tmp).RemoveNewline(mode='all',byte=byte,newline=newline)
-    return tmp
-
 def ls(dirname,opt=''):
     if not IsNone(dirname) and os.path.isdir(dirname):
         dirlist=[]
@@ -2687,6 +2119,8 @@ def get_file(filename,**opts):
             rc['inod']=fstat.st_ino
             rc['mode']=oct(fstat.st_mode)[-4:]
             rc['exist']=True
+            file_path=os.path.dirname(in_filename) 
+            if file_path != '.': rc['path_mode']=oct(os.stat(file_path).st_mode)[-4:]
             if os.path.islink(in_filename):
                 rc['link']=True
             else:
@@ -2698,12 +2132,16 @@ def get_file(filename,**opts):
                 else:
                     rc['dir']=False
                     if md5sum or data:
-                        with open(in_filename,'rb') as f:
-                            fdata=f.read()
-                        if md5sum:
-                            rc['md5']=md5(fdata)
-                        if data:
-                            rc['data']=fdata
+                        try:
+                            with open(in_filename,'rb') as f:
+                                fdata=f.read()
+                            if md5sum:
+                                rc['md5']=md5(fdata)
+                            if data:
+                                rc['data']=fdata
+                        except:
+                            print('Permission denied: {}'.format(in_filename))
+                            rc['exist']=False
         return rc
 
     rc={'exist':False,'includes':[]}
@@ -2712,55 +2150,65 @@ def get_file(filename,**opts):
         if rc['dir']:
             root_path=filename
             real_filename=None
-        else:
-            root_path=os.path.dirname(filename)
-            real_filename=os.path.basename(filename)
-        if include_dir:
-            pwd=os.getcwd()
-            os.chdir(root_path)
-            for dirPath, subDirs, fileList in os.walk('.'):
-                for sfile in fileList:
-                    curFile=os.path.join(dirPath.replace('./',''),sfile)
-                    if curFile != real_filename:
-                        rc['includes'].append(get_file_data(curFile,root_path))
-                if include_sub_dir is False:
-                    break
-            os.chdir(pwd)
+            if include_dir:
+                pwd=os.getcwd()
+                os.chdir(root_path)
+                for dirPath, subDirs, fileList in os.walk('.'):
+                    for sfile in fileList:
+                        curFile=os.path.join(dirPath.replace('./',''),sfile)
+                        if curFile != real_filename:
+                            rc['includes'].append(get_file_data(curFile,root_path))
+                    if include_sub_dir is False:
+                        break
+                os.chdir(pwd)
     return rc
 
-def save_file(data,dest,filename=None):
+def save_file(data,dest=None,filename=None,force=False):
 #    return data.Extract(dest=dest,sub_dir=True)
-    if not isinstance(data,dict) or not isinstance(dest,str) : return False
-    if os.path.isdir(dest) is False: os.system('mkdir -p {0}'.format(dest))
-    if data.get('dir'):
-        fmode=file_mode(data.get('mode'))
-        if fmode:
-            os.chmod(dest,fmode)
+    if not isinstance(data,dict): return False
+    if not data.get('exist'): return False
+    if isinstance(dest,str): 
+        if os.path.exists(dest) and not os.path.isdir(dest):
+            printf('Already exist {}'.format(dest),dsp='e')
+            return False
+        elif os.path.isdir(dest) is False:
+            os.system('mkdir -p {0}'.format(dest))
     else:
-        # if file then save
-        if isinstance(filename,str) and filename:
-            new_file=os.path.join(dest,filename)
-        else:
-            new_file=os.path.join(dest,data['name'])
-        if 'data' in data:
-            with open(new_file,'wb') as f:
-                f.write(data['data'])
-        chmod_mode=file_mode(data.get('mode'))
-        if chmod_mode:
-            os.chmod(new_file,chmod_mode)
-    if 'includes' in data and data['includes']: # If include directory or files 
-        for ii in data['includes']:
+        dest=os.getcwd()
+    if data.get('dir'):
+        if os.path.exists(data['path']) and not os.path.isdir(data['path']):
+            printf('Already exist {}'.format(dest),dsp='e')
+            return False
+        elif not os.path.isdir(data['path']):
+            os.system('mkdir -p {0}'.format(data['path']))
+            if data.get('mode'): os.chmod(data['path'],file_mode(data.get('mode')))
+        # If include directory or files 
+        for ii in data.get('includes',[]):
             if ii['path']:
                 sub_dir=os.path.join(dest,ii['path'])
             else:
                 sub_dir='{}'.format(dest)
-            if os.path.isdir(sub_dir) is False: os.system('mkdir -p {}'.format(sub_dir))
+            if not os.path.isdir(sub_dir):
+                os.system('mkdir -p {}'.format(sub_dir))
+                if ii.get('path_mode'): os.chmod(sub_file,file_mode(ii.get('path_mode')))
             sub_file=os.path.join(sub_dir,ii['name'])
             with open(sub_file,'wb') as f:
                 f.write(ii['data'])
-            chmod_mode=file_mode(ii.get('mode'))
-            if chmod_mode:
-                os.chmod(sub_file,chmod_mode)
+            if ii.get('mode'): os.chmod(sub_file,file_mode(ii.get('mode')))
+    else:
+        # if file then save
+        if force is False and os.path.exists(dest) and not os.path.isdir(dest):
+            printf('Already exist {}'.format(dest),dsp='e')
+            return False
+        if os.path.isdir(dest):
+            new_file=os.path.join(dest,data['name'])
+        else:
+            new_file=dest
+        with open(new_file,'wb') as f:
+            f.write(data.get('data',''))
+        chmod_mode=file_mode(data.get('mode'))
+        if chmod_mode: os.chmod(new_file,chmod_mode)
+    return True
 
 #########################################################################
 def error_exit(msg=None):
@@ -2970,126 +2418,71 @@ def find_usb_dev(size=None,max_size=None):
 #Payload Channel                 : 1 (0x01)
 #Payload Port                    : 623
 
-def net_send_data(sock,data,key='kg',enc=False,timeout=0,close=False,instant=True,log=None):
+def net_send_data(sock,data,key='kg',enc=False,timeout=0,instant=False,log=None,err_scr=True):
     # if close=True then just send data and close socket
     # if close=False then it need close socket code
     # ex)
     #      aa=net_send_data(sock,.....)
     #      if aa[0] is True: sock.close()
-    if type(sock).__name__ in ['socket','_socketobject','SSLSocket'] and data and type(key) is str and len(key) > 0 and len(key) < 7:
-        start_time=TIME().Int()
-        # encode code here
+    try:
+        sock.sendall(packet_enc(data,key=key,enc=enc))
+        if instant is True:
+            sock.close()
+        return True,'OK'
+    except:
+        if instant is True:
+            if sock: sock.close()
         if timeout > 0:
-            sock.settimeout(timeout)
-        nkey=Bytes2Int(key,encode='utf-8',default='org')
-        pdata=pickle.dumps(data,protocol=2) # common 2.x & 3.x version : protocol=2
-        data_type=Bytes(type(data).__name__[0])
-        if enc and key:
-            # encode code here
-            #enc_tf=Bytes('t') # Now not code here. So, everything to 'f'
-            #pdata=encode(key,pdata)
-            enc_tf=Bytes('f')
-        else:
-            enc_tf=Bytes('f')
-        ndata=struct.pack('>IssI',len(pdata),data_type,enc_tf,nkey)+pdata
-        try:
-            sock.sendall(ndata)
-            if close and instant is not False:
-                sock.close()
-            return True,'OK'
-        except:
-            if close and instant is not False:
-                if sock: sock.close()
-            if timeout > 0:
-                #timeout=sock.gettimeout()
-                if TIME().Int() - start_time > timeout-1:
-                    #Timeout
-                    return False,'Sending Socket Timeout'
+            #timeout=sock.gettimeout()
+            if TIME().Int() - start_time > timeout-1:
+                #Timeout
+                return False,'Sending Socket Timeout'
     return False,'Sending Fail'
 
-def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None,log=None):
+def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None,log=None,err_scr=True):
     # decode code here
-    def recvall(sock,count,progress=False,progress_msg=None,log=None): # Packet
-        buf = b''
-        file_size_d=int('{0}'.format(count))
-        #if progress: print('\n')
-        tn=0
-        newbuf=None
-        while count:
-            if progress:
-                if progress_msg:
-                    printf('\r{} [ {} % ]'.format(progress_msg,int((file_size_d-count) / file_size_d * 100)),log=log)
-                else:
-                    printf('\rDownloading... [ {} % ]'.format(int((file_size_d-count) / file_size_d * 100)),log=log,dsp='e')
-            try:
-                newbuf = sock.recv(count)
-            except socket.error as e:
-                if tn < retry:
-                    printf("[ERROR] timeout value:{} retry: {}/{}\n{}".format(sock.gettimeout(),tn,retry,e),log=log,dsp='e')
-                    tn+=1
-                    TIME().Sleep(1)
-                    sock.settimeout(retry_timeout)
-                    continue
-                if e == 'timed out':
-                    return 'timeout',e
-            if not newbuf: return True,None #maybe something socket issue.
-            buf += newbuf
-            count -= len(newbuf)
-        if progress: 
-            if progress_msg:
-                printf('\r{} [ 100 % ]\n'.format(progress_msg),log=log)
-            else:
-                printf('\rDownloading... [ 100 % ]\n',log=log,dsp='e')
-        return True,buf
-    ok,head=recvall(sock,10)
+    ok,size,data_type,enc=packet_head(sock)
     if krc(ok,chk=True):
-        if head:
-            try:
-                #st_head=struct.unpack('>IssI',Bytes(head))
-                st_head=struct.unpack('>IssI',Bytes(head))
-            except:
-                return False,'Fail for read header({})'.format(head)
-            if st_head[3] == Bytes2Int(key,encode='utf-8',default='org'):
-                # File not found Error log size is 57. So if 57 then ignore progress
-                if st_head[0] == 57: progress=False
-                ok,data=recvall(sock,st_head[0],progress=progress,progress_msg=progress_msg,log=log)
-                if krc(ok,chk=True):
-                    if st_head[2] == 't':
-                        # decode code here
-                        # data=decode(data)
-                        pass
-                    if data: return st_head[1],pickle.loads(data)
-                    return True,None
-                else:
-                    return ok,data
-            else:
-                return False,'Wrong key'
-        return 'lost','Connection lost'
-    return ok,head
+        # File not found Error log size is 57. So if 57 then ignore progress
+        if size == 57: progress=False
+        data_ok,data=packet_receive_all(sock,size,progress=progress,progress_msg=progress_msg,log=log,retry=retry,err_scr=err_scr)
+        if krc(data_ok,chk=True):
+            real_data=packet_dec(data,enc,key=key)
+            if real_data: return [data_type,real_data]
+            return [True,None]
+        return [data_ok,data]
+    return [ok,size]
 
-def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[0,5],progress=None,enc=False,upacket=None,SSLC=False,progress_msg=None,instant=True,log=None):
+def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[0,5],progress=None,enc=False,upacket=None,SSLC=False,progress_msg=None,instant=True,dbg=6,log=None,wait_time=3,err_scr=True):
     sent=False,'Unknown issue'
     for ii in range(0,try_num):
         if upacket: # Update packet function for number of try information ([#/<total #>])
             data=upacket('ntry',[ii+1,try_num],data)
         start_time=TIME().Int()
-        ok,sock=net_get_socket(IP,PORT,timeout=timeout,SSLC=SSLC,log=log)
+        ok,sock=net_get_socket(IP,PORT,timeout=timeout,SSLC=SSLC,log=log,err_scr=err_scr)
+        if ok is False:
+            if ii >= try_num-1:
+                return ok,sock,sock
+            printf('Can not get socket data [{}/{}], wait {}s'.format(ii+1,try_num,wait_time) if dbg < 4 else '.',log=log)
+            TIME().Sleep(wait_time)
+            continue
         if try_num > 0: 
             rtry_wait=(timeout//try_num)+1
         else:
             rtry_wait=try_wait
         sent=False,'Unknown issue',sock
         try:
-            sent=net_send_data(sock,data,key=key,enc=enc,log=log)
+            sent=net_send_data(sock,data,key=key,enc=enc,log=log,err_scr=err_scr)
         except:
             os.system("""[ -f /tmp/.{0}.{1}.crt ] && rm -f /tmp/.{0}.{1}.crt""".format(IP,PORT))
+            continue
         if sent[0]:
-            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log)
-            return nrcd,'done',sock
+            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log,err_scr=err_scr)
+            return nrcd+[sock]
         else:
             if timeout >0:
                 if TIME().Int() - start_time >= timeout-1:
-                    return False,'Socket Send Timeout',sock
+                    return [False,'Socket Send Timeout',sock]
                 #return [False,'Data protocol version mismatch']
         if sock and instant is True:
             sock.close()
@@ -3097,22 +2490,22 @@ def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait
         if try_num > 1:
             printf('try send data ... [{}/{}]'.format(ii+1,try_num),log=log)
             TIME().Sleep(try_wait)
-    return False,'Send fail({}) :\n{}'.format(sent[1],data),sock
+    return [False,'Send fail({}) :\n{}'.format(sent[1],data),sock]
 
-def net_get_socket(host,port,timeout=3,dbg=6,SSLC=False,log=None): # host : Host name or IP
+def net_get_socket(host,port,timeout=3,dbg=6,SSLC=False,log=None,err_scr=True): # host : Host name or IP
     try:
         af, socktype, proto, canonname, sa = socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_STREAM)[0]
     except:
         _e_='Can not get network informatin of {}:{}'.format(host,port)
-        return False,_e_
+        return [False,_e_]
     try:
         soc = socket.socket(af, socktype, proto)
         if timeout > 0:
             soc.settimeout(timeout)
     except socket.error as msg:
         _e_='could not open socket of {0}:{1}\n{2}'.format(host,port,msg)
-        printf(_e_,log=log,dsp='e')
-        return False,_e_
+        printf(_e_,log=log,dsp='e' if err_scr else 'd')
+        return [False,_e_]
     ###### SSL Wrap ######
     _e_=None
     if SSLC:
@@ -3131,21 +2524,21 @@ def net_get_socket(host,port,timeout=3,dbg=6,SSLC=False,log=None): # host : Host
             try:
                 soc=ssl.wrap_socket(soc,ca_certs=icertfile,cert_reqs=ssl.CERT_REQUIRED)
                 soc.connect((host,port))
-                return soc,'ok'
+                return [True,soc]
             except socket.error as msg:
-                printf(msg,log=log,log_level=dbg,mode='e')
+                printf(msg,log=log,log_level=dbg,mode='e' if err_scr else 'd')
                 TIME().Sleep(1)
     ########################
     else:
         try:
             soc.connect(sa)
-            return soc,'ok'
+            return [True,soc]
         except socket.error as msg:
             _e_='can not connect at {0}:{1}\n{2}'.format(host,port,msg)
-            printf(_e_,log=log,log_level=dbg,dsp='e')
-    return False,_e_
+            printf(_e_,log=log,log_level=dbg,dsp='e' if err_scr else 'd')
+    return [False,_e_]
 
-def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None,log=None):
+def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None,log=None,err_scr=True):
     ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssoc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if timeout > 0:
@@ -3153,10 +2546,10 @@ def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_conne
     try:
         ssoc.bind((server_ip, server_port))
     except socket.error as msg:
-        printf('Bind failed. Error : {0}'.format(msg),log=log,mode='e',logfile=log_file)
+        printf('Bind failed. Error : {0}'.format(msg),log=log,mode='e' if err_scr else 'd',logfile=log_file)
         os._exit(1)
     ssoc.listen(max_connection)
-    printf('Start server for {0}:{1}'.format(server_ip,server_port),log=log,logfile=log_file)
+    printf('Start server for {0}:{1}'.format(server_ip,server_port),log=log,logfile=log_file,dsp='f')
     # for handling task in separate jobs we need threading
     while True:
         conn, addr = ssoc.accept()
@@ -3168,10 +2561,10 @@ def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_conne
             else:
                 Thread(target=main_func_name, args=(conn, ip, port, log_file)).start()
         except:
-            printf('No more generate thread for client from {0}:{1}'.format(ip,port),dsp='e',log=log,logfile=log_file)
+            printf('No more generate thread for client from {0}:{1}'.format(ip,port),dsp='e' if err_scr else 'd',log=log,logfile=log_file)
     ssoc.close()
 
-def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None,log=None):
+def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None,log=None,err_scr=True):
     ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssoc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     if timeout > 0:
@@ -3179,10 +2572,10 @@ def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,ma
     try:
         ssoc.bind((server_ip, server_port))
     except socket.error as msg:
-        printf('Bind failed. Error : {0}'.format(msg),log=log,dsp='e',logfile=log_file)
+        printf('Bind failed. Error : {0}'.format(msg),log=log,dsp='e' if err_scr else 'd',logfile=log_file)
         os._exit(1)
     ssoc.listen(max_connection)
-    printf('Start server for {0}:{1}'.format(server_ip,server_port),log=log,dsp='e',logfile=log_file)
+    printf('Start server for {0}:{1}'.format(server_ip,server_port),log=log,dsp='e' if err_scr else 'd',logfile=log_file)
     # for handling task in separate jobs we need threading
     conn, addr = ssoc.accept()
     ip, port = str(addr[0]), str(addr[1])
@@ -3337,22 +2730,19 @@ def cert_file(keyfile,certfile,C='US',ST='CA',L='San Jose',O='KGC',OU='KG',CN=No
         return key_file,crt_file
     return None,None
 
-def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],progress=None,enc=False,upacket=None,dbg=6,wait_time=3,SSLC=False,instant=True,log=None):
+def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],progress=None,enc=False,upacket=None,dbg=6,wait_time=3,SSLC=False,instant=True,log=None,err_scr=True):
     sent=False,'Unknown issue',None
     for ii in range(0,try_num):
         if upacket: # Update packet function for number of try information ([#/<total #>])
             data=upacket('ntry',[ii+1,try_num],data)
-        ok,sock=net_get_socket(IP,PORT,timeout=timeout,dbg=dbg,SSLC=SSLC,log=log)
-        
+        ok,sock=net_get_socket(IP,PORT,timeout=timeout,dbg=dbg,SSLC=SSLC,log=log,err_scr=err_scr)
         if ok is False:
-            if dbg >= 3:
-                print('Can not get socket data [{}/{}], wait {}s'.format(ii+1,try_num,wait_time))
-            else:
-                sys.stdout.write('.')
-                sys.stdout.flush()
+            if ii >= try_num-1:
+                return [ok,sock,sock]
+            printf('Can not get socket data [{}/{}], wait {}s'.format(ii+1,try_num,wait_time) if dbg < 4 else '.',log=log)
             TIME().Sleep(wait_time)
             continue
-        sent=False,'Unknown issue',sock
+        sent=[False,'Unknown issue',sock]
         try:
             sent=net_send_data(sock,data,key=key,enc=enc,log=log)
         except:
@@ -3361,12 +2751,12 @@ def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],
             if sock and instant:
                 sock.close()
                 sock=None
-            return True,'sent',sock
+            return [True,'sent',sock]
         if try_num > 1:
             wait_time=Random(length=0,strs=try_wait,mode='int')
             printf('try send data ... [{}/{}], wait {}s'.format(ii+1,try_num,wait_time),log=log,log_level=dbg)
             TIME().Sleep(wait_time)
-    return False,'Send fail({}) :\n{}'.format(sent[1],data),sock
+    return [False,'Send fail({}) :\n{}'.format(sent[1],data),sock]
 
 
 def encode(string):
@@ -3875,7 +3265,7 @@ def ipv4(ipaddr=None,chk=False):
     return IpV4(ipaddr)
 
 def ip_in_range(ip,start,end):
-    return IP(ip).InRange(start,end)
+    return IpV4(ip,pool=(start,end))
 
 def string2data(src,default='org',want_type=None,spliter=None):
     return TypeData(src,default,want_type,spliter)
@@ -3889,9 +3279,9 @@ def str2mac(mac,sym=':',case='lower',chk=False):
 def is_mac4(mac=None,symbol=':',convert=True):
     return True if MacV4(mac,symbol=symbol) else False
 
-def Wrap(src,space='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
+def Wrap(src,fspace='',nspace='',space_mode='space',sym='\n',default=None,NFLT=False,out=str):
     if isinstance(space,str): space=len(space)
-    return WrapString(src,fspace=space,nspace=space,new_line=sym,NFLT=NFLT,mode=space_mode,default=default,out=out)
+    return STR(src).Tap(fspace=fspace,nspace=nspace,new_line=sym,NFLT=NFLT,mode=space_mode,default=default,out=out)
 
 def ddict(*inps,**opts):
     return Dict(*inps,**opts)
