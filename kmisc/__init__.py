@@ -2190,10 +2190,10 @@ def save_file(data,dest=None,filename=None,force=False):
                 sub_dir='{}'.format(dest)
             if not os.path.isdir(sub_dir):
                 os.system('mkdir -p {}'.format(sub_dir))
-                if ii.get('path_mode'): os.chmod(sub_file,file_mode(ii.get('path_mode')))
+                if ii.get('path_mode'): os.chmod(sub_dir,file_mode(ii.get('path_mode')))
             sub_file=os.path.join(sub_dir,ii['name'])
             with open(sub_file,'wb') as f:
-                f.write(ii['data'])
+                f.write(Bytes(ii['data']))
             if ii.get('mode'): os.chmod(sub_file,file_mode(ii.get('mode')))
     else:
         # if file then save
@@ -2205,7 +2205,7 @@ def save_file(data,dest=None,filename=None,force=False):
         else:
             new_file=dest
         with open(new_file,'wb') as f:
-            f.write(data.get('data',''))
+            f.write(Bytes(data.get('data','')))
         chmod_mode=file_mode(data.get('mode'))
         if chmod_mode: os.chmod(new_file,chmod_mode)
     return True
@@ -2441,11 +2441,11 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0,instant=False,log=None,
 
 def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None,log=None,err_scr=True):
     # decode code here
-    ok,size,data_type,enc=packet_head(sock)
+    ok,size,data_type,enc=packet_head(sock,retry=retry,timeout=retry_timeout)
     if krc(ok,chk=True):
         # File not found Error log size is 57. So if 57 then ignore progress
         if size == 57: progress=False
-        data_ok,data=packet_receive_all(sock,size,progress=progress,progress_msg=progress_msg,log=log,retry=retry,err_scr=err_scr)
+        data_ok,data=packet_receive_all(sock,size,progress=progress,progress_msg=progress_msg,log=log,retry=retry,retry_timeout=retry_timeout,err_scr=err_scr)
         if krc(data_ok,chk=True):
             real_data=packet_dec(data,enc,key=key)
             if real_data: return [data_type,real_data]
@@ -2472,12 +2472,12 @@ def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait
             rtry_wait=try_wait
         sent=False,'Unknown issue',sock
         try:
-            sent=net_send_data(sock,data,key=key,enc=enc,log=log,err_scr=err_scr)
+            sent=net_send_data(sock,data,key=key,enc=enc,log=log,err_scr=err_scr,timeout=timeout)
         except:
             os.system("""[ -f /tmp/.{0}.{1}.crt ] && rm -f /tmp/.{0}.{1}.crt""".format(IP,PORT))
             continue
         if sent[0]:
-            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log,err_scr=err_scr)
+            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log,err_scr=err_scr,retry=2,retry_timeout=timeout)
             return nrcd+[sock]
         else:
             if timeout >0:
