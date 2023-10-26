@@ -2424,20 +2424,22 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0,instant=False,log=None,
     # ex)
     #      aa=net_send_data(sock,.....)
     #      if aa[0] is True: sock.close()
-    try:
-        sock.sendall(packet_enc(data,key=key,enc=enc))
-        if instant is True:
-            sock.close()
-        return True,'OK'
-    except:
-        if instant is True:
-            if sock: sock.close()
-        if timeout > 0:
-            #timeout=sock.gettimeout()
-            if TIME().Int() - start_time > timeout-1:
-                #Timeout
-                return False,'Sending Socket Timeout'
-    return False,'Sending Fail'
+    start_time=TIME().Int()
+    ok,enc_data=packet_enc(data,key=key,enc=enc)
+    if ok:
+        try:
+            sock.sendall(enc_data)
+            if instant is True:
+                sock.close()
+            return True,'OK'
+        except:
+            if instant is True:
+                if sock: sock.close()
+            if timeout > 0:
+                #timeout=sock.gettimeout()
+                if TIME().Int() - start_time > timeout-1:
+                    return False,'Sending Socket Timeout'
+    return False,enc_data
 
 def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None,log=None,err_scr=True):
     # decode code here
@@ -2474,8 +2476,9 @@ def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait
         try:
             sent=net_send_data(sock,data,key=key,enc=enc,log=log,err_scr=err_scr,timeout=timeout)
         except:
+            if sock:
+                sock.close()
             os.system("""[ -f /tmp/.{0}.{1}.crt ] && rm -f /tmp/.{0}.{1}.crt""".format(IP,PORT))
-            continue
         if sent[0]:
             nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log,err_scr=err_scr,retry=2,retry_timeout=timeout)
             return nrcd+[sock]
