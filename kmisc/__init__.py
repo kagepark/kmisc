@@ -2480,8 +2480,11 @@ def net_put_and_get_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait
                 sock.close()
             os.system("""[ -f /tmp/.{0}.{1}.crt ] && rm -f /tmp/.{0}.{1}.crt""".format(IP,PORT))
         if sent[0]:
-            nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log,err_scr=err_scr,retry=2,retry_timeout=timeout)
-            return nrcd+[sock]
+            if ClosedSocket(sock): # Already closed socket after sent
+                return [False,'Already closed/lost the socket',sock]
+            else:
+                nrcd=net_receive_data(sock,key=key,progress=progress,progress_msg=progress_msg,log=log,err_scr=err_scr,retry=2,retry_timeout=timeout)
+                return nrcd+[sock]
         else:
             if timeout >0:
                 if TIME().Int() - start_time >= timeout-1:
