@@ -1480,6 +1480,7 @@ class EMAIL:
     # SSL Port: 465
     # user    : email address
     # password: email password
+    # ex) email.Send('<to user>@gmail.com',sender='<from user>@<your domain>',title='test2',msg='test body2',filename='test.tgz',html=True,dbg=True)
     ############################
     def __init__(self,server='127.0.0.1',port=25,user=None,password=None,ssl=False,tls=False):
         self.server=server
@@ -1516,7 +1517,7 @@ class EMAIL:
                 part=MIMEBase("application", "octet-stream")
                 part.set_payload(attachment.read())
             encoders.encode_base64(part)
-            part.add_header('Content-Disposition','attachment; filename="{filename}"')
+            part.add_header('Content-Disposition','attachment; filename="{}"'.format(filename))
             _body.attach(part)
         else:
             if html:
