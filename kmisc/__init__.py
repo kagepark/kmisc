@@ -1498,6 +1498,7 @@ def Domainname(source=None,info=False):
             return True,dn[1]
 
 def EmailAddress(email,local=False,check_domain=True):
+    if not email: email=os.getlogin()
     if isinstance(email,str):
         src_a=email.split('@')
         if not local and len(src_a) == 2:
