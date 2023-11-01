@@ -15,6 +15,7 @@ import copy
 import json
 import random
 import string
+import socket
 import pickle
 import base64
 import hashlib
@@ -47,6 +48,8 @@ except:
         print('Can not install kmport')
         os._exit(1)
 
+Import('import whois',install_name='python-whois')
+#Import('import whois') # it print some comment on screen
 
 global krc_define
 global printf_log_base
@@ -1473,6 +1476,51 @@ class COLOR:
                msg=fmt_msg % (color_code,msg)
                return msg+reset
 
+def Domainname(source=None,info=False):
+    if source:
+        try:
+            d=whois.whois(source) # python-whois
+#            d=whois.query(source) # use whois
+        except Exception:
+            return False,source
+        else:
+#            if info:
+#                if d is None: return False,None
+#                return True,d.__dict__
+#            if d is None: return False,source
+#            return d.expiration_date >= datetime.now(),source # whois
+            return bool(d.domain_name),source  # python-whois
+    else:
+        dn=socket.getfqdn().split('.', 1)
+        if len(dn) == 1:
+            return True,dn[0]
+        else:
+            return True,dn[1]
+
+def EmailAddress(email,local=False,check_domain=True):
+    if isinstance(email,str):
+        src_a=email.split('@')
+        if not local and len(src_a) == 2:
+            if len(src_a[0]) > 1 and len(src_a[1]) > 3 and '.' in src_a[1]:
+                if check_domain is True:
+                    username=src_a[0]
+                    domain=src_a[1]
+                    if Domainname(domain)[0]:
+                        return True,email
+                else:
+                    return True,email
+        elif local or len(src_a) in [1,2]:
+            with open('/etc/passwd','r') as f:
+                pwi=f.read()
+            user_list=[i.split(':')[0] for i in pwi.split('\n')]
+            local_domain=Domainname()[1]
+            if len(src_a) == 2 and src_a[1]:
+                if local_domain == src_a[1] and src_a[0] in user_list:
+                    return True,email
+            elif src_a[0] in user_list:
+                return True,'{}@{}'.format(src_a[0],local_domain)
+    return False,email
+
 class EMAIL:
     ############################
     # GMAIL Information
@@ -1568,7 +1616,7 @@ class EMAIL:
 
     #def Send(self,sender,receivers,title='Subject',msg='MSG',dbg=False,filename=None,html=False):
     def Send(self,*receivers,**opts):
-        sender=opts.get('sender',opts.get('from','root@localhost'))
+        sender=opts.get('sender',opts.get('from','admin@localhost'))
         title=opts.get('title',opts.get('subject','Unknown Subject'))
         msg=opts.get('msg',opts.get('body','No body'))
         dbg=opts.get('dbg',False)
