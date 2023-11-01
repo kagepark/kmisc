@@ -1616,7 +1616,7 @@ class EMAIL:
 
     #def Send(self,sender,receivers,title='Subject',msg='MSG',dbg=False,filename=None,html=False):
     def Send(self,*receivers,**opts):
-        sender=opts.get('sender',opts.get('from','admin@localhost'))
+        sender=opts.get('sender',opts.get('from','{}@{}'.format(os.getlogin(),Domainname()[1])))
         title=opts.get('title',opts.get('subject','Unknown Subject'))
         msg=opts.get('msg',opts.get('body','No body'))
         dbg=opts.get('dbg',False)
