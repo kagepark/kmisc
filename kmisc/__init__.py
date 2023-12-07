@@ -1545,6 +1545,10 @@ class EMAIL:
         if not isinstance(receivers,list):
             print('To mailing list issue')
             return False
+        if not filename:
+            filename=[]
+        elif not isinstance(filename,(list,tuple)):
+            filename=[filename]
         if filename:
             _body=MIMEMultipart()
             if isinstance(sender,tuple) and len(sender) == 2:
@@ -1562,12 +1566,15 @@ class EMAIL:
                 _body.attach(MIMEText(msg, "html"))
             else:
                 _body.attach(MIMEText(msg, "plain"))
-            with open(filename,'rb') as attachment:
-                part=MIMEBase("application", "octet-stream")
-                part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition','attachment; filename="{}"'.format(filename))
-            _body.attach(part)
+            for fn in filename:
+                if isinstance(fn,str) and os.path.isfile(fn):
+                    with open(fn,'rb') as attachment:
+                        part=MIMEBase("application", "octet-stream")
+                        part.set_payload(attachment.read())
+                    encoders.encode_base64(part)
+                    #part.add_header('Content-Disposition','attachment; filename="{}"'.format(os.path.basename(fn)))
+                    part.add_header('Content-Disposition','attachment',filename=('utf-8','',os.path.basename(fn)))
+                    _body.attach(part)
         else:
             if html:
                 _body=MIMEMultipart('alternative')
