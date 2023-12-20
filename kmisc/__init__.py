@@ -1697,7 +1697,7 @@ class SCREEN:
             print('Already has the title at {}'.format(scr_id))
             return False
         
-        if not IP(ip).IsBmcIp(port=(623,664,443)):
+        if not IpV4(ip,port=(623,664,443)):
             print('{} is not ipmi ip'.format(ip))
             return False
 
