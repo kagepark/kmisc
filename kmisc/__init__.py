@@ -2892,7 +2892,10 @@ def get_iso_uid(filename):
     if type(filename) is not str:
         return False,None,None
     if os.path.exists(filename):
-        uid_cmd='''sudo /usr/sbin/blkid {}'''.format(filename)
+        if find_executable('sudo'):
+            uid_cmd='''sudo /usr/sbin/blkid {}'''.format(filename)
+        else:
+            uid_cmd='''/usr/sbin/blkid {}'''.format(filename)
         rc=rshell(uid_cmd)
         if rc[0] == 0:
             uid_str='{0}_{1}'.format(FIND(rc[1]).Find('UUID="(\w.*)" L'),FIND(rc[1]).Find('LABEL="(\w.*)" T')).replace(' ','_')
