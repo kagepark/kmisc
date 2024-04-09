@@ -1859,14 +1859,8 @@ def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,
 def FirstKey(src,default=None):
     return Next(src,default=default)
 
-def code_error(email_func=None,email=None,email_title=None,email_server=None,log=None,log_msg='',default=None):
-    log_msg=ExceptMessage(msg=log_msg,default=default)
-    if log_msg != default:
-        if log: log('\n!!ERROR!!: {}'.format(log_msg),log_level=1)
-        if email_func and email and email_title:
-            a=email_func(email,email_title,log_msg,dj_ip=email_server)
-            TIME().Sleep(5)
-    return default
+def code_error(log_msg=None):
+    return ExceptMessage(msg=log_msg)
 
 def DirName(src,default=None):
     dirname=Path(src,default=default)
