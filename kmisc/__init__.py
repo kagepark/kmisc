@@ -1859,8 +1859,8 @@ def cut_string(string,max_len=None,sub_len=None,new_line='\n',front_space=False,
 def FirstKey(src,default=None):
     return Next(src,default=default)
 
-def code_error(log_msg=None):
-    return ExceptMessage(msg=log_msg)
+def code_error(log_msg=None,**opts):
+    return ExceptMessage(msg=log_msg,default=opts.get('default'))
 
 def DirName(src,default=None):
     dirname=Path(src,default=default)
@@ -1932,7 +1932,7 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
         return rt
     return default
 
-def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_opt=None):
+def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_opt=None,find_all=False):
     #<Menu name="Security">
     #  <Setting name="Administrator Password" type="Password">
     #    <Information>
@@ -1942,6 +1942,9 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_
     #</Menu>
     #findXML(cfg_file,find_name='Administrator Password',find_path='./Information/HasPassword',out='data'))
     # => False
+    # find_name : for finding XML root with maching data of tag name 'name'
+    # find_path : it searching item keys(ex: Setting/Information/HasPassword) from found XML root
+    # get_opt   : tag name (ex: name, type)
     if os.path.isfile(xmlfile):
         try:
             tree=ET.parse(xmlfile)
@@ -1953,53 +1956,90 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_
             root=ET.fromstring(xmlfile)
         except:
             return default
-    def find(tr,find_name):
+    def find_root(tr,find_name):
         for x in tr:
             if x.attrib.get('name') == find_name:
                 return x,x.tag
-            rt,pp=find(x,find_name)
+            rt,pp=find_root(x,find_name)
             if rt:
                 return rt,'{}/{}'.format(x.tag,pp)
         return None,None
-    found_root=None
+    def find_item(tr,find_path):
+        for x in tr:
+            if x.tag == find_path[0]:
+                if find_path[1:]:
+                   a,p=find_item(x,find_path[1:])
+                   if a is not None:
+                       return a,'{}/{}'.format(find_path[0],p)
+                else:
+                   return x,find_path[0]
+        return None,None
+    def find_all_items(tr,find_path):
+        out=[]
+        for i in tr:
+            a=i.findall(find_path)
+            if a:
+                out=out+a
+            o=find_all_items(i,find_path)
+            if o:
+                out=out+o
+        return out
+    found_root=None,None
+    #find XML root with name tag information or root's tag name
     if find_name:
-        found=find(root,find_name)
-        if found[0]:
-             found_root=found[0]
-    if find_path and isinstance(find_path,str):
-        #ex: root.findall('./Menu/Setting/[@name="Administrator Password"]/Information/HasPassword'):
-        if not found_root: found_root=root
-        found_result=found_root.findall(find_path)
-        # <element>.tag: name, .text: data, .attrib: dict
-        rt=[]
-        if out in ['tag','name']:
-            for ii in found_result:
-                rt.append(ii.tag)
-        elif out in ['text','data']:
-            for ii in found_result:
+        found_root=find_root(root,find_name)
+    if found_root[0] is None: found_root=root,None
+    if find_all:
+        o=[]
+        for i in find_all_items(found_root[0],find_path):
+            if IsIn(out,['tag','name']):
+                o.append(i.tag)
+            elif IsIn(out,['text','data','value']):
                 if get_opt:
-                    rt.append(ii.get(get_opt,default))
+                    o.append(i.get(get_opt,default))
                 else:
-                    rt.append(ii.text)
-        elif out in ['attrib','att']:
-            for ii in found_result:
-                rt.append(ii.attrib)
-        if rt:
-            return rt
-        else:
-            return found_result
+                    o.append(i.text)
+            elif IsIn(out,['attrib','att','attr']):
+                o.append(i.attrib)
+            else:
+                o.append(i)
+        return o
     else:
-        if found_root:
-            if out in ['tag','name']:
-                return found_root.tag
-            elif out in ['text','data']:
-                if get_opt:
-                    return found_root.get(get_opt,default)
-                else:
-                    return found_root.text
-            elif out in ['attrib','att']:
-                return found_root.attrib
-            return found_root
+        # Searching path from found root or original root 
+        if find_path and isinstance(find_path,str):
+            if find_path[0] == '/': find_path=find_path[1:]
+            #ex: root.findall('./Menu/Setting/[@name="Administrator Password"]/Information/HasPassword'):
+            found_path=find_item(found_root[0],find_path.split('/'))
+            # <element>.tag: name, .text: data, .attrib: dict
+            if found_path[0] is not None:
+                if IsIn(out,['tag','name']):
+                    return found_path[0].tag
+                elif IsIn(out,['text','data','value']):
+                    if get_opt:
+                        return found_path[0].get(get_opt,default)
+                    return found_path[0].text
+                elif IsIn(out,['attrib','att','attr']):
+                    return found_path[0].attrib
+                elif IsIn(out,['path','key','keys']):
+                    print('>>',found_root[1],':',found_path[1])
+                    if found_root[1] is None:
+                        return found_path[1]
+                    return os.path.join(found_root[1],found_path[1])
+                return found_root[0]
+        else:
+            if found_root[0] is not None:
+                if IsIn(out,['tag','name']):
+                    return found_root[0].tag
+                elif IsIn(out,['text','data','value']):
+                    if get_opt:
+                        return found_root[0].get(get_opt,default)
+                    else:
+                        return found_root[0].text
+                elif IsIn(out,['attrib','att','attr']):
+                    return found_root[0].attrib
+                elif IsIn(out,['path','key','keys']):
+                    return found_root[1]
+                return found_root[0]
     return default
 
 def Compress(data,mode='lz4'):
