@@ -2008,6 +2008,7 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_
         # Searching path from found root or original root 
         if find_path and isinstance(find_path,str):
             if find_path[0] == '/': find_path=find_path[1:]
+            elif len(find_path) > 2 and find_path[:2] == './': find_path=find_path[2:]
             #ex: root.findall('./Menu/Setting/[@name="Administrator Password"]/Information/HasPassword'):
             found_path=find_item(found_root[0],find_path.split('/'))
             # <element>.tag: name, .text: data, .attrib: dict
