@@ -2452,7 +2452,7 @@ def find_cdrom_dev(size=None):
                         if os.path.isfile('{0}/device/model'.format(rrr)):
                             with open('{0}/device/model'.format(rrr),'r') as fpp:
                                 model=fpp.read()
-                            for ii in ['CDROM','DVD-ROM','DVD-RW']:
+                            for ii in ['CDROM','DVD-ROM','DVD-RW','File-Stor Gadget']: #File-Stor Gadget for OpenBMC's cdrom
                                 if ii in model:
                                     if IsNone(size):
                                         return '/dev/{0}'.format(dd)
