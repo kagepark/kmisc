@@ -375,7 +375,7 @@ class FILE:
 
     def FileType(self,filename,default=False):
         if not isinstance(filename,str) or not os.path.isfile(filename): return default
-        Import('import magic')
+        Import('import magic',install_name='python-magic')
         aa=magic.from_buffer(open(filename,'rb').read(2048))
         if aa: return aa.split()[0].lower()
         return 'unknown'
@@ -1260,176 +1260,176 @@ class LOG:
                 else:
                     self.log_file(log_str)
 
-class HOST:
-    def __init__(self):
-        pass
-
-    def Name(self):
-        return socket.gethostname()
-
-    def DefaultRouteDev(self,default=None,gw=None):
-        for ii in Split(cat('/proc/net/route',no_edge=True),'\n',default=[]):
-            ii_a=ii.split()
-            #if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
-            if len(ii_a) < 4 or ii_a[1] != '00000000' or not int(ii_a[3], 16) & 2:
-                #If not default route or not RTF_GATEWAY, skip it
-                continue
-            if gw:
-                if IsSame(socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16))),gw):
-                    return ii_a[0]
-            else:
-                return ii_a[0]
-        return default
-
-    def DefaultRouteIp(self,default=None):
-        for ii in Split(cat('/proc/net/route',no_edge=True),'\n'):
-            ii_a=ii.split()
-            if len(ii_a) < 4 or ii_a[1] != '00000000' or not int(ii_a[3], 16) & 2:
-                #If not default route or not RTF_GATEWAY, skip it
-                continue
-            return socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16)))
-        return default
-
-    def Ip(self,ifname=None,mac=None,default=None):
-        if IsNone(ifname):
-            if IsNone(mac) : mac=self.Mac()
-            ifname=self.DevName(mac)
-
-        if ifname:
-            if not os.path.isdir('/sys/class/net/{}'.format(ifname)):
-                return default
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                return socket.inet_ntoa(fcntl.ioctl(
-                    s.fileno(),
-                    0x8915,  # SIOCGIFADDR
-                    struct.pack('256s', ifname[:15])
-                )[20:24])
-            except:
-                try:
-                    return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
-                except:
-                    return default
-        return socket.gethostbyname(socket.gethostname())
-
-    def IpmiIp(self,default=None):
-        rt=rshell('''ipmitool lan print 2>/dev/null| grep "IP Address" | grep -v Source | awk '{print $4}' ''')
-        if rt[0]:return rt[1]
-        return default
-
-    def IpmiMac(self,default=None):
-        rt=rshell(""" ipmitool lan print 2>/dev/null | grep "MAC Address" | awk """ + """ '{print $4}' """)
-        if rt[0]:return rt[1]
-        return default
-
-    def Mac(self,ip=None,dev=None,default=None,ifname=None):
-        #if dev is None and ifname: dev=ifname
-        if IsNone(dev) and ifname: dev=ifname
-        if IpV4(ip):
-            dev_info=self.NetDevice()
-            for dev in dev_info.keys():
-                if self.Ip(ifname=dev) == ip:
-                    return dev_info[dev]['mac']
-        #ip or anyother input of device then getting default gw's dev
-        if IsNone(dev): dev=self.DefaultRouteDev()
-        if dev:
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', Bytes(dev[:15])))
-                return Join(['%02x' % ord(char) for char in Str(info[18:24])],symbol=':')
-            except:
-                return default
-        #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        return MacV4('%012x' % uuid.getnode())
-
-    def DevName(self,mac=None,default=None):
-        if IsNone(mac):
-            mac=self.Mac()
-        net_dir='/sys/class/net'
-        if isinstance(mac,str) and os.path.isdir(net_dir):
-            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-            for dev in dirnames:
-                fmac=cat('{}/{}/address'.format(dirpath,dev),no_edge=True)
-                if isinstance(fmac,str) and fmac.strip().lower() == mac.lower():
-                    return dev
-        return default
-
-    def Info(self):
-        return {
-         'host_name':self.Name(),
-         'host_ip':self.Ip(),
-         'host_mac':self.Mac(),
-         'ipmi_ip':self.IpmiIp(),
-         'ipmi_mac':self.IpmiMac(),
-         }
-
-    def NetDevice(self,name=None,default=False):
-        def _dev_info_(path,name):
-            drv=ls('{}/{}/device/driver/module/drivers'.format(path,name))
-            if drv is False:
-                drv='unknown'
-            else:
-                drv=drv[0].split(':')[1]
-            return {
-                'mac':cat('{}/{}/address'.format(path,name),no_end_newline=True),
-                'duplex':cat('{}/{}/duplex'.format(path,name),no_end_newline=True,file_only=False),
-                'mtu':cat('{}/{}/mtu'.format(path,name),no_end_newline=True),
-                'state':cat('{}/{}/operstate'.format(path,name),no_end_newline=True),
-                'speed':cat('{}/{}/speed'.format(path,name),no_end_newline=True,file_only=False),
-                'id':cat('{}/{}/ifindex'.format(path,name),no_end_newline=True),
-                'driver':drv,
-                'drv_ver':cat('{}/{}/device/driver/module/version'.format(path,name),no_end_newline=True,file_only=False,default=''),
-                }
-
-
-        net_dev={}
-        net_dir='/sys/class/net'
-        if os.path.isdir(net_dir):
-            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
-            if name:
-                if name in dirnames:
-                    net_dev[name]=_dev_info_(dirpath,name)
-            else:
-                for dev in dirnames:
-                    net_dev[dev]=_dev_info_(dirpath,dev)
-            return net_dev
-        return default
-
-    def Alive(self,ip,keep=20,interval=3,timeout=1800,default=False,log=None,cancel_func=None):
-        time=TIME()
-        run_time=time.Int()
-        if IpV4(ip):
-            if log:
-                log('[',direct=True,log_level=1)
-            while True:
-                if time.Out(timeout_sec):
-                    if log:
-                        log(']\n',direct=True,log_level=1)
-                    return False,'Timeout monitor'
-                if IsBreak(cancel_func):
-                    if log:
-                        log(']\n',direct=True,log_level=1)
-                    return True,'Stopped monitor by Custom'
-                if ping(ip,cancel_func=cancel_func):
-                    if (time.Int() - run_time) > keep:
-                        if log:
-                            log(']\n',direct=True,log_level=1)
-                        return True,'OK'
-                    if log:
-                        log('-',direct=True,log_level=1)
-                else:
-                    run_time=time.Int()
-                    if log:
-                        log('.',direct=True,log_level=1)
-                time.Sleep(interval)
-            if log:
-                log(']\n',direct=True,log_level=1)
-            return False,'Timeout/Unknown issue'
-        return default,'IP format error'
-
-    def Ping(self,ip,keep_good=10,timeout=3600):
-        if IpV4(ip):
-            return ping(ip,keep_good=keep_good,timeout=timeout)
+#class HOST:
+#    def __init__(self):
+#        pass
+# 
+#    def Name(self):
+#        return socket.gethostname()
+# 
+#    def DefaultRouteDev(self,default=None,gw=None):
+#        for ii in Split(cat('/proc/net/route',no_edge=True),'\n',default=[]):
+#            ii_a=ii.split()
+#            #if len(ii_a) > 8 and '00000000' == ii_a[1] and '00000000' == ii_a[7]: return ii_a[0]
+#            if len(ii_a) < 4 or ii_a[1] != '00000000' or not int(ii_a[3], 16) & 2:
+#                #If not default route or not RTF_GATEWAY, skip it
+#                continue
+#            if gw:
+#                if IsSame(socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16))),gw):
+#                    return ii_a[0]
+#            else:
+#                return ii_a[0]
+#        return default
+# 
+#    def DefaultRouteIp(self,default=None):
+#        for ii in Split(cat('/proc/net/route',no_edge=True),'\n'):
+#            ii_a=ii.split()
+#            if len(ii_a) < 4 or ii_a[1] != '00000000' or not int(ii_a[3], 16) & 2:
+#                #If not default route or not RTF_GATEWAY, skip it
+#                continue
+#            return socket.inet_ntoa(struct.pack("<L", int(ii_a[2], 16)))
+#        return default
+# 
+#    def Ip(self,ifname=None,mac=None,default=None):
+#        if IsNone(ifname):
+#            if IsNone(mac) : mac=self.Mac()
+#            ifname=self.DevName(mac)
+# 
+#        if ifname:
+#            if not os.path.isdir('/sys/class/net/{}'.format(ifname)):
+#                return default
+#            try:
+#                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#                return socket.inet_ntoa(fcntl.ioctl(
+#                    s.fileno(),
+#                    0x8915,  # SIOCGIFADDR
+#                    struct.pack('256s', ifname[:15])
+#                )[20:24])
+#            except:
+#                try:
+#                    return os.popen('ip addr show {}'.format(ifname)).read().split("inet ")[1].split("/")[0]
+#                except:
+#                    return default
+#        return socket.gethostbyname(socket.gethostname())
+# 
+#    def IpmiIp(self,default=None):
+#        rt=rshell('''ipmitool lan print 2>/dev/null| grep "IP Address" | grep -v Source | awk '{print $4}' ''')
+#        if rt[0]:return rt[1]
+#        return default
+# 
+#    def IpmiMac(self,default=None):
+#        rt=rshell(""" ipmitool lan print 2>/dev/null | grep "MAC Address" | awk """ + """ '{print $4}' """)
+#        if rt[0]:return rt[1]
+#        return default
+# 
+#    def Mac(self,ip=None,dev=None,default=None,ifname=None):
+#        #if dev is None and ifname: dev=ifname
+#        if IsNone(dev) and ifname: dev=ifname
+#        if IpV4(ip):
+#            dev_info=self.NetDevice()
+#            for dev in dev_info.keys():
+#                if self.Ip(ifname=dev) == ip:
+#                    return dev_info[dev]['mac']
+#        #ip or anyother input of device then getting default gw's dev
+#        if IsNone(dev): dev=self.DefaultRouteDev()
+#        if dev:
+#            try:
+#                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#                info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', Bytes(dev[:15])))
+#                return Join(['%02x' % ord(char) for char in Str(info[18:24])],symbol=':')
+#            except:
+#                return default
+#        #return ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+#        return MacV4('%012x' % uuid.getnode())
+# 
+#    def DevName(self,mac=None,default=None):
+#        if IsNone(mac):
+#            mac=self.Mac()
+#        net_dir='/sys/class/net'
+#        if isinstance(mac,str) and os.path.isdir(net_dir):
+#            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+#            for dev in dirnames:
+#                fmac=cat('{}/{}/address'.format(dirpath,dev),no_edge=True)
+#                if isinstance(fmac,str) and fmac.strip().lower() == mac.lower():
+#                    return dev
+#        return default
+# 
+#    def Info(self):
+#        return {
+#         'host_name':self.Name(),
+#         'host_ip':self.Ip(),
+#         'host_mac':self.Mac(),
+#         'ipmi_ip':self.IpmiIp(),
+#         'ipmi_mac':self.IpmiMac(),
+#         }
+# 
+#    def NetDevice(self,name=None,default=False):
+#        def _dev_info_(path,name):
+#            drv=ls('{}/{}/device/driver/module/drivers'.format(path,name))
+#            if drv is False:
+#                drv='unknown'
+#            else:
+#                drv=drv[0].split(':')[1]
+#            return {
+#                'mac':cat('{}/{}/address'.format(path,name),no_end_newline=True),
+#                'duplex':cat('{}/{}/duplex'.format(path,name),no_end_newline=True,file_only=False),
+#                'mtu':cat('{}/{}/mtu'.format(path,name),no_end_newline=True),
+#                'state':cat('{}/{}/operstate'.format(path,name),no_end_newline=True),
+#                'speed':cat('{}/{}/speed'.format(path,name),no_end_newline=True,file_only=False),
+#                'id':cat('{}/{}/ifindex'.format(path,name),no_end_newline=True),
+#                'driver':drv,
+#                'drv_ver':cat('{}/{}/device/driver/module/version'.format(path,name),no_end_newline=True,file_only=False,default=''),
+#                }
+# 
+# 
+#        net_dev={}
+#        net_dir='/sys/class/net'
+#        if os.path.isdir(net_dir):
+#            dirpath,dirnames,filenames = list(os.walk(net_dir))[0]
+#            if name:
+#                if name in dirnames:
+#                    net_dev[name]=_dev_info_(dirpath,name)
+#            else:
+#                for dev in dirnames:
+#                    net_dev[dev]=_dev_info_(dirpath,dev)
+#            return net_dev
+#        return default
+# 
+#    def Alive(self,ip,keep=20,interval=3,timeout=1800,default=False,log=None,cancel_func=None):
+#        time=TIME()
+#        run_time=time.Int()
+#        if IpV4(ip):
+#            if log:
+#                log('[',direct=True,log_level=1)
+#            while True:
+#                if time.Out(timeout_sec):
+#                    if log:
+#                        log(']\n',direct=True,log_level=1)
+#                    return False,'Timeout monitor'
+#                if IsBreak(cancel_func):
+#                    if log:
+#                        log(']\n',direct=True,log_level=1)
+#                    return True,'Stopped monitor by Custom'
+#                if ping(ip,cancel_func=cancel_func):
+#                    if (time.Int() - run_time) > keep:
+#                        if log:
+#                            log(']\n',direct=True,log_level=1)
+#                        return True,'OK'
+#                    if log:
+#                        log('-',direct=True,log_level=1)
+#                else:
+#                    run_time=time.Int()
+#                    if log:
+#                        log('.',direct=True,log_level=1)
+#                time.Sleep(interval)
+#            if log:
+#                log(']\n',direct=True,log_level=1)
+#            return False,'Timeout/Unknown issue'
+#        return default,'IP format error'
+# 
+#    def Ping(self,ip,keep_good=10,timeout=3600):
+#        if IpV4(ip):
+#            return ping(ip,keep_good=keep_good,timeout=timeout)
 
 class COLOR:
     def __init__(self,**opts):
@@ -2065,7 +2065,7 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
 
     def FileType(filename,default=False):
         if not isinstance(filename,str) or not os.path.isfile(filename): return default
-        Import('import magic')
+        Import('import magic',install_name='python-magic')
         aa=magic.from_buffer(open(filename,'rb').read(2048))
         if aa: return aa.split()[0].lower()
         return 'unknown'
