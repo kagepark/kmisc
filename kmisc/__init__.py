@@ -2091,21 +2091,6 @@ def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={})
             if del_org_file: os.unline(data)
             return True
 
-def ls(dirname,opt=''):
-    if not IsNone(dirname) and os.path.isdir(dirname):
-        dirlist=[]
-        dirinfo_a=list(os.walk(dirname))
-        if not IsNone(dirinfo_a):
-            dirinfo=dirinfo_a[0]
-            if opt == 'd':
-                dirlist=Get(dirinfo,1)
-            elif opt == 'f':
-                dirlist=Get(dirinfo,2)
-            else:
-                dirlist=Get(dirinfo,1)+Get(dirinfo,2)
-            return dirlist
-    return False
-
 def append(src,addendum):
     type_src=type(src)
     type_data=type(addendum)
