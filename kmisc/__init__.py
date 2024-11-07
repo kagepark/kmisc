@@ -1603,12 +1603,20 @@ class EMAIL:
             if IsNone(self.user): self.user=sender
             try:
                 server=smtplib.SMTP_SSL(self.server,self.port,context=context)
+            except:
+                print(f'Can not connect to {self.server}:{self.port}. If local server then please check the SMTP Server')
+                return False
+            try:
                 server.login(self.user, self.password)
             except:
                 print('Login fail at the server({})'.format(self.server))
                 return False
         else:
-            server=smtplib.SMTP(self.server,self.port)
+            try:
+                server=smtplib.SMTP(self.server,self.port)
+            except:
+                print(f'Can not connect to {self.server}:{self.port}. If local server then please check the SMTP Server')
+                return False
             if self.tls:
                 if not self.password:
                     print('It required mail server({}) login password'.format(self.server))
