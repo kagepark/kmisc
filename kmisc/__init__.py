@@ -2528,7 +2528,10 @@ def net_send_data(sock,data,key='kg',enc=False,timeout=0,instant=False,log=None,
 
 def net_receive_data(sock,key='kg',progress=None,retry=0,retry_timeout=30,progress_msg=None,log=None,err_scr=True):
     # decode code here
-    ok,size,data_type,enc=packet_head(sock,retry=retry,timeout=retry_timeout)
+    try:
+        ok,size,data_type,enc=packet_head(sock,retry=retry,timeout=retry_timeout)
+    except:
+        return [False,None]
     if krc(ok,chk=True):
         # File not found Error log size is 57. So if 57 then ignore progress
         if size == 57: progress=False
