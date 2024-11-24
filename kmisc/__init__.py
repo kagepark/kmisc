@@ -38,12 +38,14 @@ from multiprocessing import Process, Queue
 from email.mime.multipart import MIMEMultipart
 try:
     from kmport import *
+    import kmport
 except:
     pip_user_install='--user' if os.environ.get('VIRTUAL_ENV') is None else ''
     os.system('''for i in 1 2 3 4 5; do python3 -m pip install pip --upgrade {} 2>&1 | grep "however version" |grep "is available" >& /dev/null || break; done'''.format(pip_user_install))
     os.system('python3 -m pip install kmport {}'.format(pip_user_install))
     try:
         from kmport import *
+        import kmport
     except:
         print('Can not install kmport')
         os._exit(1)
@@ -52,9 +54,11 @@ Import('import whois',install_name='python-whois')
 #Import('import whois') # it print some comment on screen
 
 global krc_define
+global krc_ext
 global printf_log_base
 global printf_caller_tree
 global printf_caller_detail
+
 log_intro=3
 pipe_file=None
 log_new_line='\n'
@@ -2030,7 +2034,6 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_
                 elif IsIn(out,['attrib','att','attr']):
                     return found_path[0].attrib
                 elif IsIn(out,['path','key','keys']):
-                    print('>>',found_root[1],':',found_path[1])
                     if found_root[1] is None:
                         return found_path[1]
                     return os.path.join(found_root[1],found_path[1])
