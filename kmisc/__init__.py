@@ -2858,13 +2858,21 @@ def net_put_data(IP,data,PORT=8805,key='kg',timeout=3,try_num=1,try_wait=[1,10],
 
 def encode(string):
     enc='{0}'.format(string)
-    tmp=zlib.compress(enc.encode("utf-8"))
-    return '{0}'.format(base64.b64encode(tmp).decode('utf-8'))
+    try:
+        tmp=zlib.compress(enc.encode("utf-8"))
+        return '{0}'.format(base64.b64encode(tmp).decode('utf-8'))
+    except Exception as e:
+        printf('Issue for {}:\n{}'.format(string,e),mode='e')
+        return False
 
 def decode(string):
     if type(string) is str:
-        dd=zlib.decompress(base64.b64decode(string))
-        return '{0}'.format(dd.decode("utf-8"))
+        try:
+            dd=zlib.decompress(base64.b64decode(string))
+            return '{0}'.format(dd.decode("utf-8"))
+        except Exception as e:
+            printf('Issue for {}:\n{}'.format(string,e),mode='e')
+            return False
     return string
 
 def get_node_info(loop=0):
