@@ -2054,6 +2054,36 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_
                 return found_root[0]
     return default
 
+def findPlanCfg(filename,find_name=None,default=False,original=False):
+    data=cat(filename)
+    if data is False:
+        return default
+    if find_name and isinstance(find_name,str):
+        out=[]
+        for ff in find_name.split(','):
+            found=False
+            for i in data.split('\n'):
+                if isinstance(i,str) and '=' in i:
+                    i_a=i.split('=')
+                    if len(i_a) == 2 and i_a[0] == ff:
+                        found=True
+                        if original:
+                            out.append(i_a[1])
+                        else:
+                            if i_a[1][0] == '"' and i_a[1][-1] == '"':
+                                out.append(i_a[1][1:-1])
+                            elif i_a[1][0] == "'" and i_a[1][-1] == "'":
+                                out.append(i_a[1][1:-1])
+                            else:
+                                out.append(i_a[1])
+            if not found:
+                out.append(default)
+        if len(out) == 1:
+            return out[0]
+        return out
+    return data
+
+
 def Compress(data,mode='lz4'):
     if mode == 'lz4':
         Import('from lz4 import frame')
@@ -2863,7 +2893,7 @@ def encode(string):
         return '{0}'.format(base64.b64encode(tmp).decode('utf-8'))
     except Exception as e:
         printf('Issue for {}:\n{}'.format(string,e),mode='e')
-        return False
+        return False  
 
 def decode(string):
     if type(string) is str:
@@ -2872,7 +2902,7 @@ def decode(string):
             return '{0}'.format(dd.decode("utf-8"))
         except Exception as e:
             printf('Issue for {}:\n{}'.format(string,e),mode='e')
-            return False
+            return False  
     return string
 
 def get_node_info(loop=0):
