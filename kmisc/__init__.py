@@ -905,63 +905,67 @@ class FILE:
         return True
 
     def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None,force=False):
-        if IsNone(filename):
-            filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
-        dir_name=os.path.dirname(filename)
-        file_name=os.path.basename(filename)
-        name, ext = os.path.splitext(file_name)
-        if type(suffix) is not str or force is True:
-            suffix='-XXXXXXXX'
-        num_type='.%0{}d'.format(len(suffix)-1)
-        if dir_name == '.':
-            dir_name=os.path.dirname(os.path.realpath(__file__))
-        elif dir_name == '':
-            dir_name=base_dir
-        def new_name(name,ext=None,ext2=None):
-            if ext:
-                if ext2:
-                    return '{}{}{}'.format(name,ext,ext2)
-                return '{}{}'.format(name,ext)
-            if ext2:
-                return '{}{}'.format(name,ext2)
-            return name
-        def new_dest(dest_dir,name,ext=None,force=False):
-            if os.path.isdir(dest_dir) is False:
-                return False
-            i=0
-            new_file=new_name(name,ext)
-            while True:
-                rfile=os.path.join(dest_dir,new_file)
-                if force is False and os.path.exists(rfile) is False:
-                    return rfile
-                force=False
-                if suffix:
-                    if '0' in suffix or 'n' in suffix or 'N' in suffix:
-                        if suffix[-1] not in ['0','n']:
-                            new_file=new_name(name,num_type%i,ext)
-                        else:
-                            new_file=new_name(name,ext,num_type%i)
-                    elif 'x' in suffix or 'X' in suffix:
-                        rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
-                        if suffix[-1] not in ['X','x']:
-                            new_file=new_name(name,rnd_str,ext)
-                        else:
-                            new_file=new_name(name,ext,rnd_str)
-                    else:
-                        if i == 0:
-                            new_file=new_name(name,ext,'.{}'.format(suffix))
-                        else:
-                            new_file=new_name(name,ext,'.{}.{}'.format(suffix,i))
-                else:
-                    new_file=new_name(name,ext,'.{}'.format(i))
-                i+=1
-        new_dest_file=new_dest(dir_name,name,ext,force=force)
-        if opt in ['file','f']:
-           os.mknode(new_dest_file)
-        elif opt in ['dir','d','directory']:
-           os.mkdir(new_dest_file)
-        else:
-           return new_dest_file
+        if isinstance(filename,str) and filename:
+            filename='{}{}'.format(filename,suffix)
+        return MkTemp(filename=filename,opt=opt,base_dir=base_dir,force=force)
+    #def MkTemp(self,filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',custom=None,force=False):
+    #    if IsNone(filename):
+    #        filename=os.path.join(base_dir,Random(length=len(suffix)-1,strs=custom,mode='str'))
+    #    dir_name=os.path.dirname(filename)
+    #    file_name=os.path.basename(filename)
+    #    name, ext = os.path.splitext(file_name)
+    #    if type(suffix) is not str or force is True:
+    #        suffix='-XXXXXXXX'
+    #    num_type='.%0{}d'.format(len(suffix)-1)
+    #    if dir_name == '.':
+    #        dir_name=os.path.dirname(os.path.realpath(__file__))
+    #    elif dir_name == '':
+    #        dir_name=base_dir
+    #    def new_name(name,ext=None,ext2=None):
+    #        if ext:
+    #            if ext2:
+    #                return '{}{}{}'.format(name,ext,ext2)
+    #            return '{}{}'.format(name,ext)
+    #        if ext2:
+    #            return '{}{}'.format(name,ext2)
+    #        return name
+    #    def new_dest(dest_dir,name,ext=None,force=False):
+    #        if os.path.isdir(dest_dir) is False:
+    #            return False
+    #        i=0
+    #        new_file=new_name(name,ext)
+    #        while True:
+    #            rfile=os.path.join(dest_dir,new_file)
+    #            if force is False and os.path.exists(rfile) is False:
+    #                return rfile
+    #            force=False
+    #            if suffix:
+    #                if '0' in suffix or 'n' in suffix or 'N' in suffix:
+    #                    if suffix[-1] not in ['0','n']:
+    #                        new_file=new_name(name,num_type%i,ext)
+    #                    else:
+    #                        new_file=new_name(name,ext,num_type%i)
+    #                elif 'x' in suffix or 'X' in suffix:
+    #                    rnd_str='.{}'.format(Random(length=len(suffix)-1,mode='str'))
+    #                    if suffix[-1] not in ['X','x']:
+    #                        new_file=new_name(name,rnd_str,ext)
+    #                    else:
+    #                        new_file=new_name(name,ext,rnd_str)
+    #                else:
+    #                    if i == 0:
+    #                        new_file=new_name(name,ext,'.{}'.format(suffix))
+    #                    else:
+    #                        new_file=new_name(name,ext,'.{}.{}'.format(suffix,i))
+    #            else:
+    #                new_file=new_name(name,ext,'.{}'.format(i))
+    #            i+=1
+    #    new_dest_file=new_dest(dir_name,name,ext,force=force)
+    #    if opt in ['file','f']:
+    #       os.mknode(new_dest_file)
+    #    elif opt in ['dir','d','directory']:
+    #       os.mkdir(new_dest_file)
+    #    else:
+    #       return new_dest_file
 
     def SetIdentity(self,path,**opts):
         if os.path.exists(path):
@@ -1808,8 +1812,10 @@ class SCREEN:
     def Log(self,title,cmd):
         # ipmitool -I lanplus -H 172.16.114.80 -U ADMIN -P ADMIN sol activate
         pid=os.getpid()
-        tmp_file=FILE().MkTemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
-        log_file=FILE().MkTemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
+        #tmp_file=FILE().MkTemp('/tmp/.slc.{}_{}.cfg'.format(title,pid))
+        #log_file=FILE().MkTemp('/tmp/.screen_ck_{}_{}.log'.format(title,pid))
+        tmp_file=MkTemp('/tmp/.slc.{}_{}.cfg-XXXXXXXX'.format(title,pid))
+        log_file=MkTemp('/tmp/.screen_ck_{}_{}.log-XXXXXXX'.format(title,pid))
         if os.path.isfile(log_file):
             log_file=''
         with open(tmp_file,'w') as f:
@@ -2054,7 +2060,19 @@ def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_
                 return found_root[0]
     return default
 
-def findPlanCfg(filename,find_name=None,default=False,original=False):
+def findPlanCfg(filename,find_name=None,default=False,original=False,date=None):
+    # date format : include YYYY, MM, DD, hh, mm, ss information
+    # Check File
+    if date:
+        finfo=InfoFile(filename)
+        if isinstance(finfo,dict) and 'mtime' in finfo:
+            # If old file then ignore
+            if TIME(finfo.get('mtime')).Int() < TIME(date).Int():
+                return default
+        else:
+            # Not found file then ignore
+            return default
+    # Passed date condition or no date condition then read the file
     data=cat(filename)
     if data is False:
         return default
@@ -3250,7 +3268,10 @@ def sendanmail(to,subj,msg,html=True):
     return Email.Send(to,sender='root@sumtester.supermicro.com',title=subj,msg=msg,html=html)
 
 def mktemp(filename=None,suffix='-XXXXXXXX',opt='dry',base_dir='/tmp',force=False):
-    return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir,force=force)
+    #return FILE().MkTemp(filename=filename,suffix=suffix,opt=opt,base_dir=base_dir,force=force)
+    if isinstance(filename,str) and filename:
+        filename='{}{}'.format(filename,suffix)
+    return MkTemp(filename=filename,opt=opt,base_dir=base_dir,force=force)
 
 def get_host_name():
     return HOST().Name()
