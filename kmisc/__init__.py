@@ -2076,9 +2076,11 @@ def findPlanCfg(filename,find_name=None,default=False,original=False,date=None):
     data=cat(filename)
     if data is False:
         return default
-    if find_name and isinstance(find_name,str):
+    if find_name:
+        if isinstance(find_name,str):
+            find_name=find_name.split(',')
         out=[]
-        for ff in find_name.split(','):
+        for ff in find_name:
             found=False
             for i in data.split('\n'):
                 if isinstance(i,str) and '=' in i:
