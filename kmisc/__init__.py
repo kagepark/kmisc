@@ -2735,24 +2735,51 @@ def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,ma
     return rc
 
 def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=True,log_raw=False, argv=[],queue=None):
+    #Log
+    def LLOG(msg):
+        if 'log' in mp and 'queue' in mp['log']:
+            mp['log']['queue'].put(msg)
+            time.sleep(2)
+
     # Clean
+    def terminate_process(pobj,max_retry=5):
+        for i in range(max_retry):
+            if isinstance(pobj,dict) and 'mp' in pobj:
+                pobj=pobj['mp']
+            if type(pobj).__name__ == 'Process':
+                try:
+                    if pobj.is_alive():
+                        pobj.terminate()
+                        return True
+                except:
+                    time.sleep(1)
+            else:
+                break
+        return False
+
     for n in [k for k in mp]:
         if quit is True:
             if n != 'log':
-                mp[n]['mp'].terminate()
-                if 'log' in mp:
-                    mp['log']['queue'].put('\nterminate function {}'.format(n))
+                if 'mp' in mp[n] and mp[n]['mp']:
+                    LLOG('\nterminate function {}'.format(n))
+                    if terminate_process(mp[n]):
+                        del mp[n]
         else:
             if mp[n]['timeout'] > 0 and TIME().Int() > mp[n]['timeout']:
-                mp[n]['mp'].terminate()
-                if 'log' in mp:
-                    mp['log']['queue'].put('\ntimeout function {}'.format(n))
-        if not mp[n]['mp'].is_alive():
-            del mp[n]
+                if 'mp' in mp[n]:
+                    if terminate_process(mp[n]['mp']):
+                        LLOG('\ntimeout function {}'.format(n))
+                        del mp[n]['mp']
     if quit is True and 'log' in mp:
-        mp['log']['queue'].put('\nterminate function log')
-        TIME().Sleep(2)
-        mp['log']['mp'].terminate()
+        LLOG('\nterminate function log')
+        if 'mp' in mp['log']:
+            if terminate_process(mp['log']['mp']):
+                del mp['log']['mp']
+        if 'queue' in mp['log']:
+            if terminate_process(mp['log']['queue']):
+                del mp['log']['queue']
+        if 'mp' not in mp['log'] and 'queue' not in mp['log']:
+            del mp['log']
         return
 
     # LOG
