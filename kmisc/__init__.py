@@ -2783,7 +2783,7 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
             return rc
 
     for n in [k for k in mp]:
-        if isinstance(mp[k],dict):
+        if isinstance(mp[n],dict):
             timeout=mp[n].get('timeout',0)
             if quit is True or timeout > 0 and TIME().Int() > timeout:
                 if n != 'log':
