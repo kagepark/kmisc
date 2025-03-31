@@ -34,7 +34,10 @@ from http.cookies import Morsel # This module for requests when you use build by
 import xml.etree.ElementTree as ET
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
-from multiprocessing import Process, Queue
+import multiprocessing
+Process=multiprocessing.Process
+Queue=multiprocessing.Queue
+#from multiprocessing import Process, Queue
 from email.mime.multipart import MIMEMultipart
 try:
     from kmport import *
@@ -64,6 +67,7 @@ pipe_file=None
 log_new_line='\n'
 url_group = re.compile('^(https|http|ftp)://([^/\r\n]+)(/[^\r\n]*)?')
 cdrom_ko=['sr_mod','cdrom','libata','ata_piix','ata_generic','usb-storage']
+env_kmp=Environment(name='__KmP__')
 
 def Abs(*inps,**opts):
     default=opts.get('default',None)
@@ -2734,62 +2738,119 @@ def net_start_single_server(server_port,main_func_name,server_ip='',timeout=0,ma
     ssoc.close()
     return rc
 
-def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=True,log_raw=False, argv=[],queue=None):
+def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=True,log_raw=False, argv=[],queue=False):
     #Log
     def LLOG(msg):
         if 'log' in mp and 'queue' in mp['log']:
             mp['log']['queue'].put(msg)
             time.sleep(2)
 
+    # clean thread
+    def kill_thread(thread):
+        if not thread.is_alive():
+            return
+        tid = ctypes.c_long(thread.ident)
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(SystemExit))
+        if res > 1:
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
+
     # Clean
-    def terminate_process(pobj,max_retry=5):
-        for i in range(max_retry):
-            if isinstance(pobj,dict) and 'mp' in pobj:
-                pobj=pobj['mp']
-            if type(pobj).__name__ == 'Process':
-                try:
-                    if pobj.is_alive():
-                        pobj.terminate()
-                        return True
-                except:
-                    time.sleep(1)
-            else:
-                break
-        return False
+    def terminate_process(pobj,max_retry=3):
+        def kill_process(pobj,max_retry):
+            for i in range(max_retry):
+                if isinstance(pobj,dict) and 'mp' in pobj:
+                    pobj=pobj['mp']
+                if type(pobj).__name__ == 'Process':
+                    try:
+                        if pobj.is_alive():
+                            pobj.terminate()
+                            pobj.join()
+                        else:
+                            return True
+                    except:
+                        pass
+                    time.sleep(3)
+                else:
+                    break
+            return False
+        if isinstance(pobj,dict):
+            return kill_process(pobj,max_retry)
+        elif isinstance(pobj,list):
+            rc=True
+            for pp in pobj:
+                if not kill_process(pp,max_retry):
+                    rc=False
+            return rc
 
     for n in [k for k in mp]:
-        if quit is True:
-            if n != 'log':
-                if 'mp' in mp[n] and mp[n]['mp']:
-                    LLOG('\nterminate function {}'.format(n))
-                    if terminate_process(mp[n]):
-                        del mp[n]
-        else:
-            if mp[n]['timeout'] > 0 and TIME().Int() > mp[n]['timeout']:
-                if 'mp' in mp[n]:
-                    if terminate_process(mp[n]['mp']):
-                        LLOG('\ntimeout function {}'.format(n))
-                        del mp[n]['mp']
-    if quit is True and 'log' in mp:
-        LLOG('\nterminate function log')
-        if 'mp' in mp['log']:
-            if terminate_process(mp['log']['mp']):
-                del mp['log']['mp']
-        if 'queue' in mp['log']:
-            if terminate_process(mp['log']['queue']):
-                del mp['log']['queue']
-        if 'mp' not in mp['log'] and 'queue' not in mp['log']:
-            del mp['log']
+        if isinstance(mp[k],dict):
+            timeout=mp[n].get('timeout',0)
+            if quit is True or timeout > 0 and TIME().Int() > timeout:
+                if n != 'log':
+                    if 'mp' in mp[n]:
+                        LLOG('\nterminate function {}'.format(n))
+                        if terminate_process(mp[n]):
+                            del mp[n]
+        elif isinstance(mp[k],list):
+            for mm in mp[n]:
+                if not isinstance(mm,dict): continue
+                timeout=mm.get('timeout',0)
+                if quit is True or timeout > 0 and TIME().Int() > timeout:
+                    if n != 'log':
+                        if 'mp' in mm:
+                            LLOG('\nterminate function {}'.format(n))
+                            terminate_process(mm)
+            del mp[n]
+    env_mp=env_kmp.get()
+    for n in [k for k in env_mp]:
+        if isinstance(env_mp[n],dict):
+            timeout=env_mp[n].get('timeout',0)
+            if quit is True or timeout > 0 and TIME().Int() > timeout:
+                if n != 'log':
+                    if 'mp' in env_mp[n]:
+                        LLOG('\nterminate function {}'.format(n))
+                        if terminate_process(env_mp[n]):
+                            env_kmp.remove(n)
+        elif isinstance(env_mp[n],list):
+            for mm in env_mp[n]:
+                if not isinstance(mm,dict): continue
+                timeout=mm.get('timeout',0)
+                if quit is True or timeout > 0 and TIME().Int() > timeout:
+                    if n != 'log':
+                        if 'mp' in mm:
+                            LLOG('\nterminate function {}'.format(n))
+                            terminate_process(mm)
+            env_kmp.remove(n)
+    if quit is True:
+        #cleanup log
+        if 'log' in mp:
+            mp['log']['stop']=True # stop signal
+            if 'queue' in mp['log']:
+                mp['log']['queue'].put('__exit__all__') #stop message
+            if 'mp' in mp['log']:
+                if terminate_process(mp['log']['mp']):  # terminate
+                    del mp['log']
+        #cleanup all child process again
+        for c in multiprocessing.active_children():
+            c.terminate()
+            c.join()
+        #kill still remained
+        for c in multiprocessing.active_children():
+            c.kill()
+            c.join()
         return
 
     # LOG
-    def logging(ql,log_file=None,log_screen=True,raw=False):
+    def logging(ql,log_file=None,log_screen=False,raw=False,mp={}):
         while True:
-            #if not ql.empty():
+            if isinstance(mp,dict) and mp.get('log',{}).get('stop'): # if stop signal then break
+                break
             if ql.empty():
                 TIME().Sleep(0.01)
             else:
                 ll=ql.get()
+                if ll == '__exit__all__':
+                    break # if message are exit message then quit
                 if raw:
                     log_msg=ll
                 else:
@@ -2803,14 +2864,17 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
                     sys.stdout.write(log_msg)
                     sys.stdout.flush()
 
-    if 'log' not in mp or not mp['log']['mp'].is_alive():
-        #log=multiprocessing.Queue()
-        log=Queue()
-        #lqp=multiprocessing.Process(name='log',target=logging,args=(log,log_file,log_screen,log_raw,))
-        lqp=Process(name='log',target=logging,args=(log,log_file,log_screen,log_raw,))
-        lqp.daemon = True
-        mp.update({'log':{'mp':lqp,'start':TIME().Int(),'timeout':0,'queue':log}})
-        lqp.start()
+    #Start Log Daemon
+    if log_screen or log_file:
+        if 'log' not in mp:
+            log=Queue()
+            lqp=Process(name='log',target=logging,args=(log,log_file,log_screen,log_raw,mp,))
+            lqp.daemon = True
+            mp['log']={'mp':lqp,'start':TIME().Int(),'timeout':0,'queue':log}
+            lqp.start()
+        else:
+            if not mp['log']['mp'].is_alive():
+                mp['log']['mp'].start()
 
     # Functions
     if func:
@@ -2818,22 +2882,18 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
             name=func.__name__
         if name not in mp:
             if argv:
-                #mf=multiprocessing.Process(name=name,target=func,args=tuple(argv))
                 mf=Process(name=name,target=func,args=tuple(argv))
             else:
-                #mf=multiprocessing.Process(name=name,target=func)
                 mf=Process(name=name,target=func)
             if timeout > 0:
                 timeout=TIME().Int()+timeout
-            
-#            for aa in argv:
-#                if type(aa).__name__ == 'Queue':
-#                    mp.update({name:{'mp':mf,'timeout':timeout,'start':now(),'queue':aa}})
-            if name not in mp:
+            if name in mp:
+                printf('Already multiprocess has same name',logfile=log_file,mode='d')
+            else:
                 if queue and type(queue).__name__ == 'Queue':
-                    mp.update({name:{'mp':mf,'timeout':timeout,'start':TIME().Int(),'queue':queue}})
+                    mp[name]={'mp':mf,'timeout':timeout,'start':TIME().Int(),'queue':queue}
                 else:
-                    mp.update({name:{'mp':mf,'timeout':timeout,'start':TIME().Int()}})
+                    mp[name]={'mp':mf,'timeout':timeout,'start':TIME().Int()}
             mf.start()
     return mp
 
