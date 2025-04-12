@@ -1973,30 +1973,35 @@ def XML2Dict(root,path=[],sub=0,ignore_value=['\n']):
                 root=tree.getroot()
             except:
                 return False
+    def ignore(a,b):
+        if isinstance(b,tuple) and a not in b:
+            return True
+        elif isinstance(b,set) and a in b:
+            return True
+        elif not isinstance(b,(tuple,set)) and b != '*' and a != b:
+            return True
+        return False
 
     attr_root=root.attrib
     root_tag=attr_root.get('name',root.tag)
-    out={root_tag:attr_root}
+    #Current Path (root)
+    if path and len(path) > sub:
+        if ignore(root_tag,path[sub]): return {}
+    out={root_tag:{}}
+    for i in attr_root:
+        if path and len(path) > sub+1:
+            if ignore(i,path[sub+1]): continue
+        out[root_tag][i]=attr_root[i]
     d_root=out[root_tag]
-    new_sub=sub+1
     for x in root:
         if isinstance(x,str): continue
-        if path:
-            if len(path) <= sub: continue
-            if isinstance(path[sub],tuple): #tuple then choose only same key
-                if root_tag not in path[sub]:
-                    continue
-            elif isinstance(path[sub],set): #set then ignore the choosed names, but others are ok
-                if root_tag in path[sub]:
-                    continue
-            else:
-                if path[sub] != '*' and root_tag != path[sub]:
-                    continue
-
+        #Sub Path
         # for <Subtitle> ... </Subtitle>
         # for <Text> ... </Text>
         attr_x=x.attrib
         x_tag=attr_x.get('name',attr_x.get('id',x.tag)) #<tag name=xxx  id=xxx> ... </tag>
+        if path and len(path) > sub+1:
+            if ignore(x_tag,path[sub+1]): continue
         #Special Tag
         if x_tag == 'Subtitle': #Subtitle
             if x_tag not in d_root:
@@ -2025,18 +2030,26 @@ def XML2Dict(root,path=[],sub=0,ignore_value=['\n']):
                     continue
             d_root[x_tag][-1]['data']=x_data  
         else: #Normal case
-            d_root[x_tag]=attr_x # {...}
+            #Sub's sub
+            #d_root[x_tag]=attr_x # {...}
+            d_root[x_tag]={}
+            for i in attr_x:
+                if path and len(path) > sub+1:
+                    if ignore(i,path[sub+1]): continue
+                d_root[x_tag][i]=attr_x[i]
+
             x_data=x.text # <>text</>  put at "data" key's value
             sub_data=XML2Dict(x,path=path,sub=sub+1,ignore_value=ignore_value)
-            sub_key=next(iter(sub_data))
-            if sub_data[sub_key]:
-                for i in sub_data[sub_key]:
-                    d_root[x_tag][i]=sub_data[sub_key][i]
-            if isinstance(x_data,str):
-                _x_=x_data.strip()
-                if _x_ == '\n' or not _x_ or _x_ in ignore_value:
-                    continue
-            d_root[x_tag]['data']=x_data  
+            if len(sub_data) == 1:
+                sub_key=next(iter(sub_data))
+                if sub_data[sub_key]:
+                    for i in sub_data[sub_key]:
+                        d_root[x_tag][i]=sub_data[sub_key][i]
+                if isinstance(x_data,str):
+                    _x_=x_data.strip()
+                    if _x_ == '\n' or not _x_ or _x_ in ignore_value:
+                        continue
+                d_root[x_tag]['data']=x_data  
     return out
 
 def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_opt=None,find_all=False):
