@@ -1954,6 +1954,91 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
         return rt
     return default
 
+def XML2Dict(root,path=[],sub=0,ignore_value=['\n']):
+    #path: {a:{
+    #          b: {
+    #              c: {...},
+    #              d: {...},
+    #              e: {...},
+    #              f: {...},
+    #path=['a','b',('c','d')] # 3rd is c and d only and others are ignore
+    #if anything in the level b, but 3rd is c and d only and others are ignore
+    #path=['a','*',('c','d')]
+    #exclude 'c' and 'e' only at the 3rd level and others are ok in 3rd level
+    #path=['a','*',{'c','e'}]
+    if isinstance(root,str):
+        if os.path.isfile(root):
+            try:
+                tree=ET.parse(root)
+                root=tree.getroot()
+            except:
+                return False
+
+    attr_root=root.attrib
+    root_tag=attr_root.get('name',root.tag)
+    out={root_tag:attr_root}
+    d_root=out[root_tag]
+    new_sub=sub+1
+    for x in root:
+        if isinstance(x,str): continue
+        if path:
+            if len(path) <= sub: continue
+            if isinstance(path[sub],tuple): #tuple then choose only same key
+                if root_tag not in path[sub]:
+                    continue
+            elif isinstance(path[sub],set): #set then ignore the choosed names, but others are ok
+                if root_tag in path[sub]:
+                    continue
+            else:
+                if path[sub] != '*' and root_tag != path[sub]:
+                    continue
+
+        # for <Subtitle> ... </Subtitle>
+        # for <Text> ... </Text>
+        attr_x=x.attrib
+        x_tag=attr_x.get('name',attr_x.get('id',x.tag)) #<tag name=xxx  id=xxx> ... </tag>
+        #Special Tag
+        if x_tag == 'Subtitle': #Subtitle
+            if x_tag not in d_root:
+                d_root[x_tag]=[]
+            d_root[x_tag].append([x.text])
+        elif x_tag == 'Text': #Text
+            if 'Subtitle' in d_root: 
+                d_root['Subtitle'][-1].append(x.text) # Adding Text string to Subtitle when exist Subtitle
+            else:
+                if x_tag not in d_root:
+                    d_root[x_tag]=[]
+                d_root[x_tag].append(x.text) # Adding Text string to Subtitle when exist Subtitle
+        elif x_tag == 'Option': #option case
+            if x_tag not in d_root:
+                d_root[x_tag]=[]
+            d_root[x_tag].append(attr_x) # {...}
+            x_data=x.text # <>text</>  put at "data" key's value
+            sub_data=XML2Dict(x,path=path,sub=sub+1,ignore_value=ignore_value)
+            sub_key=next(iter(sub_data))
+            if sub_data[sub_key]:
+                for i in sub_data[sub_key]:
+                    d_root[x_tag][-1][i]=sub_data[sub_key][i]
+            if isinstance(x_data,str):
+                _x_=x_data.strip()
+                if _x_ == '\n' or not _x_ or _x_ in ignore_value:
+                    continue
+            d_root[x_tag][-1]['data']=x_data  
+        else: #Normal case
+            d_root[x_tag]=attr_x # {...}
+            x_data=x.text # <>text</>  put at "data" key's value
+            sub_data=XML2Dict(x,path=path,sub=sub+1,ignore_value=ignore_value)
+            sub_key=next(iter(sub_data))
+            if sub_data[sub_key]:
+                for i in sub_data[sub_key]:
+                    d_root[x_tag][i]=sub_data[sub_key][i]
+            if isinstance(x_data,str):
+                _x_=x_data.strip()
+                if _x_ == '\n' or not _x_ or _x_ in ignore_value:
+                    continue
+            d_root[x_tag]['data']=x_data  
+    return out
+
 def findXML(xmlfile,find_name=None,find_path=None,default=None,out='xmlobj',get_opt=None,find_all=False):
     #<Menu name="Security">
     #  <Setting name="Administrator Password" type="Password">
