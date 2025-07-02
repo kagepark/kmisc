@@ -3447,6 +3447,51 @@ def Upper(src,default='org'):
     if isinstance(src,str): return src.upper()
     if default in ['org',{'org'}]: return src
     return default
+
+def web_capture(url,output_file,image_size='1920,1080',wait_time=3):
+    if isinstance(image_size,str):
+        if 'x' in image_size:
+            image_size=image_size.split('x')
+        elif ',' in image_size:
+            image_size=image_size.split(',')
+    if isinstance(image_size,(list,tuple)) and len(image_size) == 2:
+        image_size=','.join([str(i) for i in image_size])
+    else:
+        #Set it to default image size
+        image_size='1920,1080'
+
+    if Import('import selenium'):
+        return False,'Can not install selenium package'
+    else:
+        # Configure Chrome options for headless mode
+        from selenium.webdriver.chrome.options import Options
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')  # Run in headless mode
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument(f"--window-size={image_size}")  # Set window size
+        # Initialize the Chrome driver
+        driver = selenium.webdriver.Chrome(options=chrome_options)
+        rc=False,output_file
+        try:
+            # Navigate to the URL
+            driver.get(url)
+            
+            # Wait for the page to load
+            time.sleep(wait_time)
+
+            # Capture screenshot
+            driver.save_screenshot(output_file)
+            #print(f"Screenshot saved to {output_file}")
+            rc=True,output_file
+        except Exception as e:
+            #print(f"Error capturing screenshot: {str(e)}")
+            rc=False,str(e)
+        finally:
+            # Close the browser
+            driver.quit()
+        return rc
+
 ############################################
 #Temporary function map for replacement
 ############################################
