@@ -3448,7 +3448,16 @@ def Upper(src,default='org'):
     if default in ['org',{'org'}]: return src
     return default
 
-def web_capture(url,output_file,image_size='1920,1080',wait_time=3):
+def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certificate_error=False,username=None,password=None,auth_fields={'auth':{'type':'name','name':('username','password')},'submit':{'type':'submit','name':None}},next_do={}):
+    #auth_fields.submit.type : name    : login button with name 
+    #                        : id      : login button with id 
+    #                        : submit  : submit button without name or id
+    #auth_fields.submit.name : <string>: name or id's submit name string
+    #auth_fields.auth.type   : name    : username/password with name field
+    #                        : id      : username/password with name id
+    #auth_fields.auth.name   : (usernane,password)    : username/password field string for name or id
+    #next_do                 : put data and click submit
+
     if isinstance(image_size,str):
         if 'x' in image_size:
             image_size=image_size.split('x')
@@ -3465,18 +3474,73 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3):
     else:
         # Configure Chrome options for headless mode
         from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.common.by import By
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
         chrome_options = Options()
         chrome_options.add_argument('--headless')  # Run in headless mode
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument(f"--window-size={image_size}")  # Set window size
+        if ignore_certificate_error:
+            chrome_options.add_argument('--ignore-certificate-errors') # gnore-certificate-errors
+            chrome_options.add_argument('--allow-insecure-localhost')  # gnore-certificate-errors
         # Initialize the Chrome driver
         driver = selenium.webdriver.Chrome(options=chrome_options)
         rc=False,output_file
         try:
             # Navigate to the URL
             driver.get(url)
-            
+
+            #Login to web page
+            if username and password:
+                wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds
+                #Search field name for username,password
+                if auth_fields.get('auth').get('type') == 'id':
+                    by_type=By.ID
+                else:
+                    by_type=By.NAME
+                username_field = wait.until(EC.presence_of_element_located((by_type, auth_fields.get('auth').get('name')[0])))
+                password_field = driver.find_element(by_type, auth_fields.get('auth').get('name')[1])
+                #login submit 
+                if auth_fields.get('submit',{}).get('type') in ['id','name']:
+                    if auth_fields.get('submit',{}).get('type') == 'id':
+                        by_type=By.ID
+                    else:
+                        by_type=By.NAME
+                    login_button = driver.find_element(by_type, auth_fields.get('submit').get('name'))
+                else: #button submit type
+                    login_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+                #put username/password into field
+                username_field.send_keys(username) 
+                password_field.send_keys(password) 
+                #Login 
+                login_button.click()
+
+            if next_do and isinstance(next_do.get('datas'),(list,tuple)):
+                wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds
+                for do_i in next_do.get('datas'):
+                    if not isinstance(do_i,dict): continue
+                    if do_i.get('type') == 'id':
+                        do_type=By.ID
+                    else:
+                        do_type=By.NAME
+                    user_do_field = wait.until(EC.presence_of_element_located((do_type, do_i.get('name'))))
+                    if do_i.get('click'):
+                        user_do_field.click()
+                    else:
+                        user_do_field.send_keys(do_i.get('data')) 
+                #Submit data
+                if next_do.get('type') in ['id','name']:
+                    if next_do.get('type') == 'id':
+                        by_type=By.ID
+                    else:
+                        by_type=By.NAME
+                    next_do_button = driver.find_element(by_type, next_do.get('name'))
+                else: #button submit type
+                    next_do_button = driver.find_element(By.XPATH, "//button[@type='submit']")
+                next_do_button.click()
+
             # Wait for the page to load
             time.sleep(wait_time)
 
