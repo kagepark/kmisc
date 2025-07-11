@@ -23,12 +23,13 @@ import fnmatch
 import smtplib
 import zipfile
 import tarfile
+import warnings
 import email.utils
 from sys import modules
 from pprint import pprint
 import fcntl,socket,struct
 from email import encoders
-from threading import Thread
+from threading import Thread, Lock
 from datetime import datetime
 from http.cookies import Morsel # This module for requests when you use build by pyinstaller command
 import xml.etree.ElementTree as ET
@@ -39,6 +40,10 @@ Process=multiprocessing.Process
 Queue=multiprocessing.Queue
 #from multiprocessing import Process, Queue
 from email.mime.multipart import MIMEMultipart
+
+warning_message='ignore'
+warnings.filterwarnings(warning_message)
+
 try:
     from kmport import *
     import kmport
@@ -3448,7 +3453,7 @@ def Upper(src,default='org'):
     if default in ['org',{'org'}]: return src
     return default
 
-def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certificate_error=False,username=None,password=None,auth_fields={'auth':{'type':'name','name':('username','password')},'submit':{'type':'submit','name':None}},next_do={}):
+def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certificate_error=False,username=None,password=None,auth_fields={'auth':{'type':'name','name':('username','password')},'submit':{'type':'submit','name':None}},next_do={},gpu=False,live_capture=0,capture_method='file',find_string=None,found_space='\n',log=None,ocr_enhance=False,daemon=False,backup=False):
     #auth_fields.submit.type : name    : login button with name 
     #                        : id      : login button with id 
     #                        : submit  : submit button without name or id
@@ -3463,6 +3468,10 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
             image_size=image_size.split('x')
         elif ',' in image_size:
             image_size=image_size.split(',')
+        elif '*' in image_size:
+            image_size=image_size.split('*')
+        elif ':' in image_size:
+            image_size=image_size.split(':')
     if isinstance(image_size,(list,tuple)) and len(image_size) == 2:
         image_size=','.join([str(i) for i in image_size])
     else:
@@ -3472,6 +3481,13 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
     if Import('import selenium'):
         return False,'Can not install selenium package'
     else:
+        if backup:
+            Import('filecmp')
+            Import('shutil')
+
+        ocr=None
+        if capture_method != 'file':
+            ocr=OCR(enhance=ocr_enhance)
         # Configure Chrome options for headless mode
         from selenium.webdriver.chrome.options import Options
         from selenium.webdriver.common.by import By
@@ -3482,6 +3498,8 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument(f"--window-size={image_size}")  # Set window size
+        if not gpu:
+            chrome_options.add_argument("--disable-gpu")
         if ignore_certificate_error:
             chrome_options.add_argument('--ignore-certificate-errors') # gnore-certificate-errors
             chrome_options.add_argument('--allow-insecure-localhost')  # gnore-certificate-errors
@@ -3541,20 +3559,133 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
                     next_do_button = driver.find_element(By.XPATH, "//button[@type='submit']")
                 next_do_button.click()
 
-            # Wait for the page to load
-            time.sleep(wait_time)
+            def _capture_(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon):
+                def wait_body(driver,timeout=10):
+                    #wait until get screen data
+                    try:
+                        selenium.webdriver.support.ui.WebDriverWait(driver,timeout).until(
+                            EC.presence_of_element_located((By.TAG_NAME,"body"))
+                            )
+                        return
+                    except:
+                        try:
+                            selenium.webdriver.support.ui.WebDriverWait(driver,timeout).until(
+                                lambda d: d.execute_script("return document.readyState") == "complete"
+                            )
+                            return
+                        except:
+                            pass
+                    time.sleep(timeout)
 
-            # Capture screenshot
-            driver.save_screenshot(output_file)
-            #print(f"Screenshot saved to {output_file}")
-            rc=True,output_file
+                live_capture=Int(live_capture)
+                wait_time=Int(wait_time,10)
+                backup_idx=0
+                if backup:
+                    backup=Int(backup,2)
+                if isinstance(live_capture,int) and live_capture > wait_time*2:
+                    Time=TIME()
+                    while True:
+                        if Time.Out(live_capture):
+                            driver.quit()
+                            return False
+                        # Capture screenshot
+                        if log:
+                            if log in ['screen','log','print',print]:
+                                printf(Dot(),direct=True)
+                            else:
+                                printf(Dot(),log=log,direct=True)
+                        if backup:
+                            save_file='{}.{}'.format(output_file,backup_idx%backup)
+                        else:
+                            save_file=output_file
+                        #wait
+                        wait_body(driver,timeout=wait_time)
+                        #capture
+                        driver.save_screenshot(save_file)
+                        if backup:
+                            if backup == 2:
+                                comp_a=f'{output_file}.0'
+                                comp_b=f'{output_file}.1'
+                                if os.path.isfile(comp_a) and os.path.isfile(comp_b):
+                                    if filecmp.cmp(comp_a,comp_b):
+                                        if log:
+                                            if log in ['screen','log','print',print]:
+                                                printf(Dot(),direct=True)
+                                            else:
+                                                printf(Dot(),log=log,direct=True)
+                                        time.sleep(wait_time)
+                                        backup_idx+=1
+                                        continue
+                            shutil.copy2(save_file,output_file)
+                        if IsIn(capture_method,['log','screen','text']):
+                            found_words=ocr.Text(image_file=save_file)
+                            found_strings=found_space.join(found_words)
+                            printf(found_strings,log=log,mode='d' if log else 's')
+                            if find_string:
+                                if find_string in found_strings:
+                                    driver.quit()
+                                    return True
+                        time.sleep(wait_time)
+                        backup_idx+=1
+                else:
+                    #wait
+                    wait_body(driver,timeout=wait_time)
+                    #capture
+                    driver.save_screenshot(output_file)
+                driver.quit()
+            if daemon:
+                t=kThread(target=_capture_, args=(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon))
+                return t
+            else:
+                _capture_(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon)
+                return True,output_file
+
         except Exception as e:
             #print(f"Error capturing screenshot: {str(e)}")
-            rc=False,str(e)
-        finally:
-            # Close the browser
             driver.quit()
-        return rc
+            return False,str(e)
+#        finally:
+#            # Close the browser
+#            driver.quit()
+#        return rc
+
+class OCR:
+    def __init__(self,image_file=None,enhance=False,language=['en'],gpu=False,model_storage_directory=None,**opts):
+        self.enhance=enhance
+        self.image_file=image_file
+        Import('easyocr')
+        if self.enhance:
+            Import('PIL',install_name='Pillow')
+            Import('numpy')
+        self.reader = easyocr.Reader(language,gpu=gpu,model_storage_directory=model_storage_directory)
+        # Suppress Torch pin_memory warning
+        warnings.filterwarnings("ignore", category=UserWarning, module="torch.utils.data.dataloader")
+
+        # Suppress EasyOCR CPU warning
+        #warnings.filterwarnings("ignore", message="WARNING:easyocr.easyocr:Using CPU. Note: This module is much faster with a GPU.")
+
+        # Suppress NetworkX backend warning
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
+
+    def Text(self,detail=0,low_text=None,contrast_ths=None,image_file=None):
+        if not image_file: image_file=self.image_file
+        if not image_file: return False
+        opts={}
+        opts['detail']=detail
+        if isinstance(low_text,float): opts['low_text']=low_test
+        if isinstance(contrast_ths,float): opts['contrast_ths']=contrast_ths
+        if self.enhance:
+            image = PIL.Image.open(image_file)
+            image = image.convert('L') #Grayscale
+            image = PIL.ImageEnhance.Contrast(image).enhance(3.0) #high contrast
+            image = PIL.ImageEnhance.Sharpness(image).enhance(2.0)#Sharpen
+            image = image.convert('RGB').point(lambda p: 255 if p > 140 else 0)  # Adjust threshold if needed
+#            image = image.resize((800, int(800 * image.height / image.width)), PIL.Image.Resampling.LANCZOS)
+            image.save(image_file)
+#            image_np = numpy.array(image)
+#            return self.reader.readtext(image_np,**opts)
+#        else:
+        return self.reader.readtext(image_file,**opts)
 
 ############################################
 #Temporary function map for replacement
