@@ -3453,7 +3453,7 @@ def Upper(src,default='org'):
     if default in ['org',{'org'}]: return src
     return default
 
-def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certificate_error=False,username=None,password=None,auth_fields={'auth':{'type':'name','name':('username','password')},'submit':{'type':'submit','name':None}},next_do={},gpu=False,live_capture=0,capture_method='file',find_string=None,found_space='\n',log=None,ocr_enhance=False,daemon=False,backup=False):
+def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certificate_error=False,username=None,password=None,auth_fields={'auth':{'type':'name','name':('username','password')},'submit':{'type':'submit','name':None}},next_do={},gpu=False,live_capture=0,capture_method='file',capture_type='png',video_file=None,find_string=None,found_space='\n',log=None,ocr_enhance=False,daemon=False,backup=False):
     #auth_fields.submit.type : name    : login button with name 
     #                        : id      : login button with id 
     #                        : submit  : submit button without name or id
@@ -3463,6 +3463,8 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
     #auth_fields.auth.name   : (usernane,password)    : username/password field string for name or id
     #next_do                 : put data and click submit
 
+    _url=url.split('/')
+    url=WEB().url_join(*_url[1:],method=_url[0])
     if isinstance(image_size,str):
         if 'x' in image_size:
             image_size=image_size.split('x')
@@ -3475,8 +3477,9 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
     if isinstance(image_size,(list,tuple)) and len(image_size) == 2:
         image_size=','.join([str(i) for i in image_size])
     else:
-        #Set it to default image size
-        image_size='1920,1080'
+        if not IsIn(image_size,[None,'full','fullscreen','full_screen','auto']):
+            #Set it to default image size
+            image_size='1920,1080'
 
     if Import('import selenium'):
         return False,'Can not install selenium package'
@@ -3484,6 +3487,8 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
         if backup:
             Import('filecmp')
             Import('shutil')
+        if capture_type in ['mov','mp4']:
+            Import('cv2',install_name='opencv-python')
 
         ocr=None
         if capture_method != 'file':
@@ -3497,7 +3502,9 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
         chrome_options.add_argument('--headless')  # Run in headless mode
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument(f"--window-size={image_size}")  # Set window size
+
+        if image_size.lower() not in ['full','fullscreen','full_screen','auto']:
+            chrome_options.add_argument(f"--window-size={image_size}")  # Set window size
         if not gpu:
             chrome_options.add_argument("--disable-gpu")
         if ignore_certificate_error:
@@ -3505,6 +3512,8 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
             chrome_options.add_argument('--allow-insecure-localhost')  # gnore-certificate-errors
         # Initialize the Chrome driver
         driver = selenium.webdriver.Chrome(options=chrome_options)
+        if image_size.lower() in ['full','fullscreen','full_screen','auto']:
+            driver.maximize_window()
         rc=False,output_file
         try:
             # Navigate to the URL
@@ -3559,7 +3568,7 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
                     next_do_button = driver.find_element(By.XPATH, "//button[@type='submit']")
                 next_do_button.click()
 
-            def _capture_(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon):
+            def _capture_(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon,video_file):
                 def wait_body(driver,timeout=10):
                     #wait until get screen data
                     try:
@@ -3578,23 +3587,37 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
                     time.sleep(timeout)
 
                 live_capture=Int(live_capture)
-                wait_time=Int(wait_time,10)
+                if not isinstance(wait_time,(int,float)):
+                    wait_time=Int(wait_time,10)
                 backup_idx=0
                 if backup:
                     backup=Int(backup,2)
                 if isinstance(live_capture,int) and live_capture > wait_time*2:
+                    #Keep capture
                     Time=TIME()
+                    if capture_type in ['mov','mp4']:
+                        frame_rate=1/wait_time
+                        window_size = driver.get_window_size()
+                        width = window_size['width']
+                        height = window_size['height']
+                        fourcc = cv2.VideoWriter_fourcc(*'mp4v') # Codec for MP4
+                        video_writer = cv2.VideoWriter(video_file, fourcc, frame_rate, (width, height))
                     while True:
                         if Time.Out(live_capture):
                             driver.quit()
-                            return False
+                            if capture_type in ['mov','mp4']:
+                                video_writer.release()
+                                return True
+                            else:
+                                #Do something, but not return until timeout. So return False
+                                return False
                         # Capture screenshot
                         if log:
-                            if log in ['screen','log','print',print]:
+                            if IsIn(log,['screen','log','print',print]):
                                 printf(Dot(),direct=True)
                             else:
                                 printf(Dot(),log=log,direct=True)
-                        if backup:
+                        if backup and capture_type not in ['mov','mp4']:
                             save_file='{}.{}'.format(output_file,backup_idx%backup)
                         else:
                             save_file=output_file
@@ -3602,43 +3625,82 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
                         wait_body(driver,timeout=wait_time)
                         #capture
                         driver.save_screenshot(save_file)
-                        if backup:
-                            if backup == 2:
-                                comp_a=f'{output_file}.0'
-                                comp_b=f'{output_file}.1'
-                                if os.path.isfile(comp_a) and os.path.isfile(comp_b):
-                                    if filecmp.cmp(comp_a,comp_b):
-                                        if log:
-                                            if log in ['screen','log','print',print]:
-                                                printf(Dot(),direct=True)
-                                            else:
-                                                printf(Dot(),log=log,direct=True)
-                                        time.sleep(wait_time)
-                                        backup_idx+=1
-                                        continue
-                            shutil.copy2(save_file,output_file)
-                        if IsIn(capture_method,['log','screen','text']):
-                            found_words=ocr.Text(image_file=save_file)
-                            found_strings=found_space.join(found_words)
-                            printf(found_strings,log=log,mode='d' if log else 's')
-                            if find_string:
-                                if find_string in found_strings:
-                                    driver.quit()
-                                    return True
+                        if capture_type in ['mov','mp4']:
+                            #Make a video file
+                            frame = cv2.imread(save_file)
+                            frame = cv2.resize(frame, (width, height))
+                            video_writer.write(frame)
+                        else:
+                            #do something with picture file
+                            if backup:
+                                if backup == 2:
+                                    comp_a=f'{output_file}.0'
+                                    comp_b=f'{output_file}.1'
+                                    if os.path.isfile(comp_a) and os.path.isfile(comp_b):
+                                        if filecmp.cmp(comp_a,comp_b):
+                                            if log:
+                                                if IsIn(log,['screen','log','print',print]):
+                                                    printf(Dot(),direct=True)
+                                                else:
+                                                    printf(Dot(),log=log,direct=True)
+                                            time.sleep(wait_time)
+                                            backup_idx+=1
+                                            continue
+                                shutil.copy2(save_file,output_file)
+                            if IsIn(capture_method,['log','screen','text']):
+                                found_words=ocr.Text(image_file=save_file)
+                                found_strings=found_space.join(found_words)
+                                if IsIn(log,['screen','log','print',print,None]):
+                                    printf(found_strings,mode='s')
+                                else:
+                                    printf(found_strings,log=log,mode='d')
+                                if find_string:
+                                    if find_string in found_strings:
+                                        #Find exit string, So True, So True, So True, So True
+                                        driver.quit()
+                                        return True
+                            backup_idx+=1
+                        #capture interval
                         time.sleep(wait_time)
-                        backup_idx+=1
                 else:
+                    #Single capture
                     #wait
-                    wait_body(driver,timeout=wait_time)
+                    #wait_body(driver,timeout=wait_time)
+                    time.sleep(wait_time)
                     #capture
                     driver.save_screenshot(output_file)
-                driver.quit()
+                    if IsIn(capture_method,['log','screen','text']):
+                        found_words=ocr.Text(image_file=output_file)
+                        found_strings=found_space.join(found_words)
+                        if IsIn(log,['screen','log','print',print,None]):
+                            printf(found_strings,mode='s')
+                        else:
+                            printf(found_strings,log=log,mode='d')
+                        if find_string:
+                            if find_string in found_strings:
+                                driver.quit()
+                                return True
+                    driver.quit()
+                    if IsIn(capture_method,['text']):
+                        return found_strings
+                    return True
+
+            ##
+            if IsIn(capture_type,['mov','mp4']):
+                if not video_file:
+                    video_file='{}.mp4'.format('.'.join(output_file.split('.')[:-1]))
+
+            #Background running
             if daemon:
-                t=kThread(target=_capture_, args=(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon))
+                t=kThread(target=_capture_, args=(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon,video_file))
                 return t
             else:
-                _capture_(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon)
-                return True,output_file
+                #Single process running
+                rc=_capture_(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon,video_file)
+                if IsIn(capture_type,['mov','mp4']):
+                    return rc,video_file
+                else:
+                    return rc,output_file
 
         except Exception as e:
             #print(f"Error capturing screenshot: {str(e)}")
