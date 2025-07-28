@@ -3453,7 +3453,7 @@ def Upper(src,default='org'):
     if default in ['org',{'org'}]: return src
     return default
 
-def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certificate_error=False,username=None,password=None,auth_fields={'auth':{'type':'name','name':('username','password')},'submit':{'type':'submit','name':None}},next_do={},gpu=False,live_capture=0,capture_method='file',capture_type='png',video_file=None,find_string=None,found_space='\n',log=None,ocr_enhance=False,daemon=False,backup=False):
+def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate_error=False,username=None,password=None,auth_fields={'auth':{'type':'name','name':('username','password')},'submit':{'type':'submit','name':None}},next_do={},gpu=False,live_capture=0,capture_method='file',capture_type='png',video_file=None,ocr_module='easyocr',find_string=None,found_space='\n',log=None,ocr_enhance=False,daemon=False,backup=False):
     #auth_fields.submit.type : name    : login button with name 
     #                        : id      : login button with id 
     #                        : submit  : submit button without name or id
@@ -3488,11 +3488,12 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
             Import('filecmp')
             Import('shutil')
         if capture_type in ['mov','mp4']:
+            print('????load cv2')
             Import('cv2',install_name='opencv-python')
 
         ocr=None
         if capture_method != 'file':
-            ocr=OCR(enhance=ocr_enhance)
+            ocr=OCR(enhance=ocr_enhance,module=ocr_module)
         # Configure Chrome options for headless mode
         from selenium.webdriver.chrome.options import Options
         from selenium.webdriver.common.by import By
@@ -3513,6 +3514,12 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
         # Initialize the Chrome driver
         driver = selenium.webdriver.Chrome(options=chrome_options)
         if image_size.lower() in ['full','fullscreen','full_screen','auto']:
+            #original_size = driver.get_window_size()
+            #full_width = driver.execute_script("return Math.max(document.body.scrollWidth, document.body.offsetWidth, document.documentElement.clientWidth, document.documentElement.scrollWidth, document.documentElement.offsetWidth);")
+            #full_height = driver.execute_script("return Math.max(document.body.scrollHeight, document.body.offsetHeight, document.documentElement.clientHeight, document.documentElement.scrollHeight, document.documentElement.offsetHeight);")
+            #driver.set_window_size(full_width, full_height)
+            # code save screenshot
+            #driver.set_window_size(original_size['width'], original_size['height']) #restore size
             driver.maximize_window()
         rc=False,output_file
         try:
@@ -3655,10 +3662,13 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
                                 else:
                                     printf(found_strings,log=log,mode='d')
                                 if find_string:
-                                    if find_string in found_strings:
-                                        #Find exit string, So True, So True, So True, So True
-                                        driver.quit()
-                                        return True
+                                    if not isinstance(find_string,list):
+                                        find_string=[find_string]
+                                    for ff in find_string:
+                                        if ff in found_strings:
+                                            #Find exit string, So True, So True, So True, So True
+                                            driver.quit()
+                                            return True
                             backup_idx+=1
                         #capture interval
                         time.sleep(wait_time)
@@ -3712,42 +3722,92 @@ def web_capture(url,output_file,image_size='1920,1080',wait_time=3,ignore_certif
 #        return rc
 
 class OCR:
-    def __init__(self,image_file=None,enhance=False,language=['en'],gpu=False,model_storage_directory=None,**opts):
+    def __init__(self,image_file=None,enhance=False,language=['en'],gpu=False,model_storage_directory=None,ocr_module='easyocr',**opts):
         self.enhance=enhance
         self.image_file=image_file
-        Import('easyocr')
-        if self.enhance:
-            Import('PIL',install_name='Pillow')
-            Import('numpy')
-        self.reader = easyocr.Reader(language,gpu=gpu,model_storage_directory=model_storage_directory)
-        # Suppress Torch pin_memory warning
-        warnings.filterwarnings("ignore", category=UserWarning, module="torch.utils.data.dataloader")
+        self.ocr_module=ocr_module
+        self.language=language
+        self.gpu=gpu
+        self.model_storage_directory=model_storage_directory
+        if self.ocr_module == 'pytesseract':
+            Import('pytesseract')
+            Import('import numpy as np')
+            Import('cv2',install_name='opencv-python')
+        else:
+            Import('easyocr')
+            if self.enhance:
+                Import('PIL',install_name='Pillow')
+                Import('numpy')
+            self.reader = easyocr.Reader(self.language,gpu=gpu,model_storage_directory=model_storage_directory)
+            # Suppress Torch pin_memory warning
+            warnings.filterwarnings("ignore", category=UserWarning, module="torch.utils.data.dataloader")
 
-        # Suppress EasyOCR CPU warning
-        #warnings.filterwarnings("ignore", message="WARNING:easyocr.easyocr:Using CPU. Note: This module is much faster with a GPU.")
+            # Suppress EasyOCR CPU warning
+            #warnings.filterwarnings("ignore", message="WARNING:easyocr.easyocr:Using CPU. Note: This module is much faster with a GPU.")
 
-        # Suppress NetworkX backend warning
-        warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
+            # Suppress NetworkX backend warning
+            warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
 
-    def Text(self,detail=0,low_text=None,contrast_ths=None,image_file=None):
+    def Text(self,detail=0,low_text=None,contrast_ths=None,image_file=None,output=str):
         if not image_file: image_file=self.image_file
         if not image_file: return False
-        opts={}
-        opts['detail']=detail
-        if isinstance(low_text,float): opts['low_text']=low_test
-        if isinstance(contrast_ths,float): opts['contrast_ths']=contrast_ths
-        if self.enhance:
-            image = PIL.Image.open(image_file)
-            image = image.convert('L') #Grayscale
-            image = PIL.ImageEnhance.Contrast(image).enhance(3.0) #high contrast
-            image = PIL.ImageEnhance.Sharpness(image).enhance(2.0)#Sharpen
-            image = image.convert('RGB').point(lambda p: 255 if p > 140 else 0)  # Adjust threshold if needed
-#            image = image.resize((800, int(800 * image.height / image.width)), PIL.Image.Resampling.LANCZOS)
-            image.save(image_file)
-#            image_np = numpy.array(image)
-#            return self.reader.readtext(image_np,**opts)
-#        else:
-        return self.reader.readtext(image_file,**opts)
+        if not os.path.isfile(image_file): return False
+        if self.ocr_module == 'pytesseract':
+            image = cv2.imread(image_file)
+            # Convert to grayscale
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+            # Invert the image to make text black on white (Tesseract prefers this)
+            inverted = cv2.bitwise_not(gray)
+
+            # Light noise reduction with small Gaussian blur (fast)
+            blurred = cv2.GaussianBlur(inverted, (3, 3), 0)
+
+            # Optional CLAHE for contrast (comment out if too slow; it's generally fast)
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            enhanced = clahe.apply(blurred)
+
+            # Small upscale (1.5x) for better DPI without heavy computation
+            scale_factor = 1.5
+            resized = cv2.resize(enhanced, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_LINEAR)  # LINEAR is faster than CUBIC
+
+            # Adaptive thresholding for varying console text quality
+            thresh = cv2.adaptiveThreshold(resized, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+
+            # Minimal morphological cleanup (small kernel for speed)
+            kernel = np.ones((2, 2), np.uint8)
+            cleaned = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
+            lang=self.language[0] if isinstance(self.language,(list,tuple)) else self.language
+            if not lang or lang == 'en': lang='eng'
+            try:
+                text=pytesseract.image_to_string(cleaned, config=r'--oem 3 --psm 6', lang=lang).strip()
+            except:
+                text=pytesseract.image_to_string(cleaned, config=r'--oem 3 --psm 6', lang='eng').strip()
+            if output is str:
+                return text
+            else:
+                return text.split()
+        else:
+            opts={}
+            opts['detail']=detail
+            if isinstance(low_text,float): opts['low_text']=low_test
+            if isinstance(contrast_ths,float): opts['contrast_ths']=contrast_ths
+            if self.enhance:
+                image = PIL.Image.open(image_file)
+                image = image.convert('L') #Grayscale
+                image = PIL.ImageEnhance.Contrast(image).enhance(3.0) #high contrast
+                image = PIL.ImageEnhance.Sharpness(image).enhance(2.0)#Sharpen
+                image = image.convert('RGB').point(lambda p: 255 if p > 140 else 0)  # Adjust threshold if needed
+#                image = image.resize((800, int(800 * image.height / image.width)), PIL.Image.Resampling.LANCZOS)
+                image.save(image_file)
+#                image_np = numpy.array(image)
+#                return self.reader.readtext(image_np,**opts)
+#            else:
+            text=self.reader.readtext(image_file,**opts)
+            if output is str:
+                return ' '.join(text)
+            else:
+                return text
 
 ############################################
 #Temporary function map for replacement
