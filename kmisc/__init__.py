@@ -3462,12 +3462,15 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
     #                        : id      : username/password with name id
     #auth_fields.auth.name   : (usernane,password)    : username/password field string for name or id
     #next_do                 : put data and click submit
-
     _url=url.split('/')
     url=WEB().url_join(*_url[1:],method=_url[0])
     if isinstance(image_size,str):
         if 'x' in image_size:
             image_size=image_size.split('x')
+        elif 'X' in image_size:
+            image_size=image_size.split('X')
+        elif '*' in image_size:
+            image_size=image_size.split('*')
         elif ',' in image_size:
             image_size=image_size.split(',')
         elif '*' in image_size:
@@ -3477,9 +3480,10 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
     if isinstance(image_size,(list,tuple)) and len(image_size) == 2:
         image_size=','.join([str(i) for i in image_size])
     else:
-        if not IsIn(image_size,[None,'full','fullscreen','full_screen','auto']):
-            #Set it to default image size
-            image_size='1920,1080'
+        if not IsIn(image_size,['full','fullscreen','full_screen','full_size']):
+            if IsIn(image_size,[None,'auto']):
+                #Set it to default image size
+                image_size='1920,1080'
 
     if Import('import selenium'):
         return False,'Can not install selenium package'
@@ -3502,8 +3506,9 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
         chrome_options.add_argument('--headless')  # Run in headless mode
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-extensions')
 
-        if image_size.lower() not in ['full','fullscreen','full_screen','auto']:
+        if image_size.lower() not in ['full','fullscreen','full_screen','full_size']:
             chrome_options.add_argument(f"--window-size={image_size}")  # Set window size
         if not gpu:
             chrome_options.add_argument("--disable-gpu")
@@ -3512,15 +3517,18 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
             chrome_options.add_argument('--allow-insecure-localhost')  # gnore-certificate-errors
         # Initialize the Chrome driver
         driver = selenium.webdriver.Chrome(options=chrome_options)
-        if image_size.lower() in ['full','fullscreen','full_screen','auto']:
+        if image_size.lower() in ['full','fullscreen','full_screen','full_size']:
             #original_size = driver.get_window_size()
             #full_width = driver.execute_script("return Math.max(document.body.scrollWidth, document.body.offsetWidth, document.documentElement.clientWidth, document.documentElement.scrollWidth, document.documentElement.offsetWidth);")
             #full_height = driver.execute_script("return Math.max(document.body.scrollHeight, document.body.offsetHeight, document.documentElement.clientHeight, document.documentElement.scrollHeight, document.documentElement.offsetHeight);")
             #driver.set_window_size(full_width, full_height)
-            # code save screenshot
-            #driver.set_window_size(original_size['width'], original_size['height']) #restore size
             driver.maximize_window()
         rc=False,output_file
+        #Cleanup first
+        if isinstance(output_file,str) and output_file:
+            if os.path.isfile(output_file):
+                os.unlink(output_file)
+
         try:
             # Navigate to the URL
             driver.get(url)
@@ -3736,16 +3744,15 @@ class OCR:
             Import('easyocr')
             if self.enhance:
                 Import('PIL',install_name='Pillow')
-                Import('numpy')
-            self.reader = easyocr.Reader(self.language,gpu=gpu,model_storage_directory=model_storage_directory)
-            # Suppress Torch pin_memory warning
+            warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
             warnings.filterwarnings("ignore", category=UserWarning, module="torch.utils.data.dataloader")
-
             # Suppress EasyOCR CPU warning
             #warnings.filterwarnings("ignore", message="WARNING:easyocr.easyocr:Using CPU. Note: This module is much faster with a GPU.")
 
-            # Suppress NetworkX backend warning
-            warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
+            #self.reader = easyocr.Reader(self.language,gpu=gpu,model_storage_directory=model_storage_directory)
+            self.reader = easyocr.Reader(self.language, gpu=self.gpu, detector='dbnet18',
+                        model_storage_directory=self.model_storage_directory,
+                        download_enabled=False)
 
     def Text(self,detail=0,low_text=None,contrast_ths=None,image_file=None,output=str):
         if not image_file: image_file=self.image_file
@@ -3777,7 +3784,7 @@ class OCR:
             kernel = np.ones((2, 2), np.uint8)
             cleaned = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=1)
             lang=self.language[0] if isinstance(self.language,(list,tuple)) else self.language
-            if not lang or lang == 'en': lang='eng'
+            if not lang or IsIn(lang,['en','eng','english']): lang='eng'
             try:
                 text=pytesseract.image_to_string(cleaned, config=r'--oem 3 --psm 6', lang=lang).strip()
             except:
@@ -3789,6 +3796,9 @@ class OCR:
         else:
             opts={}
             opts['detail']=detail
+            opts['batch_size']=2
+            opts['contrast_ths']=0.3
+            opts['allowlist']='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:/-_@,"+'
             if isinstance(low_text,float): opts['low_text']=low_test
             if isinstance(contrast_ths,float): opts['contrast_ths']=contrast_ths
             if self.enhance:
@@ -3797,11 +3807,7 @@ class OCR:
                 image = PIL.ImageEnhance.Contrast(image).enhance(3.0) #high contrast
                 image = PIL.ImageEnhance.Sharpness(image).enhance(2.0)#Sharpen
                 image = image.convert('RGB').point(lambda p: 255 if p > 140 else 0)  # Adjust threshold if needed
-#                image = image.resize((800, int(800 * image.height / image.width)), PIL.Image.Resampling.LANCZOS)
                 image.save(image_file)
-#                image_np = numpy.array(image)
-#                return self.reader.readtext(image_np,**opts)
-#            else:
             text=self.reader.readtext(image_file,**opts)
             if output is str:
                 return ' '.join(text)
