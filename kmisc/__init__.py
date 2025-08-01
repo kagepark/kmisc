@@ -3488,7 +3488,6 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
             Import('filecmp')
             Import('shutil')
         if capture_type in ['mov','mp4']:
-            print('????load cv2')
             Import('cv2',install_name='opencv-python')
 
         ocr=None
@@ -3703,7 +3702,7 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
             #Background running
             if daemon:
                 t=kThread(target=_capture_, args=(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon,video_file))
-                return t
+                return True,t
             else:
                 #Single process running
                 rc=_capture_(live_capture,driver,output_file,wait_time,capture_method,backup,ocr,log,find_string,daemon,video_file)
