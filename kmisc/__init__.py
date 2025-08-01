@@ -3742,8 +3742,10 @@ class OCR:
             Import('cv2',install_name='opencv-python')
         else:
             Import('easyocr')
+            Import('logging')
             if self.enhance:
                 Import('PIL',install_name='Pillow')
+            logging.getLogger('easyocr').setLevel(logging.ERROR)
             warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
             warnings.filterwarnings("ignore", category=UserWarning, module="torch.utils.data.dataloader")
             # Suppress EasyOCR CPU warning
