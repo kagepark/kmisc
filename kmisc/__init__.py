@@ -3650,8 +3650,8 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
                                 if backup == 2:
                                     comp_a=f'{output_file}.0'
                                     comp_b=f'{output_file}.1'
-                                    if os.path.isfile(comp_a) and os.path.isfile(comp_b):
-                                        if filecmp.cmp(comp_a,comp_b):
+                                    if os.path.isfile(output_file) and os.path.isfile(comp_a) and os.path.isfile(comp_b):
+                                        if filecmp.cmp(comp_a,comp_b) and (filecmp.cmp(output_file,comp_a) or filecmp.cmp(output_file,comp_b)):
                                             if log:
                                                 if IsIn(log,['screen','log','print',print]):
                                                     printf(Dot(),direct=True)
@@ -3743,8 +3743,6 @@ class OCR:
         else:
             Import('easyocr')
             Import('logging')
-            if self.enhance:
-                Import('PIL',install_name='Pillow')
             logging.getLogger('easyocr').setLevel(logging.ERROR)
             warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
             warnings.filterwarnings("ignore", category=UserWarning, module="torch.utils.data.dataloader")
@@ -3756,10 +3754,20 @@ class OCR:
                         model_storage_directory=self.model_storage_directory,
                         download_enabled=False)
 
-    def Text(self,detail=0,low_text=None,contrast_ths=None,image_file=None,output=str):
+    def Text(self,detail=0,low_text=None,contrast_ths=None,image_file=None,output=str,enhance=None):
         if not image_file: image_file=self.image_file
         if not image_file: return False
         if not os.path.isfile(image_file): return False
+        if enhance is None:
+            enhance=self.enhance
+        if enhance:
+            Import('PIL',install_name='Pillow')
+            image = PIL.Image.open(image_file)
+            image = image.convert('L') #Grayscale
+            image = PIL.ImageEnhance.Contrast(image).enhance(3.0) #high contrast
+            image = PIL.ImageEnhance.Sharpness(image).enhance(2.0)#Sharpen
+            image = image.convert('RGB').point(lambda p: 255 if p > 140 else 0)  # Adjust threshold if needed
+            image.save(image_file)
         if self.ocr_module == 'pytesseract':
             image = cv2.imread(image_file)
             # Convert to grayscale
@@ -3803,13 +3811,6 @@ class OCR:
             opts['allowlist']='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:/-_@,"+'
             if isinstance(low_text,float): opts['low_text']=low_test
             if isinstance(contrast_ths,float): opts['contrast_ths']=contrast_ths
-            if self.enhance:
-                image = PIL.Image.open(image_file)
-                image = image.convert('L') #Grayscale
-                image = PIL.ImageEnhance.Contrast(image).enhance(3.0) #high contrast
-                image = PIL.ImageEnhance.Sharpness(image).enhance(2.0)#Sharpen
-                image = image.convert('RGB').point(lambda p: 255 if p > 140 else 0)  # Adjust threshold if needed
-                image.save(image_file)
             text=self.reader.readtext(image_file,**opts)
             if output is str:
                 return ' '.join(text)
