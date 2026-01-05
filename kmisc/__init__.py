@@ -18,11 +18,11 @@ import string
 import socket
 import pickle
 import base64
-import hashlib
 import fnmatch
 import smtplib
 import zipfile
 import tarfile
+import filecmp
 import warnings
 import email.utils
 from sys import modules
@@ -186,6 +186,9 @@ def Abs(*inps,**opts):
     return default
 
 def Delete(*inps,**opts):
+    default=opts.get('default',None)
+    _type=opts.get('type','index')
+
     if len(inps) >= 2:
         obj=inps[0]
         keys=inps[1:]
@@ -196,8 +199,8 @@ def Delete(*inps,**opts):
             keys=tuple(keys)
         elif not IsNone(keys):
             keys=(keys,)
-    default=opts.get('default',None)
-    _type=opts.get('type','index')
+    else:
+        return default
 
     if isinstance(obj,(list,tuple)):
         nobj=len(obj)
@@ -393,13 +396,28 @@ class FILE:
         if aa: return aa.split()[0].lower()
         return 'unknown'
 
+    def MkInfo(self,rt,filename=None,**opts):
+        #if not isinstance(rt,dict) or not isinstance(filename,str): return default
+        if ' i ' not in rt: rt[' i ']={}
+        if filename:
+            state=os.stat(filename)
+            rt[' i ']['exist']=True
+            rt[' i ']['size']=state.st_size
+            rt[' i ']['mode']=oct(state.st_mode)[-4:]
+            rt[' i ']['atime']=state.st_atime
+            rt[' i ']['mtime']=state.st_mtime
+            rt[' i ']['ctime']=state.st_ctime
+            rt[' i ']['gid']=state.st_gid
+            rt[' i ']['uid']=state.st_uid
+        if opts: rt[' i '].update(opts)
+
     def GetInfo(self,path=None,*inps):
         if isinstance(path,str):
             if not self.info and os.path.exists(path):
                 data={}
                 self.MkInfo(data,path)
             else:
-                data=self.CdPath(path)
+                data=self.CdPath(self.info,path)
             if isinstance(data,dict):
                 if not inps and ' i ' in data: return data[' i ']
                 rt=[]
@@ -414,21 +432,6 @@ class FILE:
         link2file=opts.get('link2file',False)
         base={}
 
-        def MkInfo(rt,filename=None,**opts):
-            #if not isinstance(rt,dict) or not isinstance(filename,str): return default
-            if ' i ' not in rt: rt[' i ']={}
-            if filename:
-                state=os.stat(filename)
-                rt[' i ']['exist']=True
-                rt[' i ']['size']=state.st_size
-                rt[' i ']['mode']=oct(state.st_mode)[-4:]
-                rt[' i ']['atime']=state.st_atime
-                rt[' i ']['mtime']=state.st_mtime
-                rt[' i ']['ctime']=state.st_ctime
-                rt[' i ']['gid']=state.st_gid
-                rt[' i ']['uid']=state.st_uid
-            if opts: rt[' i '].update(opts)
-
         def MkPath(base,path,root_path):
             rt=base
             chk_dir='{}'.format(root_path)
@@ -437,7 +440,7 @@ class FILE:
                     chk_dir=Path(chk_dir,ii)
                     if ii not in rt:
                         rt[ii]={}
-                        if os.path.isdir(chk_dir): MkInfo(rt[ii],chk_dir,type='dir')
+                        if os.path.isdir(chk_dir): self.MkInfo(rt[ii],chk_dir,type='dir')
                     rt=rt[ii]
             return rt
 
@@ -455,11 +458,11 @@ class FILE:
                                 if filedata[0]:
                                     if data: rt['data']=filedata[1]
                                     if md5sum: _md5=md5(filedata[1])
-                            MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
+                            self.MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
                     else:
-                        MkInfo(rt,filename=tfilename,type='link',dest=os.readlink(tfilename))
+                        self.MkInfo(rt,filename=tfilename,type='link',dest=os.readlink(tfilename))
                 elif os.path.isdir(tfilename): # it is a directory
-                    MkInfo(rt,tfilename,type='dir')
+                    self.MkInfo(rt,tfilename,type='dir')
                 elif os.path.isfile(tfilename): # it is a File
                     name,ext=self.FileName(tfilename)
                     _md5=None
@@ -468,9 +471,9 @@ class FILE:
                         if filedata[0]:
                             if data: rt['data']=filedata[1]
                             if md5sum: _md5=md5(filedata[1])
-                    MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
+                    self.MkInfo(rt,filename=tfilename,type=self.FileType(tfilename),name=name,ext=ext,md5=_md5)
             else:
-                MkInfo(rt,filename,exist=False)
+                self.MkInfo(rt,filename,exist=False)
         if base:
             return {root_path:base}
         return {}
@@ -529,7 +532,7 @@ class FILE:
             if self.Extract(filename,work_path=work_path):
                 if bin_name:
                     rt=[]
-                    for ff in self.Find(work_path,filename=bin_name):
+                    for ff in self.Find(work_path,bin_name):
                         if self.Info(ff).get('mode') == 33261:
                             rt.append(ff)
                     return rt
@@ -1149,27 +1152,6 @@ class LOG:
                     m_str='{0}{1}{2}{3}{4}'.format(m_str,start_new_line,intro_space,nn,end_new_line)
             return m_str
 
-    def Syslogd(self,*msg,**opts):
-        syslogd=opts.get('syslogd',None)
-        if syslogd:
-            #syslog_msg=' '.join(msg)
-            syslog_msg=Join(msg,symbol=' ')
-            if syslogd in ['INFO','info']:
-                syslog.syslog(syslog.LOG_INFO,syslog_msg)
-            elif syslogd in ['KERN','kern']:
-                syslog.syslog(syslog.LOG_KERN,syslog_msg)
-            elif syslogd in ['ERR','err']:
-                syslog.syslog(syslog.LOG_ERR,syslog_msg)
-            elif syslogd in ['CRIT','crit']:
-                syslog.syslog(syslog.LOG_CRIT,syslog_msg)
-            elif syslogd in ['WARN','warn']:
-                syslog.syslog(syslog.LOG_WARNING,syslog_msg)
-            elif syslogd in ['DBG','DEBUG','dbg','debug']:
-                syslog.syslog(syslog.LOG_DEBUG,syslog_msg)
-            else:
-                syslog.syslog(syslog_msg)
-
-
     def File(self,log_str,log_level,special_file=None):
         log_file=None
         if os.path.isdir(self.path):
@@ -1210,7 +1192,7 @@ class LOG:
         syslogd=opts.get('syslogd',None)
         if msg:
             # send log at syslogd
-            self.Syslogd(*msg,syslogd=syslogd)
+            #self.Syslogd(*msg,syslogd=syslogd)
 
             #if date_format in [False,None,'','no','ignore']:
             if IsNone(date_format,chk_val=[False,None,'','no','ignore']):
@@ -1218,7 +1200,6 @@ class LOG:
             if IsNone(func_name,chk_val=[False,None,'','no','ignore']):
                 func_name=None
             if direct:
-                #log_str=' '.join(msg)
                 log_str=Join(msg,symbol=' ')
             else:
                 log_str=self.Format(*msg,func_name=func_name,date_format=date_format,end_new_line=end_new_line,start_new_line=start_new_line)
@@ -1238,6 +1219,7 @@ class LOG:
     def Function(self,*msg,**opts):
         if type(self.log_file).__name__ == 'function': 
             log_func_arg=FunctionArgs(self.log_file,mode='all')
+            log_str=Join(msg,symbol=' ')
             if 'args' in log_func_arg or 'varargs' in log_func_arg:
                 log_p=True
                 args=log_func_arg.get('args',[])
@@ -1248,30 +1230,30 @@ class LOG:
                     if 'direct' in args:
                         didx=args.index('direct')
                         del tmp[didx]
-                        args[didx]=direct
+                        args[didx]=args.get('direct')
                     if 'log_level' in args:
                         lidx=args.index('log_level')
                         del tmp[lidx]
-                        args[lidx]=log_level
+                        args[lidx]=args.get('log_level')
                     if 'func_name' in args:
                         lidx=args.index('func_name')
                         del tmp[lidx]
-                        args[lidx]=func_name
+                        args[lidx]=args.get('func_name')
                     if 'date_format' in args:
                         lidx=args.index('date_format')
                         del tmp[lidx]
-                        args[lidx]=date_format
+                        args[lidx]=args.get('date_format')
                     args[tmp[0]]=log_str
                     self.log_file(*args)
                 elif 'keywards' in log_func_arg:
-                    self.log_file(log_str,direct=direct,log_level=log_level,func_name=func_name,date_format=date_format)
+                    self.log_file(log_str,direct=opts.get('direct'),log_level=opts.get('log_level'),func_name=opts.get('func_name'),date_format=opts.get('date_format'))
                 elif 'defaults' in log_func_arg:
                     if 'direct' in log_func_arg['defaults'] and 'log_level' in log_func_arg['defaults']:
-                        self.log_file(log_str,direct=direct,log_level=log_level)
+                        self.log_file(log_str,direct=log_func_arg['defaults'].get('direct'),log_level=log_func_arg['defaults'].get('log_level'))
                     elif 'log_level' in log_func_arg['defaults']:
-                        self.log_file(log_str,log_level=log_level)
+                        self.log_file(log_str,log_level=log_func_arg['defaults'].get('log_level'))
                     elif 'direct' in log_func_arg['defaults']:
-                        self.log_file(log_str,direct=direct)
+                        self.log_file(log_str,direct=log_func_arg['defaults'].get('direct'))
                     else:
                         self.log_file(log_str)
                 else:
@@ -1475,7 +1457,7 @@ class COLOR:
     def String(self,msg,color,bg=False,attr=False,mode='shell'):
        if mode in ['html','HTML']:
            if bg:
-               return '''<p style="background-color: {}">{}</p>'''.format(format(color,msg))
+               return '''<p style="background-color: {}">{}</p>'''.format(color,msg)
            else:
                return '''<font color={}>{}</font>'''.format(color,msg)
        else:
@@ -1612,12 +1594,15 @@ class EMAIL:
         return _body.as_string()
 
     def Server(self):
+        if not self.user:
+            print('It required mail server({}) login with username. But missing username')
+            return False
+
         if self.ssl:
             if not self.password:
                 print('It required mail server({}) login password'.format(self.server))
                 return False
             context = ssl.create_default_context()
-            if IsNone(self.user): self.user=sender
             try:
                 server=smtplib.SMTP_SSL(self.server,self.port,context=context)
             except:
@@ -1643,7 +1628,6 @@ class EMAIL:
                     server.starttls(context=context)
                 else:
                     server.starttls()
-                if IsNone(self.user): self.user=sender
                 server.login(self.user, self.password)
         return server
 
@@ -1895,19 +1879,6 @@ def DirName(src,default=None):
     if dirname == '': return '.'
     return dirname
 
-def Args2Str(args,default='org'):
-    if isinstance(args,(tuple,list)):
-        args=list(args)
-        for i in range(0,len(args)):
-            if "'" in args[i]:
-                args[i]='''"{}"'''.format(args[i])
-            elif '"' in args[i]:
-                args[i]="""'{}'""".format(args[i])
-            elif ' ' in args[i]:
-                args[i]='''"{}"'''.format(args[i])
-        return ' '.join(args)
-    return args
-
 def check_value(src,find,idx=None):
     '''Check key or value in the dict, list or tuple then True, not then False'''
     if isinstance(src, (list,tuple,str,dict)):
@@ -1933,7 +1904,7 @@ def Keys(src,find=None,start=None,end=None,sym='\n',default=[],word=False,patter
         if isinstance(src,str): src=src.split(sym)
 
         for row in range(0,len(src)):
-            for ff in FIND().Find(find,src=src[row],pattern=pattern,word=word,findall=findall,default=[],out=list):
+            for ff in FIND().Find(find,src=src[row],word=word,findall=findall,default=[],out=list):
                 if findall:
                     rt=rt+[(row,[m.start() for m in re.finditer(ff,src[row])])]
                 else:
@@ -2211,53 +2182,54 @@ def findPlanCfg(filename,find_name=None,default=False,original=False,date=None):
     return data
 
 
-def Compress(data,mode='lz4'):
-    if mode == 'lz4':
-        Import('from lz4 import frame')
-        return frame.compress(data)
-    elif mode == 'bz2':
-        Import('import bz2')
-        return bz2.compress(data)
+#def Compress(data,mode='lz4'):
+#    if mode == 'lz4':
+#        Import('from lz4 import frame')
+#        return frame.compress(data)
+#    elif mode == 'bz2':
+#        Import('import bz2')
+#        return bz2.compress(data)
 
-def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={}):
-    def FileName(filename):
-        if isinstance(filename,str):
-            filename_info=os.path.basename(filename).split('.')
-            if 'tar' in filename_info:
-                idx=filename_info.index('tar')
-            else:
-                idx=-1
-            #return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
-            return Join(filename_info[:idx],symbol='.'),Join(filename_info[idx:],symbol='.')
-        return None,None
-
-    def FileType(filename,default=False):
-        if not isinstance(filename,str) or not os.path.isfile(filename): return default
-        Import('import magic',install_name='python-magic')
-        aa=magic.from_buffer(open(filename,'rb').read(2048))
-        if aa: return aa.split()[0].lower()
-        return 'unknown'
-
-    if mode == 'lz4':
-        Import('from lz4 import frame')
-        return frame.decompress(data)
-    elif mode == 'bz2':
-        Import('import bz2')
-        return bz2.BZ2Decompressor().decompress(data)
-    elif mode == 'file' and isinstance(data,str) and os.path.isfile(data):
-        filename,fileextfile_info=FileName(data)
-        filetype=FileType(data)
-        if filetype and fileext:
-            # Tar stuff
-            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
-                tf=tarfile.open(data)
-                tf.extractall(work_path)
-                tf.close()
-            elif fileext in ['zip'] and filetype in ['compress']:
-                with zipfile.ZipFile(data,'r') as zf:
-                    zf.extractall(work_path)
-            if del_org_file: os.unline(data)
-            return True
+#def Decompress(data,mode='lz4',work_path='/tmp',del_org_file=False,file_info={}):
+#    def FileName(filename):
+#        #return Filename, FileExt
+#        if isinstance(filename,str):
+#            filename_info=os.path.basename(filename).split('.')
+#            if 'tar' in filename_info:
+#                idx=filename_info.index('tar')
+#            else:
+#                idx=-1
+#            #return '.'.join(filename_info[:idx]),'.'.join(filename_info[idx:])
+#            return Join(filename_info[:idx],symbol='.'),Join(filename_info[idx:],symbol='.')
+#        return None,None
+# 
+#    def FileType(filename,default=False):
+#        if not isinstance(filename,str) or not os.path.isfile(filename): return default
+#        Import('import magic',install_name='python-magic')
+#        aa=magic.from_buffer(open(filename,'rb').read(2048))
+#        if aa: return aa.split()[0].lower()
+#        return 'unknown'
+# 
+#    if mode == 'lz4':
+#        Import('from lz4 import frame')
+#        return frame.decompress(data)
+#    elif mode == 'bz2':
+#        Import('import bz2')
+#        return bz2.BZ2Decompressor().decompress(data)
+#    elif mode == 'file' and isinstance(data,str) and os.path.isfile(data):
+#        filename,fileext=FileName(data)
+#        filetype=FileType(data)
+#        if filetype and fileext:
+#            # Tar stuff
+#            if fileext in ['tgz','tar','tar.gz','tar.bz2','tar.xz'] and filetype in ['gzip','tar','bzip2','lzma','xz','bz2']:
+#                tf=tarfile.open(data)
+#                tf.extractall(work_path)
+#                tf.close()
+#            elif fileext in ['zip'] and filetype in ['compress']:
+#                with zipfile.ZipFile(data,'r') as zf:
+#                    zf.extractall(work_path)
+#            if del_org_file: os.unlink(data)
+#            return True
 
 def append(src,addendum):
     type_src=type(src)
@@ -2488,9 +2460,6 @@ def log_format(*msg,**opts):
             else:
                 m_str='{0}{1}{2}{3}{4}'.format(start_new_line,m_str,intro_space,m,end_new_line)
         return m_str
-
-def md5(string):
-    return hashlib.md5(Bytes(string)).hexdigest()
 
 def ipmi_cmd(cmd,ipmi_ip=None,ipmi_user='ADMIN',ipmi_pass='ADMIN',log=None):
     if IsNone(ipmi_ip):
@@ -2792,6 +2761,18 @@ def net_get_socket(host,port,timeout=3,dbg=6,SSLC=False,log=None,err_scr=True): 
             printf(_e_,log=log,log_level=dbg,dsp='e' if err_scr else 'd')
     return [False,_e_]
 
+def ssl_wrap(conn, certfile, keyfile=None):
+    """
+    convert soeket to SSL
+    """
+    if keyfile is None:
+        keyfile = certfile  
+
+    context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    context.load_cert_chain(certfile=certfile, keyfile=keyfile) 
+    ssl_conn = context.wrap_socket(conn, server_side=True)
+    return ssl_conn
+
 def net_start_server(server_port,main_func_name,server_ip='',timeout=0,max_connection=10,log_file=None,certfile=None,keyfile=None,log=None,err_scr=True):
     ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     ssoc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -2894,7 +2875,7 @@ def kmp(mp={},func=None,name=None,timeout=0,quit=False,log_file=None,log_screen=
                         LLOG('\nterminate function {}'.format(n))
                         if terminate_process(mp[n]):
                             del mp[n]
-        elif isinstance(mp[k],list):
+        elif isinstance(mp[n],list):
             for mm in mp[n]:
                 if not isinstance(mm,dict): continue
                 timeout=mm.get('timeout',0)
@@ -3251,55 +3232,55 @@ def gen_random_string(length=8,letter='*',digits=True,symbols=True,custom=''):
     if symbols:mode=mode+'char'
     return Random(length=length,strs=custom,mode=mode,letter=letter)
 
-def TypeData(src,default='org',want_type=None,spliter=None):
-    '''Convert (input)data to want type (ex: str -> list, int, ...), can not convert to type then return False'''
-    if want_type is str and spliter and isinstance(src,(list,tuple)):
-        return spliter.join(src)
-    elif want_type is str and not isinstance(src,str):
-        return '''{}'''.format(src)
-    elif want_type is int and not isinstance(src,int):
-        try:
-            return int(src)
-        except:
-            if default in ['org',{'org'}]: return src
-            return default
-    elif want_type in [list,tuple] and isinstance(src,str) and isinstance(spliter,str):
-        if want_type is tuple:
-            return tuple(src.split(spliter))
-        return src.split(spliter)
-    elif want_type is tuple and isinstance(src,(list,dict)):
-        if isinstance(src,dict):
-            if spliter == 'key':
-                return tuple(src.keys())
-            elif spliter == 'value':
-                return tuple(src.values())
-            else:
-                return tuple(src.items())
-        return tuple(src)
-    elif want_type is list and isinstance(src,(tuple,dict)):
-        if isinstance(src,dict):
-            if spliter == 'key':
-                return list(src.keys())
-            elif spliter == 'value':
-                return list(src.values())
-            else:
-                return list(src.items())
-        return list(src)
-    elif want_type:
-        if isinstance(src,want_type):
-            return src
-    if isinstance(src,str):
-        try:
-            return ast.literal_eval(src)
-        except:
-            try:
-                return json.loads(src)
-            except:
-                pass
-    if default in ['org',{'org'}]: return src
-    return default
+#def TypeData(src,default='org',want_type=None,spliter=None):
+#    '''Convert (input)data to want type (ex: str -> list, int, ...), can not convert to type then return False'''
+#    if want_type is str and spliter and isinstance(src,(list,tuple)):
+#        return spliter.join(src)
+#    elif want_type is str and not isinstance(src,str):
+#        return '''{}'''.format(src)
+#    elif want_type is int and not isinstance(src,int):
+#        try:
+#            return int(src)
+#        except:
+#            if default in ['org',{'org'}]: return src
+#            return default
+#    elif want_type in [list,tuple] and isinstance(src,str) and isinstance(spliter,str):
+#        if want_type is tuple:
+#            return tuple(src.split(spliter))
+#        return src.split(spliter)
+#    elif want_type is tuple and isinstance(src,(list,dict)):
+#        if isinstance(src,dict):
+#            if spliter == 'key':
+#                return tuple(src.keys())
+#            elif spliter == 'value':
+#                return tuple(src.values())
+#            else:
+#                return tuple(src.items())
+#        return tuple(src)
+#    elif want_type is list and isinstance(src,(tuple,dict)):
+#        if isinstance(src,dict):
+#            if spliter == 'key':
+#                return list(src.keys())
+#            elif spliter == 'value':
+#                return list(src.values())
+#            else:
+#                return list(src.items())
+#        return list(src)
+#    elif want_type:
+#        if isinstance(src,want_type):
+#            return src
+#    if isinstance(src,str):
+#        try:
+#            return ast.literal_eval(src)
+#        except:
+#            try:
+#                return json.loads(src)
+#            except:
+#                pass
+#    if default in ['org',{'org'}]: return src
+#    return default
 
-def sizeConvert(sz=None,unit='b:g'):
+def sizeConvert(sz=None,unit='b:g',default=False):
     try:
         sz=int(sz)
     except:
@@ -3409,10 +3390,10 @@ def str_format_print(string,rc=False):
         print(rc_str)
 
 def reduce_string(string,symbol=' ',snum=0,enum=None):
-    string_a=Cut(string,symbol=symbol,out=list)
+    string_a=Split(string,symbol=symbol)
     sidx=FixIndex(string_a,snum)
     eidx=FixIndex(string_a,enum if isinstance(enum,int) else len(string_a))
-    return Join(string_a[sidx:edix],' ')
+    return Join(string_a[sidx:eidx],' ')
 
 def sreplace(pattern,sub,string):
     return re.sub('^%s' % pattern, sub, string)
@@ -3489,7 +3470,6 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
         return False,'Can not install selenium package'
     else:
         if backup:
-            Import('filecmp')
             Import('shutil')
         if capture_type in ['mov','mp4']:
             Import('cv2',install_name='opencv-python')
@@ -3650,8 +3630,8 @@ def web_capture(url,output_file,image_size='full',wait_time=3,ignore_certificate
                                 if backup == 2:
                                     comp_a=f'{output_file}.0'
                                     comp_b=f'{output_file}.1'
-                                    if os.path.isfile(output_file) and os.path.isfile(comp_a) and os.path.isfile(comp_b):
-                                        if filecmp.cmp(comp_a,comp_b) and (filecmp.cmp(output_file,comp_a) or filecmp.cmp(output_file,comp_b)):
+                                    if os.path.isfile(comp_a) and os.path.isfile(comp_b):
+                                        if filecmp.cmp(comp_a,comp_b):
                                             if log:
                                                 if IsIn(log,['screen','log','print',print]):
                                                     printf(Dot(),direct=True)
@@ -3742,8 +3722,8 @@ class OCR:
             Import('cv2',install_name='opencv-python')
         else:
             Import('easyocr')
-            Import('logging')
-            logging.getLogger('easyocr').setLevel(logging.ERROR)
+            Import('logging as logd')
+            logd.getLogger('easyocr').setLevel(logd.ERROR)
             warnings.filterwarnings("ignore", category=RuntimeWarning, module="networkx.utils.backends")
             warnings.filterwarnings("ignore", category=UserWarning, module="torch.utils.data.dataloader")
             # Suppress EasyOCR CPU warning
@@ -3809,7 +3789,7 @@ class OCR:
             opts['batch_size']=2
             opts['contrast_ths']=0.3
             opts['allowlist']='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.:/-_@,"+'
-            if isinstance(low_text,float): opts['low_text']=low_test
+            if isinstance(low_text,float): opts['low_text']=low_text
             if isinstance(contrast_ths,float): opts['contrast_ths']=contrast_ths
             text=self.reader.readtext(image_file,**opts)
             if output is str:
